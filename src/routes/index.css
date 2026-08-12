@@ -1,0 +1,11 @@
+@import url('@xyflow/svelte/dist/style.css');
+/* we put the theme css at the end to override some of the default css variables and styles */
+@import url('./xy-theme.css');
+
+html,
+body {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	font-family: sans-serif;
+}
