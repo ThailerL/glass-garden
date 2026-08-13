@@ -31,7 +31,6 @@
         "eslint-plugin-svelte": "^3.19.0",
         "formsnap": "^2.0.1",
         "globals": "^17.6.0",
-        "json-schema-to-ts": "^3.1.1",
         "mode-watcher": "^1.1.0",
         "prettier": "^3.8.3",
         "prettier-plugin-svelte": "^4.1.0",
@@ -47,10 +46,7 @@
         "typescript": "^6.0.3",
         "typescript-eslint": "^8.60.1",
         "uuid": "^14.0.1",
-        "vite": "^8.0.16"
-    },
-    "dependencies": {
-        "json-schema-library": "^11.6.2",
+        "vite": "^8.0.16",
         "zod": "^4.4.3"
     }
 }

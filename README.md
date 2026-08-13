@@ -1,32 +1,17 @@
-# sv
-
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
-
-```sh
-# recreate this project
-npx sv@0.17.0 create --template minimal --types ts --add prettier eslint tailwindcss="plugins:none" --install npm infralab
-```
+# InfraLab
 
 ## Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+```sh
+git clone https://github.com/ThailerL/infralab.git
+docker compose up
+```
+
+Since this project uses docker, you can use the build script to commands in the build environment. For example:
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+./build.sh npm install
+./build.sh npx shadcn-svelte@latest add label
 ```
 
 ## Building
