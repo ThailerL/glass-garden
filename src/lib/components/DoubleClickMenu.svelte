@@ -5,7 +5,7 @@
 	import * as Form from '$lib/components/ui/form';
 	import { defaultNodeData } from '$lib/schemas';
 
-	let { data, id, children, form, node } = $props();
+	let { data, id, children, form, node, onMenuOpen = () => {}, onSave = () => {} } = $props();
 	const { updateNodeData, getNode } = useSvelteFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
 	const { form: formData, validateForm, errors, enhance } = form;
@@ -14,6 +14,7 @@
 	function openMenu() {
 		form.reset({ data, newState: data });
 		isOpen = true;
+		onMenuOpen();
 	}
 
 	async function handleSubmit(event: Event) {
@@ -33,7 +34,8 @@
 
 		isOpen = false;
 		updateNodeData(id, $formData);
-		updateNodeInternals();
+		onSave();
+		updateNodeInternals(id);
 	}
 </script>
 

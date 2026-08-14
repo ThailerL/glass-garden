@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
+	import { Handle, Position, useEdges, type Edge, type NodeProps } from '@xyflow/svelte';
 	import { superForm, defaults } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import * as Form from '$lib/components/ui/form';
@@ -9,6 +9,7 @@
 	import { v4 as uuidv4 } from 'uuid';
 
 	let { data, id }: NodeProps = $props();
+	const edges = useEdges();
 
 	const form = superForm(defaults(zod4(schemas.loadBalancer)), {
 		SPA: true,
@@ -18,14 +19,30 @@
 	});
 	const { form: formData } = form;
 
+	let deletedTargetGroupIds: string[] = [];
+
 	function removeTargetGroup(index: number) {
+		// Source handles have the same ID as the target group they are associated with
+		deletedTargetGroupIds.push($formData.targetGroups[index].id);
 		$formData.targetGroups = $formData.targetGroups.filter((_, i) => i !== index);
 	}
+
 	function addTargetGroup() {
 		$formData.targetGroups = [
 			...$formData.targetGroups,
 			{ id: uuidv4(), name: 'Target Group', weight: 1 }
 		];
+	}
+
+	function resetDeletedTargetGroupIds() {
+		deletedTargetGroupIds = [];
+	}
+
+	function deleteEdgesAssociatedWithDeletedTargetGroups() {
+		for (const targetGroupId of deletedTargetGroupIds) {
+			// Target groups have the same ID as the handle they live on
+			edges.set(edges.current.filter((edge) => edge.sourceHandle !== targetGroupId));
+		}
 	}
 </script>
 
@@ -46,7 +63,14 @@
 	{/each}
 {/snippet}
 
-<DoubleClickMenu {data} {id} {form} {node}>
+<DoubleClickMenu
+	{data}
+	{id}
+	{form}
+	{node}
+	onMenuOpen={resetDeletedTargetGroupIds}
+	onSave={deleteEdgesAssociatedWithDeletedTargetGroups}
+>
 	<Form.Field {form} name="name">
 		<Form.Control>
 			{#snippet children({ props })}
