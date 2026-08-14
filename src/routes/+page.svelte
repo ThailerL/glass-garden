@@ -4,10 +4,13 @@
 
 	import App from './App.svelte';
 	import DnDProvider from '$lib/components/DnDProvider.svelte';
+	import * as Sidebar from '$lib/components/ui/sidebar';
 </script>
 
 <SvelteFlowProvider>
 	<DnDProvider>
-		<App />
+		<Sidebar.Provider>
+			<App />
+		</Sidebar.Provider>
 	</DnDProvider>
 </SvelteFlowProvider>

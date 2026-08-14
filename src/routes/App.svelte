@@ -5,16 +5,21 @@
 		Background,
 		MarkerType,
 		useSvelteFlow,
-		type Node
+		type Node,
+		useOnSelectionChange,
+		type Edge
 	} from '@xyflow/svelte';
 	import { v4 as uuidv4 } from 'uuid';
-	import * as Sidebar from '$lib/components/ui/sidebar';
-	import AppSidebar from '$lib/components/AppSidebar.svelte';
+	import ComponentSidebar from '$lib/components/ComponentSidebar.svelte';
 	import LoadBalancerNode from '$lib/components/nodes/LoadBalancerNode.svelte';
 	import FunctionNode from '$lib/components/nodes/FunctionNode.svelte';
 	import ServiceNode from '$lib/components/nodes/ServiceNode.svelte';
+	import FunctionSettings from '$lib/components/settings/FunctionSettings.svelte';
+	import LoadBalancerSettings from '$lib/components/settings/LoadBalancerSettings.svelte';
+	import ServiceSettings from '$lib/components/settings/ServiceSettings.svelte';
 	import { useDnD } from '$lib/components/DnDProvider.svelte';
 	import { defaultNodeData } from '$lib/schemas';
+	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 
 	const nodeTypes = {
 		loadBalancer: LoadBalancerNode,
@@ -22,11 +27,24 @@
 		service: ServiceNode
 	};
 
+	const settingsTypes = {
+		loadBalancer: LoadBalancerSettings,
+		function: FunctionSettings,
+		service: ServiceSettings
+	};
+
 	let nodes = $state.raw([
 		{ id: uuidv4(), position: { x: 0, y: 0 }, type: 'function', data: defaultNodeData.function }
 	]);
-
 	let edges = $state.raw([]);
+
+	let selectedNodes: Node[] = $state.raw([]);
+	let selectedEdges: Edge[] = $state.raw([]);
+
+	useOnSelectionChange(({ nodes, edges }) => {
+		selectedNodes = nodes;
+		selectedEdges = edges;
+	});
 
 	const { screenToFlowPosition } = useSvelteFlow();
 
@@ -64,21 +82,27 @@
 	};
 </script>
 
-<Sidebar.Provider>
-	<AppSidebar />
-	<div style:width="100vw" style:height="100vh">
-		<SvelteFlow
-			bind:nodes
-			bind:edges
-			{nodeTypes}
-			ondragover={onDragOver}
-			ondrop={onDrop}
-			defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-			fitView
-			colorMode="system"
-		>
-			<Controls />
-			<Background />
-		</SvelteFlow>
-	</div>
-</Sidebar.Provider>
+<ComponentSidebar />
+<div style:width="100vw" style:height="100vh">
+	<SvelteFlow
+		bind:nodes
+		bind:edges
+		{nodeTypes}
+		ondragover={onDragOver}
+		ondrop={onDrop}
+		defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+		fitView
+		colorMode="system"
+	>
+		<Controls />
+		<Background />
+	</SvelteFlow>
+</div>
+{#if selectedNodes.length == 1 && selectedEdges.length == 0}
+	{#key selectedNodes[0].id}
+		<InspectorSidebar
+			node={selectedNodes[0]}
+			InspectorComponent={settingsTypes[selectedNodes[0].type]}
+		/>
+	{/key}
+{/if}

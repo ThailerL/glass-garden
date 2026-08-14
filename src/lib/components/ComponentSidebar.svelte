@@ -1,14 +1,14 @@
 <script lang="ts">
-	import SquareFunction from '@lucide/svelte/icons/square-function';
+	import SquareFunctionIcon from '@lucide/svelte/icons/square-function';
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import ScaleIcon from '@lucide/svelte/icons/scale';
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { useDnD } from './DnDProvider.svelte';
 
 	const items = [
 		{
 			title: 'Function',
-			icon: SquareFunction,
+			icon: SquareFunctionIcon,
 			nodeType: 'function'
 		},
 		{
@@ -37,9 +37,9 @@
 </script>
 
 <Sidebar.Root>
+	<Sidebar.Header>Components</Sidebar.Header>
 	<Sidebar.Content>
 		<Sidebar.Group>
-			<Sidebar.GroupLabel>Components</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each items as item (item.title)}
