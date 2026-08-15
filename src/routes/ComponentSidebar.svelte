@@ -37,9 +37,9 @@
 </script>
 
 <Sidebar.Root>
-	<Sidebar.Header>Components</Sidebar.Header>
 	<Sidebar.Content>
 		<Sidebar.Group>
+			<Sidebar.GroupLabel>Components</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each items as item (item.title)}

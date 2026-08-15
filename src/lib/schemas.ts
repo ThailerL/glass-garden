@@ -6,36 +6,38 @@ export const schemas = {
 		name: z.string().min(1).default('Service'),
 		runtime: z.enum(['node.js']).default('node.js'),
 		files: z.unknown().default({
-			'index.js': {
-				file: {
-					contents: `
-            import express from 'express';
-            const app = express();
-            const port = 3000;
+			src: {
+				directory: {
+					'index.js': {
+						file: {
+							contents: `import express from 'express';
+const app = express();
+const port = 3000;
 
-            app.get('/', (req, res) => {
-              res.send('Hello World');
-            });
+app.get('/', (req, res) => {
+  res.send('Hello World');
+});
 
-            app.listen(port, () => {
-              console.log(\`Server running on http://localhost:\${port}\`);
-            });`
+app.listen(port, () => {
+  console.log(\`Server running on http://localhost:\${port}\`);
+});`
+						}
+					}
 				}
 			},
 			'package.json': {
 				file: {
-					contents: `
-            {
-              "name": "hello-world",
-              "type": "module",
-              "dependencies": {
-                "express": "latest",
-                "nodemon": "latest"
-              },
-              "scripts": {
-                "start": "nodemon index.js"
-              }
-            }`
+					contents: `{
+  "name": "hello-world",
+  "type": "module",
+  "dependencies": {
+    "express": "latest",
+    "nodemon": "latest"
+  },
+  "scripts": {
+    "start": "nodemon src/index.js"
+  }
+}`
 				}
 			}
 		} satisfies FileSystemTree)

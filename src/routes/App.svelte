@@ -113,8 +113,8 @@
 		setEdgeInLocalStorage(
 			edges.find(
 				(edge) =>
-					edge.source == connection.source &&
-					edge.target == connection.target &&
+					edge.source === connection.source &&
+					edge.target === connection.target &&
 					edge.sourceHandle == connection.sourceHandle &&
 					edge.targetHandle == connection.targetHandle
 			)
@@ -122,7 +122,7 @@
 </script>
 
 <ComponentSidebar />
-<div style:width="100vw" style:height="100vh">
+<div class="h-dvh w-screen">
 	<SvelteFlow
 		bind:nodes
 		bind:edges
@@ -140,7 +140,7 @@
 		<Background />
 	</SvelteFlow>
 </div>
-{#if selectedNodes.length == 1 && selectedEdges.length == 0}
+{#if selectedNodes.length === 1 && selectedEdges.length === 0}
 	{#key selectedNodes[0].id}
 		<InspectorSidebar
 			node={selectedNodes[0]}
