@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { useEdges } from '@xyflow/svelte';
 	import { v4 as uuidv4 } from 'uuid';
-	import SaveCheckIcon from '@lucide/svelte/icons/save-check';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
 
@@ -14,7 +13,7 @@
 	function removeTargetGroup(index: number) {
 		// Source handles have the same ID as the target group they are associated with
 		deletedTargetGroupIds.push($formData.targetGroups[index].id);
-		$formData.targetGroups = $formData.targetGroups.filter((_, i) => i !== index);
+		$formData.targetGroups = $formData.targetGroups.filter((_: never, i: number) => i !== index);
 	}
 
 	function addTargetGroup() {

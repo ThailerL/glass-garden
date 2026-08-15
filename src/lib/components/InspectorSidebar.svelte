@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { useSvelteFlow, useUpdateNodeInternals } from '@xyflow/svelte';
+	import { useSvelteFlow, useUpdateNodeInternals, type Node } from '@xyflow/svelte';
+	import type { Component } from 'svelte';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { schemas } from '$lib/schemas';
 	import { toast } from 'svelte-sonner';
-	// import SaveCheckIcon from '@lucide/svelte/icons/save-check';
 
-	const { node, InspectorComponent } = $props();
+	const { node, InspectorComponent }: { node: Node; InspectorComponent: Component } = $props();
 
 	const { updateNodeData } = useSvelteFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
@@ -48,18 +48,21 @@
 		updateNodeData(node.id, $formData);
 		onSave();
 		updateNodeInternals(node.id);
-		toast.success('Successfully saved settings');
+		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
 	}
 </script>
 
 <Sidebar.Root side="right">
 	<Sidebar.Header>Settings for {node.data.name}</Sidebar.Header>
 	<Sidebar.Content>
-		<form method="dialog" onsubmit={handleSubmit}>
-			<InspectorComponent {useOnSave} {form} />
-			<Sidebar.Footer>
-				<Form.Button type="submit">Save changes</Form.Button>
-			</Sidebar.Footer>
-		</form>
-	</Sidebar.Content>
+		<Sidebar.Group>
+			<Sidebar.GroupContent>
+				<form method="dialog" onsubmit={handleSubmit}>
+					<InspectorComponent {useOnSave} {form} />
+				</form>
+			</Sidebar.GroupContent>
+		</Sidebar.Group>
+	</Sidebar.Content><Sidebar.Footer>
+		<Form.Button type="submit" onclick={handleSubmit}>Save changes</Form.Button>
+	</Sidebar.Footer>
 </Sidebar.Root>
