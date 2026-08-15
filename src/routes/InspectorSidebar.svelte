@@ -63,7 +63,7 @@
 		updateNodeData(node.id, nodeData);
 		onSave();
 		updateNodeInternals(node.id);
-		node.data = nodeData; // updateNodeData takes time to propogate so instantly update here
+		node.data = nodeData; // updateNodeData takes time to propagate so instantly update here
 		setNodeInLocalStorage(node);
 		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
 	}

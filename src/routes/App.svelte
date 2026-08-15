@@ -8,7 +8,9 @@
 		type Node,
 		useOnSelectionChange,
 		type Edge,
-		type OnDelete
+		type OnDelete,
+		type NodeTargetEventWithPointer,
+		type OnConnect
 	} from '@xyflow/svelte';
 	import { v4 as uuidv4 } from 'uuid';
 	import ComponentSidebar from './ComponentSidebar.svelte';
@@ -102,6 +104,21 @@
 		nodes = [...nodes, newNode];
 		setNodeInLocalStorage(newNode);
 	};
+
+	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
+		targetNode
+	}) => setNodeInLocalStorage(targetNode);
+
+	const onConnect: OnConnect = (connection) =>
+		setEdgeInLocalStorage(
+			edges.find(
+				(edge) =>
+					edge.source == connection.source &&
+					edge.target == connection.target &&
+					edge.sourceHandle == connection.sourceHandle &&
+					edge.targetHandle == connection.targetHandle
+			)
+		);
 </script>
 
 <ComponentSidebar />
@@ -111,6 +128,8 @@
 		bind:edges
 		{nodeTypes}
 		ondelete={onDelete}
+		onnodedragstop={onNodeDragStop}
+		onconnect={onConnect}
 		ondragover={onDragOver}
 		ondrop={onDrop}
 		defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}

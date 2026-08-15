@@ -27,25 +27,34 @@ export function setNodeInLocalStorage(node: Node) {
 }
 
 export function setEdgeInLocalStorage(edge: Edge) {
+	edge.selected = false;
 	localStorage.setItem(`edge:${edge.id}`, JSON.stringify(edge));
 }
 
-export function getNodeFromLocalStorage(id: string): Node {
-	return JSON.parse(localStorage[`node:${id}`]);
+export function getNodeFromLocalStorage(id: string): Node | undefined {
+	const node = localStorage.getItem(`node:${id}`);
+	if (node) {
+		return JSON.parse(node);
+	}
+	return undefined;
 }
 
-export function getEdgeFromLocalStorage(id: string): Node {
-	return JSON.parse(localStorage.getItem(`edge:${id}`));
+export function getEdgeFromLocalStorage(id: string): Edge | undefined {
+	const edge = localStorage.getItem(`edge:${id}`);
+	if (edge) {
+		return JSON.parse(edge);
+	}
+	return undefined;
 }
 
 export function loadNodesFromLocalStorage(): Node[] {
 	return Object.keys(localStorage)
-		.filter((key) => key.startsWith('node:'))
-		.map((key) => JSON.parse(localStorage.getItem(key)));
+		.filter((key) => key.startsWith('node'))
+		.map((key) => JSON.parse(localStorage[key]));
 }
 
 export function loadEdgesFromLocalStorage(): Edge[] {
 	return Object.keys(localStorage)
-		.filter((key) => key.startsWith('edge:'))
-		.map((key) => JSON.parse(localStorage.getItem(key)));
+		.filter((key) => key.startsWith('edge'))
+		.map((key) => JSON.parse(localStorage[key]));
 }
