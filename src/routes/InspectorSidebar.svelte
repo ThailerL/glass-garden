@@ -58,11 +58,12 @@
 		<Sidebar.Group>
 			<Sidebar.GroupContent>
 				<form method="dialog" onsubmit={handleSubmit}>
-					<InspectorComponent {useOnSave} {form} />
+					<InspectorComponent {useOnSave} {form} {node} />
 				</form>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
-	</Sidebar.Content><Sidebar.Footer>
+	</Sidebar.Content>
+	<Sidebar.Footer>
 		<Form.Button type="submit" onclick={handleSubmit}>Save changes</Form.Button>
 	</Sidebar.Footer>
 </Sidebar.Root>

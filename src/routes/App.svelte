@@ -10,16 +10,16 @@
 		type Edge
 	} from '@xyflow/svelte';
 	import { v4 as uuidv4 } from 'uuid';
-	import ComponentSidebar from '$lib/components/ComponentSidebar.svelte';
+	import ComponentSidebar from './ComponentSidebar.svelte';
 	import LoadBalancerNode from '$lib/components/nodes/LoadBalancerNode.svelte';
 	import FunctionNode from '$lib/components/nodes/FunctionNode.svelte';
 	import ServiceNode from '$lib/components/nodes/ServiceNode.svelte';
 	import FunctionSettings from '$lib/components/settings/FunctionSettings.svelte';
 	import LoadBalancerSettings from '$lib/components/settings/LoadBalancerSettings.svelte';
 	import ServiceSettings from '$lib/components/settings/ServiceSettings.svelte';
-	import { useDnD } from '$lib/components/DnDProvider.svelte';
 	import { defaultNodeData } from '$lib/schemas';
-	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
+	import InspectorSidebar from './InspectorSidebar.svelte';
+	import { useDnD } from './DnDProvider.svelte';
 
 	const nodeTypes = {
 		loadBalancer: LoadBalancerNode,
@@ -34,7 +34,7 @@
 	};
 
 	let nodes = $state.raw([
-		{ id: uuidv4(), position: { x: 0, y: 0 }, type: 'function', data: defaultNodeData.function }
+		{ id: uuidv4(), position: { x: 0, y: 0 }, type: 'service', data: defaultNodeData.service }
 	]);
 	let edges = $state.raw([]);
 

@@ -4,10 +4,11 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Input } from '$lib/components/ui/input';
 
-	const { form } = $props();
+	const { form, node } = $props();
 	const { form: formData } = $derived(form);
 </script>
 
+<Form.Button type="button" href={`/edit/${node.id}`} target="_blank">Edit Service Code</Form.Button>
 <Form.Field {form} name="name">
 	<Form.Control>
 		{#snippet children({ props })}

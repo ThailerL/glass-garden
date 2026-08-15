@@ -3,7 +3,7 @@
 	import './index.css';
 
 	import App from './App.svelte';
-	import DnDProvider from '$lib/components/DnDProvider.svelte';
+	import DnDProvider from './DnDProvider.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 </script>
 

@@ -4,11 +4,11 @@
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
 
-	let { form, useOnSave } = $props();
+	const { form, useOnSave } = $props();
 	const edges = useEdges();
 	const { form: formData } = $derived(form);
 
-	let deletedTargetGroupIds: string[] = [];
+	const deletedTargetGroupIds: string[] = [];
 
 	function removeTargetGroup(index: number) {
 		// Source handles have the same ID as the target group they are associated with

@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { Handle, Position } from '@xyflow/svelte';
+	import ServerIcon from '@lucide/svelte/icons/server';
 
-	let { data } = $props();
+	const { data } = $props();
 </script>
 
 {data.name}
-<img src="https://www.svgrepo.com/show/474373/cloud-server.svg" alt="Service icon" />
+<ServerIcon class="h-full w-full" />
 <Handle type="target" position={Position.Left} />

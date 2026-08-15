@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Handle, Position } from '@xyflow/svelte';
 
-	let { data } = $props();
+	const { data } = $props();
 </script>
 
 {data.name}
