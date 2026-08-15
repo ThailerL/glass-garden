@@ -9,7 +9,7 @@
 </script>
 
 <Form.Button type="button" href={`/edit/${node.id}`} target="_blank">Edit Service Code</Form.Button>
-<Form.Field {form} name="name">
+<Form.Field {form} name="data.name">
 	<Form.Control>
 		{#snippet children({ props })}
 			<Form.Label>Name</Form.Label>
@@ -18,7 +18,7 @@
 	</Form.Control>
 	<Form.FieldErrors />
 </Form.Field>
-<Form.Field {form} name="runtime">
+<Form.Field {form} name="data.runtime">
 	<Form.Control>
 		{#snippet children({ props })}
 			<Form.Label>Runtime</Form.Label>

@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { useSvelteFlow, useUpdateNodeInternals, type Node } from '@xyflow/svelte';
 	import type { Component } from 'svelte';
-	import * as Form from '$lib/components/ui/form';
-	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
-	import { schemas } from '$lib/schemas';
 	import { toast } from 'svelte-sonner';
+	import { schemas } from '$lib/schemas';
+	import * as Form from '$lib/components/ui/form';
+	import * as Sidebar from '$lib/components/ui/sidebar';
+	import { setNodeInLocalStorage } from '$lib/utils';
 
 	const { node, InspectorComponent }: { node: Node; InspectorComponent: Component } = $props();
 
@@ -45,9 +46,25 @@
 			return;
 		}
 
-		updateNodeData(node.id, $formData);
+		// We only want fields related to the node, not any of the SuperForm fields
+		/* eslint-disable @typescript-eslint/no-unused-vars */
+		const {
+			constraints,
+			defaults,
+			id,
+			jsonSchema,
+			shape,
+			superFormValidationLibrary,
+			validate,
+			...nodeData
+		} = $formData;
+		/* eslint-enable @typescript-eslint/no-unused-vars */
+
+		updateNodeData(node.id, nodeData);
 		onSave();
 		updateNodeInternals(node.id);
+		node.data = nodeData; // updateNodeData takes time to propogate so instantly update here
+		setNodeInLocalStorage(node);
 		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
 	}
 </script>

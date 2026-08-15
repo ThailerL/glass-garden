@@ -7,7 +7,8 @@
 		useSvelteFlow,
 		type Node,
 		useOnSelectionChange,
-		type Edge
+		type Edge,
+		type OnDelete
 	} from '@xyflow/svelte';
 	import { v4 as uuidv4 } from 'uuid';
 	import ComponentSidebar from './ComponentSidebar.svelte';
@@ -20,6 +21,14 @@
 	import { defaultNodeData } from '$lib/schemas';
 	import InspectorSidebar from './InspectorSidebar.svelte';
 	import { useDnD } from './DnDProvider.svelte';
+	import {
+		loadEdgesFromLocalStorage,
+		loadNodesFromLocalStorage,
+		removeEdgeFromLocalStorage,
+		removeNodeFromLocalStorage,
+		setEdgeInLocalStorage,
+		setNodeInLocalStorage
+	} from '$lib/utils';
 
 	const nodeTypes = {
 		loadBalancer: LoadBalancerNode,
@@ -33,10 +42,22 @@
 		service: ServiceSettings
 	};
 
-	let nodes = $state.raw([
-		{ id: uuidv4(), position: { x: 0, y: 0 }, type: 'service', data: defaultNodeData.service }
-	]);
-	let edges = $state.raw([]);
+	let nodes: Node[] = $state.raw([]);
+	let edges: Edge[] = $state.raw([]);
+	if (loadNodesFromLocalStorage().length === 0) {
+		nodes = [
+			{ id: uuidv4(), position: { x: 0, y: 0 }, type: 'service', data: defaultNodeData.service }
+		];
+		nodes.forEach((node) => setNodeInLocalStorage(node));
+	} else {
+		nodes = loadNodesFromLocalStorage();
+		edges = loadEdgesFromLocalStorage();
+	}
+
+	const onDelete: OnDelete = ({ nodes, edges }) => {
+		nodes.forEach((node) => removeNodeFromLocalStorage(node.id));
+		edges.forEach((edge) => removeEdgeFromLocalStorage(edge.id));
+	};
 
 	let selectedNodes: Node[] = $state.raw([]);
 	let selectedEdges: Edge[] = $state.raw([]);
@@ -79,6 +100,7 @@
 		} satisfies Node;
 
 		nodes = [...nodes, newNode];
+		setNodeInLocalStorage(newNode);
 	};
 </script>
 
@@ -88,6 +110,7 @@
 		bind:nodes
 		bind:edges
 		{nodeTypes}
+		ondelete={onDelete}
 		ondragover={onDragOver}
 		ondrop={onDrop}
 		defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}

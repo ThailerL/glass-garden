@@ -1,3 +1,4 @@
+import type { Edge, Node } from '@xyflow/svelte';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -11,3 +12,40 @@ export type WithoutChild<T> = T extends { child?: any } ? Omit<T, 'child'> : T;
 export type WithoutChildren<T> = T extends { children?: any } ? Omit<T, 'children'> : T;
 export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
+
+export function removeNodeFromLocalStorage(id: string) {
+	localStorage.removeItem(`node:${id}`);
+}
+
+export function removeEdgeFromLocalStorage(id: string) {
+	localStorage.removeItem(`edge:${id}`);
+}
+
+export function setNodeInLocalStorage(node: Node) {
+	node.selected = false;
+	localStorage.setItem(`node:${node.id}`, JSON.stringify(node));
+}
+
+export function setEdgeInLocalStorage(edge: Edge) {
+	localStorage.setItem(`edge:${edge.id}`, JSON.stringify(edge));
+}
+
+export function getNodeFromLocalStorage(id: string): Node {
+	return JSON.parse(localStorage[`node:${id}`]);
+}
+
+export function getEdgeFromLocalStorage(id: string): Node {
+	return JSON.parse(localStorage.getItem(`edge:${id}`));
+}
+
+export function loadNodesFromLocalStorage(): Node[] {
+	return Object.keys(localStorage)
+		.filter((key) => key.startsWith('node:'))
+		.map((key) => JSON.parse(localStorage.getItem(key)));
+}
+
+export function loadEdgesFromLocalStorage(): Edge[] {
+	return Object.keys(localStorage)
+		.filter((key) => key.startsWith('edge:'))
+		.map((key) => JSON.parse(localStorage.getItem(key)));
+}

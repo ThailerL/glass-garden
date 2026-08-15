@@ -1,12 +1,47 @@
 import { z } from 'zod';
+import { type FileSystemTree } from '@webcontainer/api';
 
 export const schemas = {
-	function: z.object({
-		name: z.string().min(1).default('Function'),
-		runtime: z.enum(['node.js']).default('node.js')
-	}),
 	service: z.object({
 		name: z.string().min(1).default('Service'),
+		runtime: z.enum(['node.js']).default('node.js'),
+		files: z.unknown().default({
+			'index.js': {
+				file: {
+					contents: `
+            import express from 'express';
+            const app = express();
+            const port = 3000;
+
+            app.get('/', (req, res) => {
+              res.send('Hello World');
+            });
+
+            app.listen(port, () => {
+              console.log(\`Server running on http://localhost:\${port}\`);
+            });`
+				}
+			},
+			'package.json': {
+				file: {
+					contents: `
+            {
+              "name": "hello-world",
+              "type": "module",
+              "dependencies": {
+                "express": "latest",
+                "nodemon": "latest"
+              },
+              "scripts": {
+                "start": "nodemon index.js"
+              }
+            }`
+				}
+			}
+		} satisfies FileSystemTree)
+	}),
+	function: z.object({
+		name: z.string().min(1).default('Function'),
 		runtime: z.enum(['node.js']).default('node.js')
 	}),
 	loadBalancer: z.object({

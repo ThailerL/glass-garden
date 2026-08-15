@@ -8,7 +8,10 @@
 </script>
 
 <Toaster />
+<ModeWatcher />
 
 {@render children?.()}
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
-<ModeWatcher />
+<svelte:head>
+	<link rel="icon" href={favicon} />
+	<title>InfraLab</title>
+</svelte:head>

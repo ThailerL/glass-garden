@@ -25,10 +25,10 @@
 
 	// svelte-ignore state_referenced_locally
 	useOnSave(() => {
-		for (const targetGroupId of deletedTargetGroupIds) {
-			// Target groups have the same ID as the handle they live on
-			edges.set(edges.current.filter((edge) => edge.sourceHandle !== targetGroupId));
-		}
+		// Target groups have the same ID as the handle they live on
+		deletedTargetGroupIds.forEach((id) =>
+			edges.set(edges.current.filter((edge) => edge.sourceHandle !== id))
+		);
 	});
 </script>
 
