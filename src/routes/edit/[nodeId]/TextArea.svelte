@@ -4,9 +4,13 @@
 	import { EditorView } from '@codemirror/view';
 	import type { Node } from '@xyflow/svelte';
 	import { setNodeInLocalStorage } from '$lib/utils';
-	import { type FileSystemTree } from '@webcontainer/api';
+	import { WebContainer, type FileSystemTree } from '@webcontainer/api';
 
-	const { node, selectedFilePath }: { node: Node; selectedFilePath: string[] } = $props();
+	const {
+		webContainer,
+		node,
+		selectedFilePath
+	}: { webContainer: WebContainer; node: Node; selectedFilePath: string[] } = $props();
 
 	// svelte-ignore state_referenced_locally
 	const tempFiles = structuredClone(node.data.files);
@@ -21,6 +25,7 @@
 			preventDefault: true,
 			run: (view: EditorView) => {
 				getFileForPath(node.data.files, selectedFilePath).contents = view.state.doc.toString();
+				webContainer.mount(node.data.files);
 				setNodeInLocalStorage(node);
 				return true;
 			}
@@ -38,13 +43,11 @@
 	}
 </script>
 
-{#if selectedFilePath.length === 0}
-	No file selected
-{:else}
-	<CodeMirror
-		{value}
-		lang={javascript()}
-		{keybindings}
-		onchange={(value) => (openedFile.contents = value)}
-	/>
-{/if}
+<CodeMirror
+	{value}
+	lang={javascript()}
+	placeholder="No file selected"
+	lineWrapping={true}
+	{keybindings}
+	onchange={(value) => (openedFile.contents = value)}
+/>

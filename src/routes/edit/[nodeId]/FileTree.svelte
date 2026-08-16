@@ -10,7 +10,7 @@
 			<TreeView.File
 				name={itemName}
 				onclick={() => (selectedFilePath = [...currentPath, itemName])}
-				class="bg-blue-200"
+				class="bg-gray-600"
 			/>
 		{:else}
 			<TreeView.File

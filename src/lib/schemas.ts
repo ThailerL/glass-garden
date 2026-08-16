@@ -5,10 +5,11 @@ export const schemas = {
 	service: z.object({
 		name: z.string().min(1).default('Service'),
 		runtime: z.enum(['node.js']).default('node.js'),
+		command: z.string().default('npm run start'),
 		files: z.unknown().default({
 			src: {
 				directory: {
-					'index.js': {
+					'server.js': {
 						file: {
 							contents: `import express from 'express';
 const app = express();
@@ -31,11 +32,10 @@ app.listen(port, () => {
   "name": "hello-world",
   "type": "module",
   "dependencies": {
-    "express": "latest",
-    "nodemon": "latest"
+    "express": "latest"
   },
   "scripts": {
-    "start": "nodemon src/index.js"
+    "start": "node src/server.js"
   }
 }`
 				}
