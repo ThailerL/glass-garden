@@ -9,11 +9,14 @@
 	const {
 		webContainer,
 		node,
-		selectedFilePath
-	}: { webContainer: WebContainer; node: Node; selectedFilePath: string[] } = $props();
-
-	// svelte-ignore state_referenced_locally
-	const tempFiles = structuredClone(node.data.files);
+		selectedFilePath,
+		tempFiles
+	}: {
+		webContainer: WebContainer | undefined;
+		node: Node;
+		selectedFilePath: string[];
+		tempFiles: FileSystemTree;
+	} = $props();
 
 	const openedFile = $derived(getFileForPath(tempFiles as FileSystemTree, selectedFilePath));
 
@@ -24,8 +27,11 @@
 			key: 'Mod-s',
 			preventDefault: true,
 			run: (view: EditorView) => {
-				getFileForPath(node.data.files, selectedFilePath).contents = view.state.doc.toString();
-				webContainer.mount(node.data.files);
+				getFileForPath(node.data.files as FileSystemTree, selectedFilePath).contents =
+					view.state.doc.toString();
+				if (webContainer) {
+					webContainer.mount(node.data.files as FileSystemTree);
+				}
 				setNodeInLocalStorage(node);
 				return true;
 			}

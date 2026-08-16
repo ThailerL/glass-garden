@@ -56,5 +56,8 @@
     "uuid": "^14.0.1",
     "vite": "^8.0.16",
     "zod": "^4.4.3"
+  },
+  "dependencies": {
+    "@thisux/sveltednd": "^0.7.0"
   }
 }
