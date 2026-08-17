@@ -11,7 +11,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --check . && eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
     "@battlefieldduck/xterm-svelte": "^2.3.0",
@@ -24,6 +25,7 @@
     "@sveltejs/kit": "^2.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.0",
+    "@thisux/sveltednd": "^0.7.0",
     "@types/node": "^24",
     "@webcontainer/api": "^1.6.4",
     "@xterm/xterm": "^6.0.0",
@@ -36,6 +38,7 @@
     "formsnap": "^2.0.1",
     "globals": "^17.6.0",
     "mode-watcher": "^1.1.0",
+    "patch-package": "^8.0.1",
     "prettier": "^3.8.3",
     "prettier-plugin-svelte": "^4.1.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
@@ -56,8 +59,5 @@
     "uuid": "^14.0.1",
     "vite": "^8.0.16",
     "zod": "^4.4.3"
-  },
-  "dependencies": {
-    "@thisux/sveltednd": "^0.7.0"
   }
 }

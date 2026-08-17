@@ -9,6 +9,7 @@ export const schemas = {
 		files: z.unknown().default({
 			src: {
 				directory: {
+					lib: { directory: {} },
 					'server.js': {
 						file: {
 							contents: `import express from 'express';
