@@ -7,7 +7,6 @@
 	} from '@battlefieldduck/xterm-svelte';
 
 	const options: ITerminalOptions & ITerminalInitOnlyOptions = {
-		fontFamily: 'Consolas',
 		convertEol: true
 	};
 
