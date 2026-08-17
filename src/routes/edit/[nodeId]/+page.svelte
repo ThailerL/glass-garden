@@ -26,7 +26,15 @@
 	});
 
 	function handleDrop(state: DragDropState<string>) {
-		if (state.sourceContainer === state.targetContainer) {
+		const { draggedItem, sourceContainer, targetContainer } = state;
+		console.log(state);
+		if (
+			sourceContainer === targetContainer ||
+			//directories can't be dragged into themselves
+			targetContainer.startsWith(
+				sourceContainer === '' ? draggedItem : [sourceContainer, draggedItem].join('/')
+			)
+		) {
 			return;
 		}
 
@@ -35,10 +43,8 @@
 		setNodeInLocalStorage(node);
 	}
 
-	function updateFilesOnDrop(
-		files: FileSystemTree,
-		{ draggedItem, sourceContainer, targetContainer }: DragDropState<string>
-	) {
+	function updateFilesOnDrop(files: FileSystemTree, state: DragDropState<string>) {
+		const { draggedItem, sourceContainer, targetContainer } = state;
 		const sourceDirectoryPath =
 			sourceContainer.split('/')[0] === '' ? [] : sourceContainer.split('/');
 		const targetDirectoryPath =

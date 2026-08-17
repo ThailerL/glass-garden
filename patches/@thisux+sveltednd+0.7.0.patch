@@ -1,36 +1,12 @@
 diff --git a/node_modules/@thisux/sveltednd/dist/actions/draggable.js b/node_modules/@thisux/sveltednd/dist/actions/draggable.js
-index 4bbb69f..33f1c25 100644
+index 4bbb69f..f88b6d7 100644
 --- a/node_modules/@thisux/sveltednd/dist/actions/draggable.js
 +++ b/node_modules/@thisux/sveltednd/dist/actions/draggable.js
-@@ -238,12 +238,6 @@ export function draggable(node, options) {
-             event.preventDefault();
-             return;
-         }
--        // If we clicked an interactive element (and we're not using a handle), bail out
--        // This prevents dragging when the user just wants to type in an input
--        if (!options.handle && isInteractiveElement(target)) {
--            event.preventDefault();
--            return;
--        }
-         // Mark HTML5 drag as active so pointercancel is ignored during this drag
-         html5DragActive = true;
-         // Update global state - this triggers reactive updates across all components
-@@ -301,8 +295,6 @@ export function draggable(node, options) {
-             return;
-         if (!isHandleElement(event.target))
-             return;
--        if (!options.handle && isInteractiveElement(event.target))
--            return;
-         // Initialize the drag state (same as HTML5 path)
-         beginDragState('pointer');
-         // Visual feedback
-@@ -358,9 +350,6 @@ export function draggable(node, options) {
-         if (isKeyboardSessionActive())
-             return;
-         const target = event.target;
--        // Never hijack typing / native control activation
--        if (isInteractiveElement(target) && target !== node)
--            return;
-         if (options.handle && !isHandleElement(target) && target !== node)
-             return;
-         if (event.key !== ' ' && event.key !== 'Enter')
+@@ -55,7 +55,6 @@ const DEFAULT_INTERACTIVE_SELECTORS = [
+     'input', // Form text inputs
+     'textarea', // Multi-line text inputs
+     'select', // Dropdown menus
+-    'button', // Clickable buttons
+     '[contenteditable]', // Rich text editing areas
+     'a[href]', // Actual links (not anchor targets)
+     'label', // Form labels (triggers associated input)
