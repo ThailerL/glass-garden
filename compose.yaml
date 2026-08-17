@@ -2,12 +2,7 @@ services:
   infralab:
     build: .
     pull_policy: build
-    volumes:
-      - ./:/usr/src/app
-  caddy:
-    image: caddy:latest
     ports:
       - "3000:3000"
     volumes:
-      - ./caddy:/etc/caddy
-
+      - ./:/usr/src/app

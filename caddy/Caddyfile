@@ -1,7 +1,0 @@
-https://thailer.dev:3000 {
-  tls internal
-  reverse_proxy infralab:3000 {
-    header_down Cross-Origin-Embedder-Policy require-corp
-    header_down Cross-Origin-Opener-Policy same-origin 
-  }
-}
