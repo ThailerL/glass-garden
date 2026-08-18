@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { WebContainer, type FileSystemTree } from '@webcontainer/api';
-	import { onMount } from 'svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
 	import * as TreeView from '$lib/components/ui/tree-view';
@@ -13,31 +12,24 @@
 	let files = $state(node?.data.files as FileSystemTree);
 	let selectedFilePath = $state<string[]>([]);
 
-	let webContainer = $state<WebContainer>();
-
-	$effect(async () => {
-		node.data.files = files;
-		setNodeInLocalStorage(node);
+	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
+	webContainer.on('server-ready', (port, url) => {
+		console.log(port);
+		console.log(url);
 	});
-
-	onMount(async () => {
-		webContainer = await WebContainer.boot({ workdirName: 'infralab' });
-		webContainer.on('server-ready', (port, url) => {
-			console.log(port);
-			console.log(url);
-		});
-		webContainer.mount(files);
-		// When files are updated in the WebContainers FS it will sync the changes to the app
-		// So to manage files only need to call the WebContainer API
-		webContainer.fs.watch(
-			'',
-			{ recursive: true },
-			// This is the easy way: just export the whole filesystem no matter what the change was
-			async () => {
-				files = structuredClone(await webContainer?.export(''));
-			}
-		);
-	});
+	webContainer.mount(files);
+	// When files are updated in the WebContainers FS it will sync the changes to the app
+	// So to manage files only need to call the WebContainer API
+	webContainer.fs.watch(
+		'',
+		{ recursive: true },
+		// This is the easy way: just export the whole filesystem no matter what the change was
+		async () => {
+			files = structuredClone(await webContainer?.export(''));
+			node.data.files = files;
+			setNodeInLocalStorage(node);
+		}
+	);
 
 	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
 		// directories can't be dragged into itself or a child directory of itself
@@ -54,6 +46,12 @@
 			[sourceContainer, draggedItem].join('/'),
 			[targetContainer, draggedItem].join('/')
 		);
+
+		const sourcePath = sourceContainer === '' ? [] : sourceContainer.split('/');
+		const targetPath = targetContainer === '' ? [] : targetContainer.split('/');
+		if (selectedFilePath.join('/') === [...sourcePath, draggedItem].join('/')) {
+			selectedFilePath = [...targetPath, draggedItem];
+		}
 	}
 </script>
 
@@ -70,9 +68,9 @@
 		</div>
 		<div class="flex flex-1 flex-col">
 			<div class="h-3/5">
-				<TextArea {webContainer} {files} {selectedFilePath} />
+				<TextArea {webContainer} {selectedFilePath} />
 			</div>
-			<div class="flex-1 bg-black">
+			<div class="flex-1">
 				<Terminal {webContainer} />
 			</div>
 		</div>

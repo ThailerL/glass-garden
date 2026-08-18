@@ -52,6 +52,4 @@
 	}}
 />
 
-{#if webContainer}
-	<Xterm bind:terminal {options} {onLoad} {onData} />
-{/if}
+<Xterm bind:terminal {options} {onLoad} {onData} />
