@@ -2,8 +2,9 @@
 
 ## Setup
 
+To self-host with Docker, use this `compose.yaml`
+
 ```yaml
-# compose.yaml
 services:
   infralab:
     image: ghcr.io/thailerl/infralab:latest
@@ -14,7 +15,6 @@ services:
 ```
 
 Then visit  `http://localhost:3000`. If you are not accessing the website from `localhost` (i.e. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS because a lot of the functionality requires a secure context to work.
-
 
 ## Developing
 
