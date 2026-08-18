@@ -7,7 +7,7 @@ on:
 
 jobs:
   docker_publish:
-    runs-on: "ubuntu-20.04"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Build and publish a Docker image for ${{ github.repository }}
