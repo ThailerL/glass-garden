@@ -54,6 +54,4 @@
 
 {#if webContainer}
 	<Xterm bind:terminal {options} {onLoad} {onData} />
-{:else}
-	Starting WebContainer...
 {/if}
