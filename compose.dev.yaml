@@ -1,3 +1,4 @@
+name: infralab-dev
 services:
   infralab:
     build:
