@@ -1,6 +1,8 @@
 services:
   infralab:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     pull_policy: build
     ports:
       - "3000:3000"
