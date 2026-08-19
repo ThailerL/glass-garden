@@ -7,7 +7,7 @@
 	import { schemas } from '$lib/schemas';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { setNodeInLocalStorage } from '$lib/utils';
+	import { setNodeInLocalStorage } from '$lib/localStorageUtils';
 
 	const { node, InspectorComponent }: { node: Node; InspectorComponent: Component } = $props();
 

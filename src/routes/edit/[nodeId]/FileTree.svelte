@@ -1,53 +1,76 @@
-<script lang="ts">
-	import { draggable, droppable } from '@thisux/sveltednd';
-	import * as TreeView from '$lib/components/ui/tree-view';
-	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
-	import FileTree from './FileTree.svelte';
-
-	let { selectedFilePath = $bindable(), currentPath, files, webContainer, handleDrop } = $props();
-
-	function getItemNamesInOrder(): string[] {
-		const directoryNames = Object.keys(files)
-			.filter((itemName) => Object.hasOwn(files[itemName], 'directory'))
+<script module>
+	export function getItemNamesInOrder(directory): string[] {
+		const directoryNames = Object.keys(directory)
+			.filter((itemName) => Object.hasOwn(directory[itemName], 'directory'))
 			.sort();
-		const fileNames = Object.keys(files)
-			.filter((itemName) => Object.hasOwn(files[itemName], 'file'))
+		const fileNames = Object.keys(directory)
+			.filter((itemName) => Object.hasOwn(directory[itemName], 'file'))
 			.sort();
 
 		return [...directoryNames, ...fileNames];
 	}
+</script>
 
-	function newFile(dirName) {
+<script lang="ts">
+	import { draggable, droppable } from '@thisux/sveltednd';
+	import * as TreeView from '$lib/components/ui/tree-view';
+	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
+	import * as Rename from '$lib/components/ui/rename';
+	import FileTree from './FileTree.svelte';
+
+	let {
+		selectedFilePath = $bindable(),
+		anyItemBeingRenamed = $bindable(),
+		item,
+		itemName,
+		itemType,
+		parentPath,
+		webContainer,
+		handleDrop
+	} = $props();
+
+	const itemPath = [...parentPath, itemName];
+	let itemRenameMode = $state('view');
+
+	$effect(() => {
+		anyItemBeingRenamed = itemRenameMode === 'edit';
+	});
+
+	function newFile() {
 		let i = 1;
-		while (Object.hasOwn(files[dirName].directory, `new-file-${i}`)) {
+		while (Object.hasOwn(item, `new-file-${i}`)) {
 			i++;
 		}
-		webContainer.fs.writeFile([...currentPath, dirName, `new-file-${i}`].join('/'), '');
+		webContainer.fs.writeFile([...itemPath, `new-file-${i}`].join('/'), '');
 	}
 
-	function newFolder(dirName) {
+	function newFolder() {
 		let i = 1;
-		while (Object.hasOwn(files[dirName].directory, `new-folder-${i}`)) {
+		while (Object.hasOwn(item, `new-folder-${i}`)) {
 			i++;
 		}
-		webContainer.fs.mkdir([...currentPath, dirName, `new-folder-${i}`].join('/'));
+		webContainer.fs.mkdir([...itemPath, `new-folder-${i}`].join('/'));
 	}
 
-	function deleteItem(itemName) {
-		webContainer.fs.rm([...currentPath, itemName].join('/'), { recursive: true });
+	function renameItem(newName) {
+		webContainer.fs.rename(itemPath.join('/'), [...parentPath, newName].join('/'));
+	}
+
+	function deleteItem() {
+		webContainer.fs.rm(itemPath.join('/'), { recursive: true });
 	}
 </script>
 
-{#each getItemNamesInOrder() as itemName (itemName)}
-	{@const itemPath = [...currentPath, itemName]}
-	{#if Object.hasOwn(files[itemName], 'file')}
-		<div
-			class="hover:bg-gray-900"
-			use:draggable={{
-				container: currentPath.join('/'),
-				dragData: itemName
-			}}
-		>
+{#if itemType === 'file'}
+	<div
+		class="hover:bg-gray-900"
+		use:draggable={{
+			container: parentPath.join('/'),
+			dragData: itemName,
+			disabled: anyItemBeingRenamed
+		}}
+	>
+		<Rename.Provider>
 			<ContextMenu.Root>
 				<ContextMenu.Trigger>
 					{@const highlightSelected =
@@ -58,52 +81,79 @@
 					<TreeView.File
 						class="w-full cursor-pointer {highlightSelected}"
 						name={itemName}
-						onclick={() => (selectedFilePath = itemPath)}
-					/>
+						editing={itemRenameMode === 'edit'}
+						onclick={() => {
+							if (itemRenameMode === 'view') selectedFilePath = itemPath;
+						}}
+					>
+						<Rename.Root
+							this="span"
+							value={itemName}
+							bind:mode={itemRenameMode}
+							blurBehavior="exit"
+							class="flex place-items-center gap-1 pl-0.75"
+							onSave={renameItem}
+							fallbackSelectionBehavior="all"
+						/>
+					</TreeView.File>
 				</ContextMenu.Trigger>
 				<ContextMenu.Content>
-					<ContextMenu.Item onSelect={() => deleteItem(itemName)}>Delete</ContextMenu.Item>
+					<Rename.Edit>
+						{#snippet child({ edit })}
+							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>
+						{/snippet}
+					</Rename.Edit>
+					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
 				</ContextMenu.Content>
 			</ContextMenu.Root>
-		</div>
-	{:else if Object.hasOwn(files[itemName], 'directory')}
-		<div
-			use:draggable={{
-				container: currentPath.join('/'),
-				dragData: itemName,
-				// Makes it so that when children are dragged no event triggers on parent folders
-				handle: `.handle-${itemPath.join('-')}`
-			}}
-			use:droppable={{
-				container: itemPath.join('/'),
-				callbacks: { onDrop: handleDrop }
-			}}
-		>
-			<ContextMenu.Root>
-				<ContextMenu.Trigger>
-					<TreeView.Folder
-						class="
+		</Rename.Provider>
+	</div>
+{:else if itemType === 'directory'}
+	<div
+		use:draggable={{
+			container: parentPath.join('/'),
+			dragData: itemName,
+			disabled: anyItemBeingRenamed,
+			// Makes it so that when children are dragged no event triggers on parent folders
+			handle: `.handle-${itemPath.join('-')}`
+		}}
+		use:droppable={{
+			container: itemPath.join('/'),
+			callbacks: { onDrop: handleDrop }
+		}}
+	>
+		<ContextMenu.Root>
+			<ContextMenu.Trigger>
+				<TreeView.Folder
+					class="
           handle-{itemPath.join('-')}
           w-full
           cursor-pointer
           hover:bg-gray-900"
-						name={itemName}
-					>
+					name={itemName}
+				>
+					{#each getItemNamesInOrder(item) as childName (childName)}
 						<FileTree
 							bind:selectedFilePath
-							currentPath={itemPath}
-							files={files[itemName].directory}
+							bind:anyItemBeingRenamed
+							item={Object.hasOwn(item[childName], 'directory')
+								? item[childName].directory
+								: item[childName].file}
+							itemName={childName}
+							itemType={Object.hasOwn(item[childName], 'directory') ? 'directory' : 'file'}
+							parentDirectory={item}
+							parentPath={itemPath}
 							{webContainer}
 							{handleDrop}
 						/>
-					</TreeView.Folder>
-				</ContextMenu.Trigger>
-				<ContextMenu.Content>
-					<ContextMenu.Item onSelect={() => newFile(itemName)}>New File</ContextMenu.Item>
-					<ContextMenu.Item onSelect={() => newFolder(itemName)}>New Folder</ContextMenu.Item>
-					<ContextMenu.Item onSelect={() => deleteItem(itemName)}>Delete</ContextMenu.Item>
-				</ContextMenu.Content>
-			</ContextMenu.Root>
-		</div>
-	{/if}
-{/each}
+					{/each}
+				</TreeView.Folder>
+			</ContextMenu.Trigger>
+			<ContextMenu.Content>
+				<ContextMenu.Item onSelect={newFile}>New File</ContextMenu.Item>
+				<ContextMenu.Item onSelect={newFolder}>New Folder</ContextMenu.Item>
+				<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
+			</ContextMenu.Content>
+		</ContextMenu.Root>
+	</div>
+{/if}

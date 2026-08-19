@@ -3,15 +3,16 @@
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
 	import * as TreeView from '$lib/components/ui/tree-view';
-	import { getNodeFromLocalStorage, setNodeInLocalStorage } from '$lib/utils';
+	import { getNodeFromLocalStorage, setNodeInLocalStorage } from '$lib/localStorageUtils';
 	import Terminal from '$lib/components/Terminal.svelte';
-	import FileTree from './FileTree.svelte';
+	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextArea from './TextArea.svelte';
 
 	const node = getNodeFromLocalStorage(page.params.nodeId);
 	let files = $state(node?.data.files as FileSystemTree);
 	let selectedFilePath = $state<string[]>([]);
-
+	let anyItemBeingRenamed = $state(false);
+	$inspect(anyItemBeingRenamed);
 	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
 	webContainer.on('server-ready', (port, url) => {
 		console.log(port);
@@ -25,7 +26,7 @@
 		{ recursive: true },
 		// This is the easy way: just export the whole filesystem no matter what the change was
 		async () => {
-			files = structuredClone(await webContainer?.export(''));
+			files = structuredClone(await webContainer.export(''));
 			node.data.files = files;
 			setNodeInLocalStorage(node);
 		}
@@ -42,7 +43,7 @@
 			return;
 		}
 
-		webContainer?.fs.rename(
+		webContainer.fs.rename(
 			[sourceContainer, draggedItem].join('/'),
 			[targetContainer, draggedItem].join('/')
 		);
@@ -63,7 +64,21 @@
 	<div class="flex h-dvh w-screen">
 		<div class="h-full w-1/7" use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
 			<TreeView.Root>
-				<FileTree bind:selectedFilePath currentPath={[]} {files} {webContainer} {handleDrop} />
+				{#each getItemNamesInOrder(files) as itemName (itemName)}
+					<FileTree
+						bind:selectedFilePath
+						bind:anyItemBeingRenamed
+						item={Object.hasOwn(files[itemName], 'directory')
+							? files[itemName].directory
+							: files[itemName].file}
+						{itemName}
+						itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
+						parentDirectory={files}
+						parentPath={[]}
+						{webContainer}
+						{handleDrop}
+					/>
+				{/each}
 			</TreeView.Root>
 		</div>
 		<div class="flex flex-1 flex-col">

@@ -30,7 +30,7 @@
 		removeNodeFromLocalStorage,
 		setEdgeInLocalStorage,
 		setNodeInLocalStorage
-	} from '$lib/utils';
+	} from '$lib/localStorageUtils';
 
 	const nodeTypes = {
 		loadBalancer: LoadBalancerNode,
