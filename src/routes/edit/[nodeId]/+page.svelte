@@ -12,7 +12,7 @@
 	let files = $state(node?.data.files as FileSystemTree);
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
-	$inspect(anyItemBeingRenamed);
+
 	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
 	webContainer.on('server-ready', (port, url) => {
 		console.log(port);
@@ -73,7 +73,6 @@
 							: files[itemName].file}
 						{itemName}
 						itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
-						parentDirectory={files}
 						parentPath={[]}
 						{webContainer}
 						{handleDrop}

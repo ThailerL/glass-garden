@@ -6,10 +6,11 @@
 	import type { TreeViewFolderProps } from '$lib/components/ui/tree-view/types';
 
 	let {
-		name,
+		name = '',
 		open = $bindable(true),
 		class: className,
 		icon,
+		label,
 		children
 	}: TreeViewFolderProps = $props();
 </script>
@@ -23,11 +24,15 @@
 		{:else}
 			<FolderIcon class="size-4" />
 		{/if}
-		<span>{name}</span>
+		{#if label}
+			{@render label()}
+		{:else}
+			<span>{name}</span>
+		{/if}
 	</Collapsible.Trigger>
 	<Collapsible.Content class="ml-2 border-l">
 		<div class="relative flex place-items-start">
-			<div class="bg-border mx-2 h-full w-px"></div>
+			<div class="mx-2 h-full w-px bg-border"></div>
 			<div class="flex flex-1 flex-col">
 				{@render children?.()}
 			</div>

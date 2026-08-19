@@ -6,7 +6,7 @@
 	let {
 		name = '',
 		icon,
-		children,
+		label,
 		type = 'button',
 		class: className,
 		...rest
@@ -19,8 +19,8 @@
 	{:else}
 		<FileIcon class="size-4" />
 	{/if}
-	{#if children}
-		{@render children()}
+	{#if label}
+		{@render label()}
 	{:else}
 		<span>{name}</span>
 	{/if}

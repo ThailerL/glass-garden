@@ -86,15 +86,17 @@
 							if (itemRenameMode === 'view') selectedFilePath = itemPath;
 						}}
 					>
-						<Rename.Root
-							this="span"
-							value={itemName}
-							bind:mode={itemRenameMode}
-							blurBehavior="exit"
-							class="flex place-items-center gap-1 pl-0.75"
-							onSave={renameItem}
-							fallbackSelectionBehavior="all"
-						/>
+						{#snippet label()}
+							<Rename.Root
+								this="span"
+								value={itemName}
+								bind:mode={itemRenameMode}
+								blurBehavior="exit"
+								class="flex place-items-center gap-1 pl-0.75"
+								onSave={renameItem}
+								fallbackSelectionBehavior="all"
+							/>
+						{/snippet}
 					</TreeView.File>
 				</ContextMenu.Trigger>
 				<ContextMenu.Content>
@@ -122,38 +124,55 @@
 			callbacks: { onDrop: handleDrop }
 		}}
 	>
-		<ContextMenu.Root>
-			<ContextMenu.Trigger>
-				<TreeView.Folder
-					class="
+		<Rename.Provider
+			><ContextMenu.Root>
+				<ContextMenu.Trigger>
+					<TreeView.Folder
+						class="
           handle-{itemPath.join('-')}
           w-full
           cursor-pointer
           hover:bg-gray-900"
-					name={itemName}
-				>
-					{#each getItemNamesInOrder(item) as childName (childName)}
-						<FileTree
-							bind:selectedFilePath
-							bind:anyItemBeingRenamed
-							item={Object.hasOwn(item[childName], 'directory')
-								? item[childName].directory
-								: item[childName].file}
-							itemName={childName}
-							itemType={Object.hasOwn(item[childName], 'directory') ? 'directory' : 'file'}
-							parentDirectory={item}
-							parentPath={itemPath}
-							{webContainer}
-							{handleDrop}
-						/>
-					{/each}
-				</TreeView.Folder>
-			</ContextMenu.Trigger>
-			<ContextMenu.Content>
-				<ContextMenu.Item onSelect={newFile}>New File</ContextMenu.Item>
-				<ContextMenu.Item onSelect={newFolder}>New Folder</ContextMenu.Item>
-				<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
-			</ContextMenu.Content>
-		</ContextMenu.Root>
+					>
+						{#snippet label()}
+							<Rename.Root
+								this="span"
+								value={itemName}
+								bind:mode={itemRenameMode}
+								blurBehavior="exit"
+								class="flex place-items-center gap-1 pl-0.75"
+								onSave={renameItem}
+								fallbackSelectionBehavior="all"
+							/>
+						{/snippet}
+						{#each getItemNamesInOrder(item) as childName (childName)}
+							<FileTree
+								bind:selectedFilePath
+								bind:anyItemBeingRenamed
+								item={Object.hasOwn(item[childName], 'directory')
+									? item[childName].directory
+									: item[childName].file}
+								itemName={childName}
+								itemType={Object.hasOwn(item[childName], 'directory') ? 'directory' : 'file'}
+								parentPath={itemPath}
+								{webContainer}
+								{handleDrop}
+							/>
+						{/each}
+					</TreeView.Folder>
+				</ContextMenu.Trigger>
+				<ContextMenu.Content>
+					<ContextMenu.Item onSelect={newFile}>New File</ContextMenu.Item>
+					<ContextMenu.Item onSelect={newFolder}>New Folder</ContextMenu.Item>
+					<ContextMenu.Separator />
+					<Rename.Edit>
+						{#snippet child({ edit })}
+							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>
+						{/snippet}
+					</Rename.Edit>
+					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
+				</ContextMenu.Content>
+			</ContextMenu.Root></Rename.Provider
+		>
 	</div>
 {/if}
