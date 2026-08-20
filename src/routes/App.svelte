@@ -18,9 +18,9 @@
 	import LoadBalancerNode from '$lib/components/nodeTypes/LoadBalancerNode.svelte';
 	import FunctionNode from '$lib/components/nodeTypes/FunctionNode.svelte';
 	import ServiceNode from '$lib/components/nodeTypes/ServiceNode.svelte';
-	import FunctionSettings from '$lib/components/settings/FunctionSettings.svelte';
-	import LoadBalancerSettings from '$lib/components/settings/LoadBalancerSettings.svelte';
-	import ServiceSettings from '$lib/components/settings/ServiceSettings.svelte';
+	import FunctionSettings from '$lib/components/nodeSettings/FunctionSettings.svelte';
+	import LoadBalancerSettings from '$lib/components/nodeSettings/LoadBalancerSettings.svelte';
+	import ServiceSettings from '$lib/components/nodeSettings/ServiceSettings.svelte';
 	import { defaultNodeData } from '$lib/schemas';
 	import InspectorSidebar from './InspectorSidebar.svelte';
 	import {
