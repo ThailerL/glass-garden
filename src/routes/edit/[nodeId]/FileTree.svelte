@@ -24,6 +24,7 @@
 		item,
 		itemName,
 		itemType,
+		parentDirectory,
 		parentPath,
 		webContainer,
 		handleDrop
@@ -52,6 +53,11 @@
 		webContainer.fs.mkdir([...itemPath, `new-folder-${i}`].join('/'));
 	}
 
+	function validateName(newName) {
+		return (
+			newName.trim() !== '' && (!Object.hasOwn(parentDirectory, newName) || newName === itemName)
+		);
+	}
 	function renameItem(newName) {
 		webContainer.fs.rename(itemPath.join('/'), [...parentPath, newName].join('/'));
 	}
@@ -93,6 +99,7 @@
 								bind:mode={itemRenameMode}
 								blurBehavior="exit"
 								class="flex place-items-center gap-1 pl-0.75"
+								validate={validateName}
 								onSave={renameItem}
 								fallbackSelectionBehavior="all"
 							/>
@@ -137,6 +144,7 @@
 								bind:mode={itemRenameMode}
 								blurBehavior="exit"
 								class="flex place-items-center gap-1 pl-0.75"
+								validate={validateName}
 								onSave={renameItem}
 								fallbackSelectionBehavior="all"
 							/>
@@ -150,6 +158,7 @@
 									: item[childName].file}
 								itemName={childName}
 								itemType={Object.hasOwn(item[childName], 'directory') ? 'directory' : 'file'}
+								parentDirectory={item}
 								parentPath={itemPath}
 								{webContainer}
 								{handleDrop}

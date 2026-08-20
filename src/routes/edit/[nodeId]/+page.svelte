@@ -73,6 +73,7 @@
 							: files[itemName].file}
 						{itemName}
 						itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
+						parentDirectory={files}
 						parentPath={[]}
 						{webContainer}
 						{handleDrop}
