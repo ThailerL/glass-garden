@@ -13,6 +13,7 @@
 		type OnConnect
 	} from '@xyflow/svelte';
 	import { v4 as uuidv4 } from 'uuid';
+	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import ComponentSidebar from './ComponentSidebar.svelte';
 	import LoadBalancerNode from '$lib/components/nodes/LoadBalancerNode.svelte';
 	import FunctionNode from '$lib/components/nodes/FunctionNode.svelte';
@@ -22,7 +23,6 @@
 	import ServiceSettings from '$lib/components/settings/ServiceSettings.svelte';
 	import { defaultNodeData } from '$lib/schemas';
 	import InspectorSidebar from './InspectorSidebar.svelte';
-	import { useDnD } from './DnDProvider.svelte';
 	import {
 		loadEdgesFromLocalStorage,
 		loadNodesFromLocalStorage,
@@ -71,39 +71,32 @@
 
 	const { screenToFlowPosition } = useSvelteFlow();
 
-	const type = useDnD();
+	let pointerPosition = { x: 0, y: 0 };
+	function trackPointer(e: MouseEvent | PointerEvent) {
+		pointerPosition = { x: e.clientX, y: e.clientY };
+	}
 
-	const onDragOver = (event: DragEvent) => {
-		event.preventDefault();
-
-		if (event.dataTransfer) {
-			event.dataTransfer.dropEffect = 'move';
-		}
-	};
-
-	const onDrop = (event: DragEvent) => {
-		event.preventDefault();
-
-		if (!type.current) {
+	function onDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
+		if (sourceContainer !== 'component-sidebar' || targetContainer !== 'canvas') {
 			return;
 		}
 
 		const position = screenToFlowPosition({
-			x: event.clientX,
-			y: event.clientY
+			x: pointerPosition.x,
+			y: pointerPosition.y
 		});
 
 		const newNode = {
 			id: uuidv4(),
-			type: type.current,
+			type: draggedItem,
 			position,
-			data: defaultNodeData[type.current],
+			data: defaultNodeData[draggedItem],
 			origin: [0.5, 0.5]
 		} satisfies Node;
 
 		nodes = [...nodes, newNode];
 		setNodeInLocalStorage(newNode);
-	};
+	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
@@ -121,30 +114,30 @@
 		);
 </script>
 
-<ComponentSidebar />
-<div class="h-dvh w-screen">
-	<SvelteFlow
-		bind:nodes
-		bind:edges
-		{nodeTypes}
-		ondelete={onDelete}
-		onnodedragstop={onNodeDragStop}
-		onconnect={onConnect}
-		ondragover={onDragOver}
-		ondrop={onDrop}
-		defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-		fitView
-		colorMode="system"
-	>
-		<Controls />
-		<Background />
-	</SvelteFlow>
+<div class="h-dvh w-screen" ondragover={trackPointer}>
+	<ComponentSidebar />
+	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
+		<SvelteFlow
+			bind:nodes
+			bind:edges
+			{nodeTypes}
+			ondelete={onDelete}
+			onnodedragstop={onNodeDragStop}
+			onconnect={onConnect}
+			defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+			fitView
+			colorMode="system"
+		>
+			<Controls />
+			<Background />
+		</SvelteFlow>
+	</div>
+	{#if selectedNodes.length === 1 && selectedEdges.length === 0}
+		{#key selectedNodes[0].id}
+			<InspectorSidebar
+				node={selectedNodes[0]}
+				InspectorComponent={settingsTypes[selectedNodes[0].type]}
+			/>
+		{/key}
+	{/if}
 </div>
-{#if selectedNodes.length === 1 && selectedEdges.length === 0}
-	{#key selectedNodes[0].id}
-		<InspectorSidebar
-			node={selectedNodes[0]}
-			InspectorComponent={settingsTypes[selectedNodes[0].type]}
-		/>
-	{/key}
-{/if}

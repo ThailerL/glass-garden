@@ -3,14 +3,11 @@
 	import './index.css';
 
 	import App from './App.svelte';
-	import DnDProvider from './DnDProvider.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 </script>
 
 <SvelteFlowProvider>
-	<DnDProvider>
-		<Sidebar.Provider>
-			<App />
-		</Sidebar.Provider>
-	</DnDProvider>
+	<Sidebar.Provider>
+		<App />
+	</Sidebar.Provider>
 </SvelteFlowProvider>
