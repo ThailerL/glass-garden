@@ -1,11 +1,9 @@
 <script lang="ts">
+	import FunctionIcon from '@lucide/svelte/icons/square-function';
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	const { data }: NodeProps = $props();
 </script>
 
-{data.name}
-<img
-	src="https://symbols.getvecta.com/stencil_9/36_lambda-function.b2a8536bdb.svg"
-	alt="Function icon"
-/>
+<span class="text-nowrap">{data.name}</span>
+<FunctionIcon class="h-full w-full" />
 <Handle type="target" position={Position.Left} />

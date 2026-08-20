@@ -5,6 +5,6 @@
 	const { data } = $props();
 </script>
 
-{data.name}
+<span class="text-nowrap">{data.name}</span>
 <ServerIcon class="h-full w-full" />
 <Handle type="target" position={Position.Left} />

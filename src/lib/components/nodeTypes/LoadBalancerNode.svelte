@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { Handle, Position } from '@xyflow/svelte';
+	import NetworkIcon from '@lucide/svelte/icons/network';
 
 	const { data } = $props();
 </script>
 
-{data.name}
-<img
-	src="https://symbols.getvecta.com/stencil_9/39_load-balancer.af7d4495ba.svg"
-	alt="Load balancer icon"
-/>
+<span class="text-nowrap">{data.name}</span>
+<NetworkIcon class="h-full w-full rotate-270" />
 <Handle type="target" position={Position.Left} />
 {#each data.targetGroups as targetGroup, i (targetGroup.id)}
 	<Handle

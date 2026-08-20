@@ -15,9 +15,9 @@
 	import { v4 as uuidv4 } from 'uuid';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import ComponentSidebar from './ComponentSidebar.svelte';
-	import LoadBalancerNode from '$lib/components/nodes/LoadBalancerNode.svelte';
-	import FunctionNode from '$lib/components/nodes/FunctionNode.svelte';
-	import ServiceNode from '$lib/components/nodes/ServiceNode.svelte';
+	import LoadBalancerNode from '$lib/components/nodeTypes/LoadBalancerNode.svelte';
+	import FunctionNode from '$lib/components/nodeTypes/FunctionNode.svelte';
+	import ServiceNode from '$lib/components/nodeTypes/ServiceNode.svelte';
 	import FunctionSettings from '$lib/components/settings/FunctionSettings.svelte';
 	import LoadBalancerSettings from '$lib/components/settings/LoadBalancerSettings.svelte';
 	import ServiceSettings from '$lib/components/settings/ServiceSettings.svelte';
