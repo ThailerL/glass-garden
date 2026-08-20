@@ -124,15 +124,11 @@
 			callbacks: { onDrop: handleDrop }
 		}}
 	>
-		<Rename.Provider
-			><ContextMenu.Root>
+		<Rename.Provider>
+			<ContextMenu.Root>
 				<ContextMenu.Trigger>
 					<TreeView.Folder
-						class="
-          handle-{itemPath.join('-')}
-          w-full
-          cursor-pointer
-          hover:bg-gray-900"
+						class="handle-{itemPath.join('-')} w-full cursor-pointer hover:bg-gray-900"
 					>
 						{#snippet label()}
 							<Rename.Root
@@ -172,7 +168,7 @@
 					</Rename.Edit>
 					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
 				</ContextMenu.Content>
-			</ContextMenu.Root></Rename.Provider
-		>
+			</ContextMenu.Root>
+		</Rename.Provider>
 	</div>
 {/if}
