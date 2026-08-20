@@ -3,7 +3,7 @@
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
 	import * as TreeView from '$lib/components/ui/tree-view';
-	import { getNodeFromLocalStorage, setNodeInLocalStorage } from '$lib/localStorageUtils';
+	import { getNodeFromLocalStorage, setNodeFileDataInLocalStorage } from '$lib/localStorageUtils';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextArea from './TextArea.svelte';
@@ -28,7 +28,7 @@
 		async () => {
 			files = structuredClone(await webContainer.export(''));
 			node.data.files = files;
-			setNodeInLocalStorage(node);
+			setNodeFileDataInLocalStorage(node);
 		}
 	);
 

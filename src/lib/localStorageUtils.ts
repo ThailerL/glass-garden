@@ -13,6 +13,18 @@ export function setNodeInLocalStorage(node: Node) {
 	localStorage.setItem(`node:${node.id}`, JSON.stringify(node));
 }
 
+export function setNodeFileDataInLocalStorage(node: Node) {
+	const nodeInStorage = getNodeFromLocalStorage(node.id);
+	nodeInStorage.data.files = node.data.files;
+	localStorage.setItem(`node:${node.id}`, JSON.stringify(nodeInStorage));
+}
+
+export function setNodeCanvasDataInLocalStorage(node: Node) {
+	const nodeInStorage = getNodeFromLocalStorage(node.id);
+	node.data.files = nodeInStorage?.data.files;
+	localStorage.setItem(`node:${node.id}`, JSON.stringify(node));
+}
+
 export function setEdgeInLocalStorage(edge: Edge) {
 	edge.selected = false;
 	localStorage.setItem(`edge:${edge.id}`, JSON.stringify(edge));

@@ -7,7 +7,7 @@
 	import { schemas } from '$lib/schemas';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { setNodeInLocalStorage } from '$lib/localStorageUtils';
+	import { setNodeCanvasDataInLocalStorage } from '$lib/localStorageUtils';
 
 	const { node, InspectorComponent }: { node: Node; InspectorComponent: Component } = $props();
 
@@ -64,7 +64,7 @@
 		onSave();
 		updateNodeInternals(node.id);
 		node.data = nodeData; // updateNodeData takes time to propagate so instantly update here
-		setNodeInLocalStorage(node);
+		setNodeCanvasDataInLocalStorage(node);
 		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
 	}
 </script>

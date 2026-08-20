@@ -29,6 +29,7 @@
 		removeEdgeFromLocalStorage,
 		removeNodeFromLocalStorage,
 		setEdgeInLocalStorage,
+		setNodeCanvasDataInLocalStorage,
 		setNodeInLocalStorage
 	} from '$lib/localStorageUtils';
 
@@ -100,7 +101,7 @@
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
-	}) => setNodeInLocalStorage(targetNode);
+	}) => setNodeCanvasDataInLocalStorage(targetNode);
 
 	const onConnect: OnConnect = (connection) =>
 		setEdgeInLocalStorage(
