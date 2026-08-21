@@ -12,54 +12,24 @@
 		type NodeTargetEventWithPointer,
 		type OnConnect
 	} from '@xyflow/svelte';
-	import { v4 as uuidv4 } from 'uuid';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import ComponentSidebar from './ComponentSidebar.svelte';
-	import LoadBalancerNode from '$lib/components/nodeTypes/LoadBalancerNode.svelte';
-	import FunctionNode from '$lib/components/nodeTypes/FunctionNode.svelte';
-	import ServiceNode from '$lib/components/nodeTypes/ServiceNode.svelte';
-	import FunctionSettings from '$lib/components/nodeSettings/FunctionSettings.svelte';
-	import LoadBalancerSettings from '$lib/components/nodeSettings/LoadBalancerSettings.svelte';
-	import ServiceSettings from '$lib/components/nodeSettings/ServiceSettings.svelte';
+	import { nodeTypes } from '$lib/components/node-types';
+	import { settingsTypes } from '$lib/components/node-settings';
 	import { defaultNodeData } from '$lib/schemas';
+	import ComponentSidebar from './ComponentSidebar.svelte';
 	import InspectorSidebar from './InspectorSidebar.svelte';
-	import {
-		loadEdgesFromLocalStorage,
-		loadNodesFromLocalStorage,
-		removeEdgeFromLocalStorage,
-		removeNodeFromLocalStorage,
-		setEdgeInLocalStorage,
-		setNodeCanvasDataInLocalStorage,
-		setNodeInLocalStorage
-	} from '$lib/localStorageUtils';
+	import { getInfrastructueState } from '$lib/infrastructure-state.svelte';
 
-	const nodeTypes = {
-		loadBalancer: LoadBalancerNode,
-		function: FunctionNode,
-		service: ServiceNode
-	};
+	const infraState = getInfrastructueState();
+	const { screenToFlowPosition } = useSvelteFlow();
 
-	const settingsTypes = {
-		loadBalancer: LoadBalancerSettings,
-		function: FunctionSettings,
-		service: ServiceSettings
-	};
-
-	let nodes: Node[] = $state.raw([]);
-	let edges: Edge[] = $state.raw([]);
-	if (loadNodesFromLocalStorage().length === 0) {
-		nodes = [
-			{ id: uuidv4(), position: { x: 0, y: 0 }, type: 'service', data: defaultNodeData.service }
-		];
-		nodes.forEach((node) => setNodeInLocalStorage(node));
-	} else {
-		nodes = loadNodesFromLocalStorage();
-		edges = loadEdgesFromLocalStorage();
+	if (infraState.nodes.length === 0) {
+		infraState.addNode('service', { x: 0, y: 0 }, defaultNodeData.service);
 	}
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
-		nodes.forEach((node) => removeNodeFromLocalStorage(node.id));
-		edges.forEach((edge) => removeEdgeFromLocalStorage(edge.id));
+		nodes.forEach((node) => infraState.deleteNodeFromStorage(node.id));
+		edges.forEach((edge) => infraState.deleteEdgeFromStorage(edge.id));
 	};
 
 	let selectedNodes: Node[] = $state.raw([]);
@@ -69,8 +39,6 @@
 		selectedNodes = nodes;
 		selectedEdges = edges;
 	});
-
-	const { screenToFlowPosition } = useSvelteFlow();
 
 	let pointerPosition = { x: 0, y: 0 };
 	function trackPointer(e: MouseEvent | PointerEvent) {
@@ -87,25 +55,16 @@
 			y: pointerPosition.y
 		});
 
-		const newNode = {
-			id: uuidv4(),
-			type: draggedItem,
-			position,
-			data: defaultNodeData[draggedItem],
-			origin: [0.5, 0.5]
-		} satisfies Node;
-
-		nodes = [...nodes, newNode];
-		setNodeInLocalStorage(newNode);
+		infraState.addNode(draggedItem, position, defaultNodeData[draggedItem]);
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
-	}) => setNodeCanvasDataInLocalStorage(targetNode);
+	}) => infraState.saveNodeInStorage(targetNode.id);
 
 	const onConnect: OnConnect = (connection) =>
-		setEdgeInLocalStorage(
-			edges.find(
+		infraState.saveEdgeInStorage(
+			infraState.edges.find(
 				(edge) =>
 					edge.source === connection.source &&
 					edge.target === connection.target &&
@@ -119,8 +78,8 @@
 	<ComponentSidebar />
 	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
 		<SvelteFlow
-			bind:nodes
-			bind:edges
+			bind:nodes={infraState.nodes}
+			bind:edges={infraState.edges}
 			{nodeTypes}
 			ondelete={onDelete}
 			onnodedragstop={onNodeDragStop}
@@ -137,7 +96,7 @@
 		{#key selectedNodes[0].id}
 			<InspectorSidebar
 				node={selectedNodes[0]}
-				InspectorComponent={settingsTypes[selectedNodes[0].type]}
+				SettingsComponent={settingsTypes[selectedNodes[0].type]}
 			/>
 		{/key}
 	{/if}

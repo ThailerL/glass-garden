@@ -3,12 +3,13 @@
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
 	import * as TreeView from '$lib/components/ui/tree-view';
-	import { getNodeFromLocalStorage, setNodeFileDataInLocalStorage } from '$lib/localStorageUtils';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextArea from './TextArea.svelte';
+	import { getInfrastructueState } from '$lib/infrastructure-state.svelte';
 
-	const node = getNodeFromLocalStorage(page.params.nodeId);
+	const infraState = getInfrastructueState();
+	const node = infraState.getNode(page.params.nodeId);
 	let files = $state(node?.data.files as FileSystemTree);
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
@@ -28,7 +29,7 @@
 		async () => {
 			files = structuredClone(await webContainer.export(''));
 			node.data.files = files;
-			setNodeFileDataInLocalStorage(node);
+			infraState.saveNodeFileDataInStorage(node);
 		}
 	);
 

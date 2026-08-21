@@ -7,9 +7,10 @@
 	import { schemas } from '$lib/schemas';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { setNodeCanvasDataInLocalStorage } from '$lib/localStorageUtils';
+	import { getInfrastructueState } from '$lib/infrastructure-state.svelte';
 
-	const { node, InspectorComponent }: { node: Node; InspectorComponent: Component } = $props();
+	const { node, SettingsComponent }: { node: Node; SettingsComponent: Component } = $props();
+	const infraState = getInfrastructueState();
 
 	const { updateNodeData } = useSvelteFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
@@ -64,7 +65,7 @@
 		onSave();
 		updateNodeInternals(node.id);
 		node.data = nodeData; // updateNodeData takes time to propagate so instantly update here
-		setNodeCanvasDataInLocalStorage(node);
+		infraState.saveNodeCanvasDataInStorage(node);
 		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
 	}
 </script>
@@ -75,7 +76,7 @@
 		<Sidebar.Group>
 			<Sidebar.GroupContent>
 				<form method="dialog" onsubmit={handleSubmit}>
-					<InspectorComponent {useOnSave} {form} {node} />
+					<SettingsComponent {useOnSave} {form} {node} />
 				</form>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>

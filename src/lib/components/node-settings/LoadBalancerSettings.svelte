@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { useEdges } from '@xyflow/svelte';
-	import { v4 as uuidv4 } from 'uuid';
+	import { nanoid } from 'nanoid';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
 
@@ -19,7 +19,7 @@
 	function addTargetGroup() {
 		$formData.targetGroups = [
 			...$formData.targetGroups,
-			{ id: uuidv4(), name: 'Target Group', weight: 1 }
+			{ id: nanoid(8), name: 'Target Group', weight: 1 }
 		];
 	}
 

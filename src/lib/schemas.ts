@@ -51,7 +51,7 @@ app.listen(port, () => {
 		targetGroups: z
 			.array(
 				z.object({
-					id: z.uuid().readonly(),
+					id: z.string().readonly(),
 					name: z.string().min(1).default('Target Group'),
 					weight: z.number().int().nonnegative().default(1)
 				})
