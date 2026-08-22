@@ -3,6 +3,8 @@
 	import { javascript } from '@codemirror/lang-javascript';
 	import { WebContainer, type FileSystemTree } from '@webcontainer/api';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
+	import { dracula } from '@uiw/codemirror-theme-dracula';
+	import { mode } from 'mode-watcher';
 
 	const {
 		webContainer,
@@ -58,14 +60,13 @@
 	lang={javascript()}
 	lineWrapping={true}
 	onchange={onChange}
+	// So that the unsaved icon displays right when typing starts
 	nodebounce={true}
+	theme={mode.current === 'dark' ? dracula : undefined}
 	styles={{
 		'&': {
 			height: '100%',
 			width: '100%'
-		},
-		'.cm-scroller': {
-			overflow: 'auto'
 		}
 	}}
 />

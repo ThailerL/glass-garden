@@ -27,6 +27,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "@thisux/sveltednd": "^0.7.0",
     "@types/node": "^24",
+    "@uiw/codemirror-theme-dracula": "^4.25.11",
     "@webcontainer/api": "^1.6.4",
     "@xterm/xterm": "^6.0.0",
     "@xyflow/svelte": "^1.6.3",
