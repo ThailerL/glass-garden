@@ -21,5 +21,5 @@
 {#if selectedFilePath.length === 0}
 	<CodeMirror value="" placeholder="No file selected" readonly={true} />
 {:else}
-	<CodeMirror {value} lang={javascript()} lineWrapping={true} onchange={onChange} on />
+	<CodeMirror {value} lang={javascript()} lineWrapping={true} onchange={onChange} />
 {/if}

@@ -1,16 +1,18 @@
 <script lang="ts">
-	import { WebContainer, type FileSystemTree } from '@webcontainer/api';
+	import { WebContainer } from '@webcontainer/api';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextArea from './TextArea.svelte';
-	import { getInfrastructueState } from '$lib/infrastructure-state.svelte';
+	import { getFileState } from '$lib/file-state.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
 
-	const infraState = getInfrastructueState();
-	const node = infraState.getNode(page.params.nodeId);
-	let files = $state(node?.data.files as FileSystemTree);
+	const nodeId = page.params.nodeId;
+	const nodeName = getGraphState().getNode(nodeId)?.data.name;
+	const fileState = getFileState();
+	let files = $state(await fileState.loadFiles(nodeId));
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
 
@@ -28,8 +30,7 @@
 		// This is the easy way: just export the whole filesystem no matter what the change was
 		async () => {
 			files = structuredClone(await webContainer.export(''));
-			node.data.files = files;
-			infraState.saveNodeFileDataInStorage(node);
+			fileState.setFiles(nodeId, files);
 		}
 	);
 
@@ -58,41 +59,35 @@
 </script>
 
 <svelte:head>
-	<title>Editing {node?.data.name}</title>
+	<title>Editing {nodeName}</title>
 </svelte:head>
 
-{#if node?.data.files}
-	<div class="flex h-dvh w-screen">
-		<div class="h-full w-1/7" use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
-			<TreeView.Root>
-				{#each getItemNamesInOrder(files) as itemName (itemName)}
-					<FileTree
-						bind:selectedFilePath
-						bind:anyItemBeingRenamed
-						item={Object.hasOwn(files[itemName], 'directory')
-							? files[itemName].directory
-							: files[itemName].file}
-						{itemName}
-						itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
-						parentDirectory={files}
-						parentPath={[]}
-						{webContainer}
-						{handleDrop}
-					/>
-				{/each}
-			</TreeView.Root>
+<div class="flex h-dvh w-screen">
+	<div class="h-full w-1/7" use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
+		<TreeView.Root>
+			{#each getItemNamesInOrder(files) as itemName (itemName)}
+				<FileTree
+					bind:selectedFilePath
+					bind:anyItemBeingRenamed
+					item={Object.hasOwn(files[itemName], 'directory')
+						? files[itemName].directory
+						: files[itemName].file}
+					{itemName}
+					itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
+					parentDirectory={files}
+					parentPath={[]}
+					{webContainer}
+					{handleDrop}
+				/>
+			{/each}
+		</TreeView.Root>
+	</div>
+	<div class="flex flex-1 flex-col">
+		<div class="h-3/5">
+			<TextArea {webContainer} {selectedFilePath} />
 		</div>
-		<div class="flex flex-1 flex-col">
-			<div class="h-3/5">
-				<TextArea {webContainer} {selectedFilePath} />
-			</div>
-			<div class="flex-1">
-				<Terminal {webContainer} />
-			</div>
+		<div class="flex-1">
+			<Terminal {webContainer} />
 		</div>
 	</div>
-{:else if node}
-	Node has no editable code
-{:else}
-	Node does not exist
-{/if}
+</div>

@@ -37,6 +37,7 @@
     "eslint-plugin-svelte": "^3.19.0",
     "formsnap": "^2.0.1",
     "globals": "^17.6.0",
+    "idb": "^8.0.3",
     "mode-watcher": "^1.1.0",
     "nanoid": "^6.0.1",
     "patch-package": "^8.0.1",

@@ -3,11 +3,14 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
 	import favicon from '$lib/assets/favicon.svg';
-	import { setInfrastructureState } from '$lib/infrastructure-state.svelte';
+	import { setGraphState } from '$lib/graph-state.svelte';
+	import { setFileState } from '$lib/file-state.svelte';
+	import type { LayoutProps } from './$types';
 
-	let { children } = $props();
+	let { children, data }: LayoutProps = $props();
 
-	setInfrastructureState();
+	const fileState = setFileState(data.db);
+	setGraphState(fileState);
 </script>
 
 <Toaster />

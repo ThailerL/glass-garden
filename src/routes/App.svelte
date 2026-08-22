@@ -18,18 +18,18 @@
 	import { defaultNodeData } from '$lib/schemas';
 	import ComponentSidebar from './ComponentSidebar.svelte';
 	import InspectorSidebar from './InspectorSidebar.svelte';
-	import { getInfrastructueState } from '$lib/infrastructure-state.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
 
-	const infraState = getInfrastructueState();
+	const graphState = getGraphState();
 	const { screenToFlowPosition } = useSvelteFlow();
 
-	if (infraState.nodes.length === 0) {
-		infraState.addNode('service', { x: 0, y: 0 }, defaultNodeData.service);
+	if (graphState.nodes.length === 0) {
+		graphState.addNode('service', { x: 0, y: 0 }, defaultNodeData.service);
 	}
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
-		nodes.forEach((node) => infraState.deleteNodeFromStorage(node.id));
-		edges.forEach((edge) => infraState.deleteEdgeFromStorage(edge.id));
+		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
+		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
 	};
 
 	let selectedNodes: Node[] = $state.raw([]);
@@ -55,16 +55,16 @@
 			y: pointerPosition.y
 		});
 
-		infraState.addNode(draggedItem, position, defaultNodeData[draggedItem]);
+		graphState.addNode(draggedItem, position, defaultNodeData[draggedItem]);
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
-	}) => infraState.saveNodeInStorage(targetNode.id);
+	}) => graphState.setNodeInStorage(targetNode.id);
 
 	const onConnect: OnConnect = (connection) =>
-		infraState.saveEdgeInStorage(
-			infraState.edges.find(
+		graphState.setEdgeInStorage(
+			graphState.edges.find(
 				(edge) =>
 					edge.source === connection.source &&
 					edge.target === connection.target &&
@@ -72,14 +72,16 @@
 					edge.targetHandle == connection.targetHandle
 			)
 		);
+
+	$inspect(graphState.nodes);
 </script>
 
 <div class="h-dvh w-screen" ondragover={trackPointer}>
 	<ComponentSidebar />
 	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
 		<SvelteFlow
-			bind:nodes={infraState.nodes}
-			bind:edges={infraState.edges}
+			bind:nodes={graphState.nodes}
+			bind:edges={graphState.edges}
 			{nodeTypes}
 			ondelete={onDelete}
 			onnodedragstop={onNodeDragStop}

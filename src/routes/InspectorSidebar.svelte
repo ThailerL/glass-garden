@@ -7,10 +7,10 @@
 	import { schemas } from '$lib/schemas';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { getInfrastructueState } from '$lib/infrastructure-state.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
 
 	const { node, SettingsComponent }: { node: Node; SettingsComponent: Component } = $props();
-	const infraState = getInfrastructueState();
+	const graphState = getGraphState();
 
 	const { updateNodeData } = useSvelteFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
@@ -48,24 +48,22 @@
 		}
 
 		// We only want fields related to the node, not any of the SuperForm fields
-		/* eslint-disable @typescript-eslint/no-unused-vars */
 		const {
-			constraints,
-			defaults,
-			id,
-			jsonSchema,
-			shape,
-			superFormValidationLibrary,
-			validate,
+			constraints: _constraints,
+			defaults: _defaults,
+			id: _id,
+			jsonSchema: _jsonSchema,
+			shape: _shape,
+			superFormValidationLibrary: _superFormValidationLibrary,
+			validate: _validate,
 			...nodeData
 		} = $formData;
-		/* eslint-enable @typescript-eslint/no-unused-vars */
 
 		updateNodeData(node.id, nodeData);
 		onSave();
 		updateNodeInternals(node.id);
 		node.data = nodeData; // updateNodeData takes time to propagate so instantly update here
-		infraState.saveNodeCanvasDataInStorage(node);
+		graphState.setNodeInStorage(node);
 		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
 	}
 </script>
