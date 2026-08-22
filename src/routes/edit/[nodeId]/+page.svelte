@@ -8,6 +8,9 @@
 	import TextArea from './TextArea.svelte';
 	import { getFileState } from '$lib/file-state.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { setFileDraftState } from '$lib/file-draft-state.svelte';
+
+	setFileDraftState();
 
 	const nodeId = page.params.nodeId;
 	const nodeName = getGraphState().getNode(nodeId)?.data.name;
@@ -84,7 +87,7 @@
 	</div>
 	<div class="flex flex-1 flex-col">
 		<div class="h-3/5">
-			<TextArea {webContainer} {selectedFilePath} />
+			<TextArea {webContainer} {selectedFilePath} {files} />
 		</div>
 		<div class="flex-1">
 			<Terminal {webContainer} />

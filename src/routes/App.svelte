@@ -16,7 +16,7 @@
 	import { nodeTypes } from '$lib/components/node-types';
 	import { settingsTypes } from '$lib/components/node-settings';
 	import { defaultNodeData } from '$lib/schemas';
-	import ComponentSidebar from './ComponentSidebar.svelte';
+	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from './InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 
@@ -77,7 +77,7 @@
 </script>
 
 <div class="h-dvh w-screen" ondragover={trackPointer}>
-	<ComponentSidebar />
+	<ResourceSidebar />
 	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
 		<SvelteFlow
 			bind:nodes={graphState.nodes}

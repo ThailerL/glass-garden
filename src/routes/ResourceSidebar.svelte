@@ -1,7 +1,7 @@
 <script lang="ts">
 	import SquareFunctionIcon from '@lucide/svelte/icons/square-function';
 	import ServerIcon from '@lucide/svelte/icons/server';
-	import ScaleIcon from '@lucide/svelte/icons/scale';
+	import NetworkIcon from '@lucide/svelte/icons/network';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { draggable } from '@thisux/sveltednd';
 
@@ -18,7 +18,7 @@
 		},
 		{
 			title: 'Load Balancer',
-			icon: ScaleIcon,
+			icon: NetworkIcon,
 			nodeType: 'loadBalancer'
 		}
 	];

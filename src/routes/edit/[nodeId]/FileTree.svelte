@@ -13,10 +13,12 @@
 
 <script lang="ts">
 	import { draggable, droppable } from '@thisux/sveltednd';
+	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import * as Rename from '$lib/components/ui/rename';
 	import FileTree from './FileTree.svelte';
+	import { getFileDraftState } from '$lib/file-draft-state.svelte';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -29,6 +31,8 @@
 		webContainer,
 		handleDrop
 	} = $props();
+
+	const fileDraftState = getFileDraftState();
 
 	const itemPath = [...parentPath, itemName];
 	let itemRenameMode = $state('view');
@@ -103,6 +107,9 @@
 								onSave={renameItem}
 								fallbackSelectionBehavior="all"
 							/>
+							{#if fileDraftState.isDirty(itemPath)}
+								<UnsavedIcon />
+							{/if}
 						{/snippet}
 					</TreeView.File>
 				</ContextMenu.Trigger>
