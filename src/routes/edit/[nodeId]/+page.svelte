@@ -85,8 +85,8 @@
 			{/each}
 		</TreeView.Root>
 	</div>
-	<div class="flex flex-1 flex-col">
-		<div class="h-3/5">
+	<div class="flex w-full flex-col">
+		<div class="min-h-0 flex-3/5">
 			<TextArea {webContainer} {selectedFilePath} {files} />
 		</div>
 		<div class="flex-1">

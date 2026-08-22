@@ -51,6 +51,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <CodeMirror
+	class="h-full"
 	value={currentDraft}
 	readonly={nothingSelected}
 	placeholder={nothingSelected ? 'No file selected' : undefined}
@@ -58,4 +59,13 @@
 	lineWrapping={true}
 	onchange={onChange}
 	nodebounce={true}
+	styles={{
+		'&': {
+			height: '100%',
+			width: '100%'
+		},
+		'.cm-scroller': {
+			overflow: 'auto'
+		}
+	}}
 />

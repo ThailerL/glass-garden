@@ -72,8 +72,6 @@
 					edge.targetHandle == connection.targetHandle
 			)
 		);
-
-	$inspect(graphState.nodes);
 </script>
 
 <div class="h-dvh w-screen" ondragover={trackPointer}>
