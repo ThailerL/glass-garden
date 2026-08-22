@@ -6,16 +6,28 @@
 		Terminal
 	} from '@battlefieldduck/xterm-svelte';
 
+	const { webContainer } = $props();
+
 	const options: ITerminalOptions & ITerminalInitOnlyOptions = {
 		convertEol: true
 	};
 
-	const { webContainer } = $props();
-
 	let terminal = $state<Terminal>();
+	let terminalHost: HTMLDivElement;
 	let input;
 	let fitAddon;
 	let shellProcess;
+
+	$effect(() => {
+		const observer = new ResizeObserver(resize);
+		observer.observe(terminalHost);
+		return () => observer.disconnect();
+	});
+
+	function resize() {
+		fitAddon.fit();
+		shellProcess.resize({ cols: terminal.cols, rows: terminal.rows });
+	}
 
 	async function onLoad() {
 		fitAddon = new (await XtermAddon.FitAddon()).FitAddon();
@@ -45,11 +57,13 @@
 	}
 </script>
 
-<svelte:window
-	onresize={() => {
-		fitAddon.fit();
-		shellProcess.resize({ terminal: { cols: terminal?.cols, rows: terminal?.rows } });
-	}}
-/>
+<div bind:this={terminalHost} class="terminal-host h-full w-full overflow-hidden">
+	<Xterm bind:terminal {options} {onLoad} {onData} />
+</div>
 
-<Xterm bind:terminal {options} {onLoad} {onData} />
+<style>
+	.terminal-host > :global(div) {
+		height: 100%;
+		width: 100%;
+	}
+</style>

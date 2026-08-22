@@ -3,9 +3,10 @@
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
 	import * as TreeView from '$lib/components/ui/tree-view';
+	import * as Resizable from '$lib/components/ui/resizable/index.js';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
-	import TextArea from './TextArea.svelte';
+	import TextEditor from './TextEditor.svelte';
 	import { getFileState } from '$lib/file-state.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
@@ -18,6 +19,7 @@
 	let files = $state(await fileState.loadFiles(nodeId));
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
+	let terminal: ReturnType<typeof Terminal>;
 
 	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
 	webContainer.on('server-ready', (port, url) => {
@@ -65,32 +67,46 @@
 	<title>Editing {nodeName}</title>
 </svelte:head>
 
-<div class="flex h-dvh w-screen">
-	<div class="h-full w-1/7" use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
-		<TreeView.Root>
-			{#each getItemNamesInOrder(files) as itemName (itemName)}
-				<FileTree
-					bind:selectedFilePath
-					bind:anyItemBeingRenamed
-					item={Object.hasOwn(files[itemName], 'directory')
-						? files[itemName].directory
-						: files[itemName].file}
-					{itemName}
-					itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
-					parentDirectory={files}
-					parentPath={[]}
-					{webContainer}
-					{handleDrop}
-				/>
-			{/each}
-		</TreeView.Root>
-	</div>
-	<div class="flex w-full flex-col">
-		<div class="min-h-0 flex-3/5">
-			<TextArea {webContainer} {selectedFilePath} {files} />
+<Resizable.PaneGroup
+	direction="horizontal"
+	class="h-dvh! w-screen!"
+	autoSaveId="code-editor-layout-0"
+>
+	<Resizable.Pane defaultSize={14} minSize={10} maxSize={40}>
+		<div use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
+			<TreeView.Root>
+				{#each getItemNamesInOrder(files) as itemName (itemName)}
+					<FileTree
+						bind:selectedFilePath
+						bind:anyItemBeingRenamed
+						item={Object.hasOwn(files[itemName], 'directory')
+							? files[itemName].directory
+							: files[itemName].file}
+						{itemName}
+						itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
+						parentDirectory={files}
+						parentPath={[]}
+						{webContainer}
+						{handleDrop}
+					/>
+				{/each}
+			</TreeView.Root>
 		</div>
-		<div class="flex-1">
-			<Terminal {webContainer} />
-		</div>
-	</div>
-</div>
+	</Resizable.Pane>
+
+	<Resizable.Handle />
+
+	<Resizable.Pane defaultSize={86}>
+		<Resizable.PaneGroup direction="vertical" autoSaveId="code-editor-layout-1">
+			<Resizable.Pane defaultSize={60} minSize={20}>
+				<TextEditor {webContainer} {selectedFilePath} {files} />
+			</Resizable.Pane>
+
+			<Resizable.Handle />
+
+			<Resizable.Pane defaultSize={40} minSize={10}>
+				<Terminal {webContainer} />
+			</Resizable.Pane>
+		</Resizable.PaneGroup>
+	</Resizable.Pane>
+</Resizable.PaneGroup>
