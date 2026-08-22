@@ -57,7 +57,7 @@
 	}
 </script>
 
-<div bind:this={terminalHost} class="terminal-host h-full w-full overflow-hidden">
+<div bind:this={terminalHost} class="terminal-host h-full w-full bg-black">
 	<Xterm bind:terminal {options} {onLoad} {onData} />
 </div>
 
@@ -65,5 +65,8 @@
 	.terminal-host > :global(div) {
 		height: 100%;
 		width: 100%;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
 	}
 </style>
