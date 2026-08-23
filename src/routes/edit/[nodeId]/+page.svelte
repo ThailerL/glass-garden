@@ -2,8 +2,11 @@
 	import { WebContainer } from '@webcontainer/api';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { page } from '$app/state';
+	import Eye from '@lucide/svelte/icons/eye';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
+	import { Button } from '$lib/components/ui/button';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
@@ -19,11 +22,12 @@
 	let files = $state(await fileState.loadFiles(nodeId));
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
+	let previewUrl = $state<string | undefined>(undefined);
+	let showPreview = $state(true);
 
 	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
 	webContainer.on('server-ready', (port, url) => {
-		console.log(port);
-		console.log(url);
+		previewUrl = url;
 	});
 	webContainer.mount(files);
 	// When files are updated in the WebContainers FS it will sync the changes to the app
@@ -98,7 +102,42 @@
 	<Resizable.Pane defaultSize={86}>
 		<Resizable.PaneGroup direction="vertical" autoSaveId="code-editor-layout-1">
 			<Resizable.Pane defaultSize={60} minSize={20}>
-				<TextEditor {webContainer} {selectedFilePath} {files} />
+				<div class="flex h-full flex-col">
+					<div class="flex items-center justify-between text-sm text-muted-foreground">
+						<span class="truncate">{selectedFilePath.join('/')}</span>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							title={showPreview ? 'Hide preview' : 'Show preview'}
+							onclick={() => (showPreview = !showPreview)}
+						>
+							{#if showPreview}
+								<Eye />
+							{:else}
+								<EyeOff />
+							{/if}
+						</Button>
+					</div>
+					<Resizable.PaneGroup direction="horizontal" autoSaveId="code-editor-layout-2">
+						<Resizable.Pane defaultSize={50} minSize={20}>
+							<TextEditor {webContainer} {selectedFilePath} {files} />
+						</Resizable.Pane>
+						{#if showPreview}
+							<Resizable.Handle />
+							<Resizable.Pane defaultSize={50} minSize={20}>
+								{#if previewUrl}
+									<iframe title="Preview" src={previewUrl} class="h-full w-full"></iframe>
+								{:else}
+									<div
+										class="flex h-full items-center justify-center text-sm text-muted-foreground"
+									>
+										Waiting for dev server…
+									</div>
+								{/if}
+							</Resizable.Pane>
+						{/if}
+					</Resizable.PaneGroup>
+				</div>
 			</Resizable.Pane>
 
 			<Resizable.Handle />
