@@ -19,7 +19,6 @@
 	let files = $state(await fileState.loadFiles(nodeId));
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
-	let terminal: ReturnType<typeof Terminal>;
 
 	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
 	webContainer.on('server-ready', (port, url) => {

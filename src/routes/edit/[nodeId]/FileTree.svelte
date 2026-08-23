@@ -142,6 +142,7 @@
 			<ContextMenu.Root>
 				<ContextMenu.Trigger>
 					<TreeView.Folder
+						open={false}
 						class="handle-{itemPath.join('-')} w-full cursor-pointer hover:bg-gray-900"
 					>
 						{#snippet label()}
@@ -155,6 +156,9 @@
 								onSave={renameItem}
 								fallbackSelectionBehavior="all"
 							/>
+							{#if fileDraftState.containsDirty(itemPath)}
+								<UnsavedIcon />
+							{/if}
 						{/snippet}
 						{#each getItemNamesInOrder(item) as childName (childName)}
 							<FileTree

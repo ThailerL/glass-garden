@@ -21,6 +21,10 @@ export class FileDraftState {
 	isDirty(path: string[]) {
 		return this.dirty.has(path.join('/'));
 	}
+
+	containsDirty(path: string[]) {
+		return this.dirty.values().some((dirtyPath) => dirtyPath.startsWith(path.join('/')));
+	}
 }
 
 const FILE_DRAFT_KEY = Symbol('FILE_DRAFT');
