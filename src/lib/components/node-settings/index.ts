@@ -1,11 +1,11 @@
 import LoadBalancerSettings from './LoadBalancerSettings.svelte';
 import FunctionSettings from './FunctionSettings.svelte';
-import ServiceSettings from './ServiceSettings.svelte';
+import InstanceGroupSettings from './InstanceGroupSettings.svelte';
 
 export const settingsTypes = {
 	loadBalancer: LoadBalancerSettings,
 	function: FunctionSettings,
-	service: ServiceSettings
+	instanceGroup: InstanceGroupSettings
 };
 
-export { LoadBalancerSettings, FunctionSettings, ServiceSettings };
+export { LoadBalancerSettings, FunctionSettings, InstanceGroupSettings as ServiceSettings };

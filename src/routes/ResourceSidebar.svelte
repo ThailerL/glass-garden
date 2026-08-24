@@ -12,9 +12,9 @@
 			nodeType: 'function'
 		},
 		{
-			title: 'Service',
+			title: 'Instance Group',
 			icon: ServerIcon,
-			nodeType: 'service'
+			nodeType: 'instanceGroup'
 		},
 		{
 			title: 'Load Balancer',

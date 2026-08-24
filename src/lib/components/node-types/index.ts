@@ -1,11 +1,11 @@
 import LoadBalancerNode from './LoadBalancerNode.svelte';
 import FunctionNode from './FunctionNode.svelte';
-import ServiceNode from './ServiceNode.svelte';
+import InstanceGroupNode from './InstanceGroupNode.svelte';
 
 export const nodeTypes = {
 	loadBalancer: LoadBalancerNode,
 	function: FunctionNode,
-	service: ServiceNode
+	instanceGroup: InstanceGroupNode
 };
 
-export { LoadBalancerNode, FunctionNode, ServiceNode };
+export { LoadBalancerNode, FunctionNode, InstanceGroupNode };

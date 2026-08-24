@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { type FileSystemTree } from '@webcontainer/api';
 
 export const schemas = {
-	service: z.object({
-		name: z.string().min(1).default('Service'),
+	instanceGroup: z.object({
+		name: z.string().min(1).default('Instance Group'),
+		instanceCount: z.number().int().positive().default(1),
 		runtime: z.enum(['node.js']).default('node.js'),
 		command: z.string().default('npm run start')
 	}),
@@ -12,22 +13,13 @@ export const schemas = {
 		runtime: z.enum(['node.js']).default('node.js')
 	}),
 	loadBalancer: z.object({
-		name: z.string().min(1).default('Load Balancer'),
-		targetGroups: z
-			.array(
-				z.object({
-					id: z.string().readonly(),
-					name: z.string().min(1).default('Target Group'),
-					weight: z.number().int().nonnegative().default(1)
-				})
-			)
-			.default([])
+		name: z.string().min(1).default('Load Balancer')
 	})
 };
 
 export const defaultNodeData = {
 	function: schemas.function.parse({}),
-	service: schemas.service.parse({}),
+	instanceGroup: schemas.instanceGroup.parse({}),
 	loadBalancer: schemas.loadBalancer.parse({})
 };
 

@@ -28,11 +28,6 @@
 
 	const { form: formData, validateForm, errors } = $derived(form);
 
-	let onSave = () => {};
-	function useOnSave(onsave: () => void) {
-		onSave = onsave;
-	}
-
 	async function handleSubmit() {
 		const result = await validateForm();
 
@@ -60,7 +55,6 @@
 		} = $formData;
 
 		updateNodeData(node.id, nodeData);
-		onSave();
 		updateNodeInternals(node.id);
 		node.data = nodeData; // updateNodeData takes time to propagate so instantly update here
 		graphState.setNodeInStorage(node);
@@ -74,7 +68,7 @@
 		<Sidebar.Group>
 			<Sidebar.GroupContent>
 				<form method="dialog" onsubmit={handleSubmit}>
-					<SettingsComponent {useOnSave} {form} {node} />
+					<SettingsComponent {form} {node} />
 				</form>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>

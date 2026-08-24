@@ -24,7 +24,7 @@
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	if (graphState.nodes.length === 0) {
-		graphState.addNode('service', { x: 0, y: 0 }, defaultNodeData.service);
+		graphState.addNode('instanceGroup', { x: 0, y: 0 }, defaultNodeData.instanceGroup);
 	}
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
