@@ -43,6 +43,8 @@ export const resourceDefinitions = {
 	}
 };
 
+export type ResourceType = keyof typeof resourceDefinitions;
+
 export const defaultFiles: FileSystemTree = {
 	src: {
 		directory: {

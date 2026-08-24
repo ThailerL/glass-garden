@@ -1,21 +1,27 @@
 <script lang="ts">
 	import { useSvelteFlow, useUpdateNodeInternals, type Node } from '@xyflow/svelte';
-	import type { Component } from 'svelte';
+	import { untrack, type Component } from 'svelte';
+	import { z } from 'zod';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
-	import { resourceDefinitions } from '$lib/resource-definitions';
+	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { getGraphState } from '$lib/graph-state.svelte';
 
-	const { node, SettingsComponent }: { node: Node; SettingsComponent: Component } = $props();
+	const {
+		node,
+		SettingsComponent
+	}: { node: Node; SettingsComponent: Component<{ form: unknown; node: Node }> } = $props();
 	const graphState = getGraphState();
 
 	const { updateNodeData } = useSvelteFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
 
-	const schema = resourceDefinitions[node.type].settingsSchema;
+	const schema: z.ZodObject<z.ZodRawShape> = untrack(
+		() => resourceDefinitions[node.type as ResourceType].settingsSchema
+	);
 	const form = $derived.by(() => {
 		const form = superForm(zod4(schema), {
 			SPA: true,

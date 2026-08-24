@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as Form from '$lib/components/ui/form';
 	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import { Label } from '$lib/components/ui/label';
@@ -8,7 +9,9 @@
 	const { form: formData } = $derived(form);
 </script>
 
-<Form.Button type="button" href={`/edit/${node.id}`} target="_blank">Edit Service Code</Form.Button>
+<Form.Button type="button" href={resolve('/edit/[nodeId]', { nodeId: node.id })} target="_blank">
+	Edit Service Code
+</Form.Button>
 <Form.Field {form} name="data.name">
 	<Form.Control>
 		{#snippet children({ props })}

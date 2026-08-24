@@ -7,6 +7,7 @@
 		name = '',
 		icon,
 		label,
+		editing,
 		type = 'button',
 		class: className,
 		...rest

@@ -1,7 +1,7 @@
 <script module>
-	import type { FileSystemTree } from '@webcontainer/api';
+	import type { FileSystemTree, DirectoryNode, FileNode, SymlinkNode } from '@webcontainer/api';
 
-	export function getItemNamesInOrder(directory): string[] {
+	export function getItemNamesInOrder(directory: FileSystemTree): string[] {
 		const directoryNames = Object.keys(directory)
 			.filter((itemName) => Object.hasOwn(directory[itemName], 'directory'))
 			.sort();
@@ -13,14 +13,19 @@
 	}
 
 	export function getFileContents(tree: FileSystemTree, path: string[]): string | undefined {
-		let node = tree[path[0]];
+		let node: DirectoryNode | FileNode | SymlinkNode | undefined = tree[path[0]];
 		for (let i = 1; i < path.length; i++) {
-			if (!node || !Object.hasOwn(node, 'directory')) {
+			if (!node || !('directory' in node)) {
 				return undefined;
 			}
 			node = node.directory[path[i]];
 		}
-		if (!node || !Object.hasOwn(node, 'file')) {
+		if (
+			!node ||
+			!('file' in node) ||
+			!('contents' in node.file) ||
+			typeof node.file.contents !== 'string'
+		) {
 			return undefined;
 		}
 		return node.file.contents;
@@ -28,7 +33,9 @@
 </script>
 
 <script lang="ts">
-	import { draggable, droppable } from '@thisux/sveltednd';
+	import { untrack } from 'svelte';
+	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
+	import type { WebContainer } from '@webcontainer/api';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
@@ -46,12 +53,22 @@
 		parentPath,
 		webContainer,
 		handleDrop
+	}: {
+		selectedFilePath: string[];
+		anyItemBeingRenamed: boolean;
+		item: FileSystemTree | FileNode['file'] | SymlinkNode['file'];
+		itemName: string;
+		itemType: 'file' | 'directory';
+		parentDirectory: FileSystemTree;
+		parentPath: string[];
+		webContainer: WebContainer;
+		handleDrop: (state: DragDropState<string>) => void;
 	} = $props();
 
 	const fileDraftState = getFileDraftState();
 
-	const itemPath = [...parentPath, itemName];
-	let itemRenameMode = $state('view');
+	const itemPath = untrack(() => [...parentPath, itemName]);
+	let itemRenameMode = $state<'view' | 'edit'>('view');
 
 	$effect(() => {
 		anyItemBeingRenamed = itemRenameMode === 'edit';
@@ -73,12 +90,12 @@
 		webContainer.fs.mkdir([...itemPath, `new-folder-${i}`].join('/'));
 	}
 
-	function validateName(newName) {
+	function validateName(newName: string) {
 		return (
 			newName.trim() !== '' && (!Object.hasOwn(parentDirectory, newName) || newName === itemName)
 		);
 	}
-	function renameItem(newName) {
+	function renameItem(newName: string) {
 		webContainer.fs.rename(itemPath.join('/'), [...parentPath, newName].join('/'));
 	}
 
@@ -141,6 +158,7 @@
 		</Rename.Provider>
 	</div>
 {:else if itemType === 'directory'}
+	{@const directory = item as FileSystemTree}
 	<div
 		use:draggable={{
 			container: parentPath.join('/'),
@@ -176,16 +194,16 @@
 								<UnsavedIcon />
 							{/if}
 						{/snippet}
-						{#each getItemNamesInOrder(item) as childName (childName)}
+						{#each getItemNamesInOrder(directory) as childName (childName)}
 							<FileTree
 								bind:selectedFilePath
 								bind:anyItemBeingRenamed
-								item={Object.hasOwn(item[childName], 'directory')
-									? item[childName].directory
-									: item[childName].file}
+								item={'directory' in directory[childName]
+									? directory[childName].directory
+									: directory[childName].file}
 								itemName={childName}
-								itemType={Object.hasOwn(item[childName], 'directory') ? 'directory' : 'file'}
-								parentDirectory={item}
+								itemType={'directory' in directory[childName] ? 'directory' : 'file'}
+								parentDirectory={directory}
 								parentPath={itemPath}
 								{webContainer}
 								{handleDrop}

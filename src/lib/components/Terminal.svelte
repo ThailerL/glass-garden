@@ -5,8 +5,10 @@
 		ITerminalInitOnlyOptions,
 		Terminal
 	} from '@battlefieldduck/xterm-svelte';
+	import type { FitAddon } from '@xterm/addon-fit';
+	import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 
-	const { webContainer } = $props();
+	const { webContainer }: { webContainer: WebContainer } = $props();
 
 	const options: ITerminalOptions & ITerminalInitOnlyOptions = {
 		convertEol: true
@@ -14,9 +16,9 @@
 
 	let terminal = $state<Terminal>();
 	let terminalHost: HTMLDivElement;
-	let input;
-	let fitAddon;
-	let shellProcess;
+	let input: WritableStreamDefaultWriter<string> | undefined;
+	let fitAddon: FitAddon | undefined;
+	let shellProcess: WebContainerProcess | undefined;
 
 	$effect(() => {
 		const observer = new ResizeObserver(resize);
@@ -25,8 +27,8 @@
 	});
 
 	function resize() {
-		fitAddon.fit();
-		shellProcess.resize({ cols: terminal.cols, rows: terminal.rows });
+		fitAddon?.fit();
+		if (terminal) shellProcess?.resize({ cols: terminal.cols, rows: terminal.rows });
 	}
 
 	async function onLoad() {
@@ -36,8 +38,8 @@
 
 		shellProcess = await webContainer.spawn('jsh', {
 			terminal: {
-				cols: terminal?.cols,
-				rows: terminal?.rows
+				cols: terminal?.cols ?? 80,
+				rows: terminal?.rows ?? 24
 			}
 		});
 
@@ -53,7 +55,7 @@
 	}
 
 	function onData(data: string) {
-		input.write(data);
+		input?.write(data);
 	}
 </script>
 

@@ -51,17 +51,15 @@ type RenameInputStateProps = WritableBoxedValues<{
 	ReadableBoxedValues<{
 		blurBehavior?: 'exit' | 'none';
 		fallbackSelectionBehavior: 'start' | 'end' | 'all';
-	}> & {
-		id: string;
 		onSave?: (value: string) => void;
 		onCancel?: () => void;
 		validate: (value: string) => boolean;
-	};
+	}>;
 
 class RenameInputState {
 	mode = $state<'edit' | 'view'>('view');
 	editingValue = $state('');
-	invalid = $derived.by(() => !this.opts.validate(this.editingValue));
+	invalid = $derived.by(() => !this.opts.validate.current(this.editingValue));
 
 	get blurBehavior() {
 		if (this.opts.blurBehavior !== undefined && this.opts.blurBehavior.current !== undefined)
@@ -143,14 +141,14 @@ class RenameInputState {
 
 	async save() {
 		if (this.invalid) return;
-		await this.opts.onSave?.(this.editingValue);
+		await this.opts.onSave?.current?.(this.editingValue);
 		this.opts.value.current = this.editingValue;
 		this.mode = 'view';
 	}
 
 	cancel() {
 		this.mode = 'view';
-		this.opts.onCancel?.();
+		this.opts.onCancel?.current?.();
 		this.editingValue = this.opts.value.current;
 	}
 

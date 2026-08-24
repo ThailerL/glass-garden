@@ -48,7 +48,6 @@
 	let textRef = $state<HTMLElement | null>(null);
 
 	const rootState = useRenameInput({
-		id,
 		mode: box.with(
 			() => mode,
 			(v) => (mode = v)
@@ -65,10 +64,10 @@
 			() => textRef,
 			(v) => (textRef = v)
 		),
-		onSave,
-		onCancel,
+		onSave: box.with(() => onSave),
+		onCancel: box.with(() => onCancel),
 		blurBehavior: box.with(() => blurBehavior),
-		validate,
+		validate: box.with(() => validate),
 		fallbackSelectionBehavior: box.with(() => fallbackSelectionBehavior)
 	});
 

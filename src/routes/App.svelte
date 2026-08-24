@@ -13,7 +13,7 @@
 		type OnConnect
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import { resourceDefinitions } from '$lib/resource-definitions';
+	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from './InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
@@ -54,7 +54,7 @@
 		pointerPosition = { x: e.clientX, y: e.clientY };
 	}
 
-	function onDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
+	function onDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<ResourceType>) {
 		if (sourceContainer !== 'component-sidebar' || targetContainer !== 'canvas') {
 			return;
 		}
@@ -73,20 +73,23 @@
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
-	}) => graphState.setNodeInStorage(targetNode);
+	}) => {
+		if (targetNode) graphState.setNodeInStorage(targetNode);
+	};
 
-	const onConnect: OnConnect = (connection) =>
-		graphState.setEdgeInStorage(
-			graphState.edges.find(
-				(edge) =>
-					edge.source === connection.source &&
-					edge.target === connection.target &&
-					edge.sourceHandle == connection.sourceHandle &&
-					edge.targetHandle == connection.targetHandle
-			)
+	const onConnect: OnConnect = (connection) => {
+		const edge = graphState.edges.find(
+			(edge) =>
+				edge.source === connection.source &&
+				edge.target === connection.target &&
+				edge.sourceHandle == connection.sourceHandle &&
+				edge.targetHandle == connection.targetHandle
 		);
+		if (edge) graphState.setEdgeInStorage(edge);
+	};
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="h-dvh w-screen" ondragover={trackPointer}>
 	<ResourceSidebar />
 	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
@@ -109,7 +112,8 @@
 		{#key selectedNodes[0].id}
 			<InspectorSidebar
 				node={selectedNodes[0]}
-				SettingsComponent={resourceDefinitions[selectedNodes[0].type].settingsComponent}
+				SettingsComponent={resourceDefinitions[selectedNodes[0].type as ResourceType]
+					.settingsComponent}
 			/>
 		{/key}
 	{/if}

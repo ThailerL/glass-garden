@@ -2,11 +2,11 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { FileState } from './file-state.svelte';
-import { resourceDefinitions, defaultFiles } from './resource-definitions';
+import { resourceDefinitions, defaultFiles, type ResourceType } from './resource-definitions';
 
 export class GraphState {
-	nodes = $state.raw<Node[]>();
-	edges = $state.raw<Edge[]>();
+	nodes = $state.raw<Node[]>([]);
+	edges = $state.raw<Edge[]>([]);
 	#fileState: FileState;
 
 	constructor(fileState: FileState) {
@@ -20,7 +20,11 @@ export class GraphState {
 		this.#fileState = fileState;
 	}
 
-	async addNode(type: string, position: { x: number; y: number }, data: Record<string, unknown>) {
+	async addNode(
+		type: ResourceType,
+		position: { x: number; y: number },
+		data: Record<string, unknown>
+	) {
 		const node: Node = {
 			id: nanoid(8),
 			type,

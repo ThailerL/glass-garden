@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { WebContainer } from '@webcontainer/api';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import { page } from '$app/state';
+	import type { PageProps } from './$types';
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import * as TreeView from '$lib/components/ui/tree-view';
@@ -14,9 +15,11 @@
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
 
+	const { params }: PageProps = $props();
+
 	setFileDraftState(() => files);
 
-	const nodeId = page.params.nodeId;
+	const nodeId = untrack(() => params.nodeId);
 	const nodeName = getGraphState().getNode(nodeId)?.data.name;
 	const fileState = getFileState();
 
@@ -27,10 +30,10 @@
 	let showPreview = $state(true);
 
 	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
-	webContainer.on('server-ready', (port, url) => {
+	webContainer.on('server-ready', (_port, url) => {
 		previewUrl = url;
 	});
-	webContainer.mount(files);
+	webContainer.mount(untrack(() => files));
 	// When files are updated in the WebContainers FS it will sync the changes to the app
 	// So to manage files only need to call the WebContainer API
 	webContainer.fs.watch(
@@ -46,6 +49,7 @@
 	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
 		// directories can't be dragged into itself or a child directory of itself
 		if (
+			targetContainer === null ||
 			sourceContainer === targetContainer ||
 			targetContainer.startsWith(
 				sourceContainer === '' ? draggedItem : [sourceContainer, draggedItem].join('/')

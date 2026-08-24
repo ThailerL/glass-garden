@@ -6,7 +6,7 @@ import { SvelteMap } from 'svelte/reactivity';
 export class FileState {
 	files = $state(new SvelteMap<string, FileSystemTree>());
 	#loading = new SvelteMap<string, Promise<FileSystemTree>>();
-	#db: IDBPDatabase | null = null;
+	#db: IDBPDatabase;
 
 	constructor(db: IDBPDatabase) {
 		this.#db = db;
@@ -17,7 +17,7 @@ export class FileState {
 		if (this.#loading.has(nodeId)) return this.#loading.get(nodeId);
 
 		const promise = this.#db
-			?.get('files', nodeId)
+			.get('files', nodeId)
 			.then((fileTree) => {
 				if (fileTree) {
 					const reactiveFileTree = $state(fileTree);

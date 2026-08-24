@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import './layout.css';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
@@ -9,7 +10,7 @@
 
 	let { children, data }: LayoutProps = $props();
 
-	const fileState = setFileState(data.db);
+	const fileState = setFileState(untrack(() => data.db));
 	setGraphState(fileState);
 </script>
 
