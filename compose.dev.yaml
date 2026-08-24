@@ -6,6 +6,6 @@ services:
       dockerfile: Dockerfile.dev
     pull_policy: build
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - ./:/usr/src/app

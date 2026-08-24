@@ -10,11 +10,11 @@ services:
     image: ghcr.io/thailerl/infralab:latest
     container_name: infralab
     ports:
-      - "3000:3000"
+      - '3000:3000'
     restart: unless-stopped
 ```
 
-Then visit  `http://localhost:3000`. If you are not accessing the website from `localhost` (i.e. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS because a lot of the functionality requires a secure context to work.
+Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (i.e. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS because a lot of the functionality requires a secure context to work.
 
 ## Developing
 
