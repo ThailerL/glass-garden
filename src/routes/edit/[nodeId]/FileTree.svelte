@@ -38,7 +38,7 @@
 	import type { WebContainer } from '@webcontainer/api';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
 	import * as TreeView from '$lib/components/ui/tree-view';
-	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
+	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import * as Rename from '$lib/components/ui/rename';
 	import FileTree from './FileTree.svelte';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';

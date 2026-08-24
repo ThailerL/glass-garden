@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import './layout.css';
 	import { ModeWatcher } from 'mode-watcher';
-	import { Toaster } from '$lib/components/ui/sonner/index.js';
+	import { Toaster } from '$lib/components/ui/sonner';
 	import favicon from '$lib/assets/favicon.svg';
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { setFileState } from '$lib/file-state.svelte';

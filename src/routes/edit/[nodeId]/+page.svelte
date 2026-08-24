@@ -6,8 +6,8 @@
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import * as TreeView from '$lib/components/ui/tree-view';
-	import * as Resizable from '$lib/components/ui/resizable/index.js';
-	import { Button } from '$lib/components/ui/button';
+	import * as Resizable from '$lib/components/ui/resizable';
+	import { Toggle } from '$lib/components/ui/toggle';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
@@ -110,18 +110,18 @@
 				<div class="flex h-full flex-col">
 					<div class="flex items-center justify-between text-sm text-muted-foreground">
 						<span class="truncate">{selectedFilePath.join('/')}</span>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							title={showPreview ? 'Hide preview' : 'Show preview'}
-							onclick={() => (showPreview = !showPreview)}
+						<Toggle
+							size="sm"
+							class="hover:bg-transparent aria-pressed:bg-transparent"
+							title="Show preview"
+							bind:pressed={showPreview}
 						>
 							{#if showPreview}
 								<Eye />
 							{:else}
 								<EyeOff />
 							{/if}
-						</Button>
+						</Toggle>
 					</div>
 					<Resizable.PaneGroup direction="horizontal" autoSaveId="code-editor-layout-2">
 						<Resizable.Pane defaultSize={50} minSize={20}>
