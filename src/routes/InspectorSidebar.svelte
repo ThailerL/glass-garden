@@ -4,7 +4,7 @@
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
-	import { schemas } from '$lib/schemas';
+	import { resourceDefinitions } from '$lib/resource-definitions';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { getGraphState } from '$lib/graph-state.svelte';
@@ -15,17 +15,17 @@
 	const { updateNodeData } = useSvelteFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
 
+	const schema = resourceDefinitions[node.type].settingsSchema;
 	const form = $derived.by(() => {
-		const form = superForm(zod4(schemas[node.type]), {
+		const form = superForm(zod4(schema), {
 			SPA: true,
-			validators: zod4(schemas[node.type]),
+			validators: zod4(schema),
 			dataType: 'json',
 			resetForm: false
 		});
 		form.reset({ data: node.data });
 		return form;
 	});
-
 	const { form: formData, validateForm, errors } = $derived(form);
 
 	async function handleSubmit() {

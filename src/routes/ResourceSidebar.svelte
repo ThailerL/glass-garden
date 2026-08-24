@@ -1,27 +1,7 @@
 <script lang="ts">
-	import SquareFunctionIcon from '@lucide/svelte/icons/square-function';
-	import ServerIcon from '@lucide/svelte/icons/server';
-	import NetworkIcon from '@lucide/svelte/icons/network';
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import { resourceDefinitions } from '$lib/resource-definitions';
 	import { draggable } from '@thisux/sveltednd';
-
-	const items = [
-		{
-			title: 'Function',
-			icon: SquareFunctionIcon,
-			nodeType: 'function'
-		},
-		{
-			title: 'Instance Group',
-			icon: ServerIcon,
-			nodeType: 'instanceGroup'
-		},
-		{
-			title: 'Load Balancer',
-			icon: NetworkIcon,
-			nodeType: 'loadBalancer'
-		}
-	];
 </script>
 
 <Sidebar.Root>
@@ -30,12 +10,12 @@
 			<Sidebar.GroupLabel>Components</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
-					{#each items as item (item.title)}
+					{#each Object.entries(resourceDefinitions) as [resource, definition] (resource)}
 						<Sidebar.MenuItem>
-							<div use:draggable={{ container: 'component-sidebar', dragData: item.nodeType }}>
+							<div use:draggable={{ container: 'component-sidebar', dragData: resource }}>
 								<Sidebar.MenuButton>
-									<item.icon />
-									{item.title}
+									<definition.icon />
+									{definition.name}
 								</Sidebar.MenuButton>
 							</div>
 						</Sidebar.MenuItem>

@@ -13,9 +13,7 @@
 		type OnConnect
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import { nodeTypes } from '$lib/components/node-types';
-	import { settingsTypes } from '$lib/components/node-settings';
-	import { defaultNodeData } from '$lib/schemas';
+	import { resourceDefinitions } from '$lib/resource-definitions';
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from './InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
@@ -24,8 +22,19 @@
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	if (graphState.nodes.length === 0) {
-		graphState.addNode('instanceGroup', { x: 0, y: 0 }, defaultNodeData.instanceGroup);
+		graphState.addNode(
+			'instanceGroup',
+			{ x: 0, y: 0 },
+			resourceDefinitions.instanceGroup.settingsSchema.parse({})
+		);
 	}
+
+	const nodeTypes = Object.fromEntries(
+		Object.entries(resourceDefinitions).map(([resource, definition]) => [
+			resource,
+			definition.nodeComponent
+		])
+	);
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
 		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
@@ -55,12 +64,16 @@
 			y: pointerPosition.y
 		});
 
-		graphState.addNode(draggedItem, position, defaultNodeData[draggedItem]);
+		graphState.addNode(
+			draggedItem,
+			position,
+			resourceDefinitions[draggedItem].settingsSchema.parse({})
+		);
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
-	}) => graphState.setNodeInStorage(targetNode.id);
+	}) => graphState.setNodeInStorage(targetNode);
 
 	const onConnect: OnConnect = (connection) =>
 		graphState.setEdgeInStorage(
@@ -96,7 +109,7 @@
 		{#key selectedNodes[0].id}
 			<InspectorSidebar
 				node={selectedNodes[0]}
-				SettingsComponent={settingsTypes[selectedNodes[0].type]}
+				SettingsComponent={resourceDefinitions[selectedNodes[0].type].settingsComponent}
 			/>
 		{/key}
 	{/if}

@@ -1,8 +1,8 @@
 import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
-import { FileState, getFileState } from './file-state.svelte';
-import { defaultFiles } from './schemas';
+import { FileState } from './file-state.svelte';
+import { resourceDefinitions, defaultFiles } from './resource-definitions';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>();
@@ -31,7 +31,9 @@ export class GraphState {
 		this.nodes = [...this.nodes, node];
 		this.setNodeInStorage(node);
 
-		this.#fileState.setFiles(node.id, defaultFiles);
+		if (resourceDefinitions[type].hasEditableFiles) {
+			this.#fileState.setFiles(node.id, defaultFiles);
+		}
 	}
 
 	getNode(id: string) {
