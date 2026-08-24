@@ -1,4 +1,6 @@
 <script module>
+	import type { FileSystemTree } from '@webcontainer/api';
+
 	export function getItemNamesInOrder(directory): string[] {
 		const directoryNames = Object.keys(directory)
 			.filter((itemName) => Object.hasOwn(directory[itemName], 'directory'))
@@ -8,6 +10,20 @@
 			.sort();
 
 		return [...directoryNames, ...fileNames];
+	}
+
+	export function getFileContents(tree: FileSystemTree, path: string[]): string | undefined {
+		let node = tree[path[0]];
+		for (let i = 1; i < path.length; i++) {
+			if (!node || !Object.hasOwn(node, 'directory')) {
+				return undefined;
+			}
+			node = node.directory[path[i]];
+		}
+		if (!node || !Object.hasOwn(node, 'file')) {
+			return undefined;
+		}
+		return node.file.contents;
 	}
 </script>
 

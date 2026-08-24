@@ -1,36 +1,43 @@
 import { getContext, setContext } from 'svelte';
-import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { SvelteMap } from 'svelte/reactivity';
+import type { EditorState } from '@codemirror/state';
+import type { FileSystemTree } from '@webcontainer/api';
+import { getFileContents } from '../routes/edit/[nodeId]/FileTree.svelte';
 
 export class FileDraftState {
-	drafts = new SvelteMap<string, string>();
-	dirty = new SvelteSet<string>();
+	editorStates = new SvelteMap<string, EditorState>();
 
-	get(path: string[]) {
-		return this.drafts.get(path.join('/'));
+	constructor(private getFiles: () => FileSystemTree) {}
+
+	getDraft(path: string[]) {
+		return this.editorStates.get(path.join('/'))?.doc.toString();
 	}
 
-	set(path: string[], value: string) {
-		this.dirty.add(path.join('/'));
-		this.drafts.set(path.join('/'), value);
+	getEditorState(path: string[]) {
+		return this.editorStates.get(path.join('/'));
 	}
 
-	markSaved(path: string[]) {
-		this.dirty.delete(path.join('/'));
+	setEditorState(path: string[], state: EditorState) {
+		this.editorStates.set(path.join('/'), state);
 	}
 
 	isDirty(path: string[]) {
-		return this.dirty.has(path.join('/'));
+		const draft = this.getDraft(path);
+		return draft !== undefined && draft !== (getFileContents(this.getFiles(), path) ?? '');
 	}
 
 	containsDirty(path: string[]) {
-		return this.dirty.values().some((dirtyPath) => dirtyPath.startsWith(path.join('/')));
+		const prefix = path.join('/');
+		return [...this.editorStates.keys()].some(
+			(key) => key.startsWith(prefix) && this.isDirty(key.split('/'))
+		);
 	}
 }
 
 const FILE_DRAFT_KEY = Symbol('FILE_DRAFT');
 
-export function setFileDraftState() {
-	return setContext(FILE_DRAFT_KEY, new FileDraftState());
+export function setFileDraftState(getFiles: () => FileSystemTree) {
+	return setContext(FILE_DRAFT_KEY, new FileDraftState(getFiles));
 }
 
 export function getFileDraftState() {

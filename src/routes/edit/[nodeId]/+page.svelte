@@ -14,11 +14,12 @@
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
 
-	setFileDraftState();
+	setFileDraftState(() => files);
 
 	const nodeId = page.params.nodeId;
 	const nodeName = getGraphState().getNode(nodeId)?.data.name;
 	const fileState = getFileState();
+
 	let files = $state(await fileState.loadFiles(nodeId));
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
