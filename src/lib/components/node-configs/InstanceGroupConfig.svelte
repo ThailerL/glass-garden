@@ -1,15 +1,11 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
 
-	const { form, node } = $props();
+	const { form } = $props();
 	const { form: formData } = $derived(form);
 </script>
 
-<Form.Button type="button" href={resolve('/edit/[nodeId]', { nodeId: node.id })} target="_blank">
-	Edit Service Code
-</Form.Button>
 <Form.Field {form} name="name">
 	<Form.Control>
 		{#snippet children({ props })}

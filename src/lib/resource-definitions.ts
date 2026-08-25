@@ -36,13 +36,14 @@ export const resourceDefinitions = {
 			}
 
 			// Split command by whitespace
-			const { command } = node.data as z.infer<typeof instanceGroupConfigSchema>;
+			const { command, port } = node.data as z.infer<typeof instanceGroupConfigSchema>;
 			const commandParts = command.match(/\S+/g);
 			if (!commandParts) {
 				throw new Error('Command is empty');
 			}
 			const process = await webContainer.spawn(commandParts[0], commandParts.slice(1), {
-				cwd: node.id
+				cwd: node.id,
+				env: { PORT: port }
 			});
 
 			return process;
@@ -78,7 +79,7 @@ export const defaultFiles: FileSystemTree = {
 				file: {
 					contents: `import express from 'express';
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
   res.send('Hello World');

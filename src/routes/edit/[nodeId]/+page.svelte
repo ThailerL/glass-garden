@@ -9,6 +9,7 @@
 	import * as Resizable from '$lib/components/ui/resizable';
 	import { Toggle } from '$lib/components/ui/toggle';
 	import Terminal from '$lib/components/Terminal.svelte';
+	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
 	import { getFileState } from '$lib/file-state.svelte';
@@ -130,15 +131,7 @@
 						{#if showPreview}
 							<Resizable.Handle />
 							<Resizable.Pane defaultSize={50} minSize={20}>
-								{#if previewUrl}
-									<iframe title="Preview" src={previewUrl} class="h-full w-full"></iframe>
-								{:else}
-									<div
-										class="flex h-full items-center justify-center text-sm text-muted-foreground"
-									>
-										Waiting for dev server…
-									</div>
-								{/if}
+								<PreviewFrame {previewUrl} />
 							</Resizable.Pane>
 						{/if}
 					</Resizable.PaneGroup>

@@ -114,10 +114,7 @@
 	</div>
 	{#if selectedNodes.length === 1 && selectedEdges.length === 0}
 		{#key selectedNodes[0].id}
-			<InspectorSidebar
-				node={selectedNodes[0]}
-				ConfigComponent={resourceDefinitions[selectedNodes[0].type as ResourceType].configComponent}
-			/>
+			<InspectorSidebar node={selectedNodes[0]} />
 		{/key}
 	{/if}
 </div>

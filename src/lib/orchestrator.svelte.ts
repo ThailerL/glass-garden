@@ -11,6 +11,7 @@ export class Orchestrator {
 	#fileState: FileState;
 	#processes = new SvelteMap<string, WebContainerProcess>();
 	#statuses = new SvelteMap<string, ResourceStatus>();
+	#previewUrls = new SvelteMap<string, string>();
 	#webContainerPromise: Promise<WebContainer> | undefined;
 
 	constructor(graphState: GraphState, fileState: FileState) {
@@ -22,6 +23,10 @@ export class Orchestrator {
 		return this.#statuses.get(nodeId) ?? 'stopped';
 	}
 
+	getPreviewUrl(nodeId: string): string | undefined {
+		return this.#previewUrls.get(nodeId);
+	}
+
 	canStart(nodeId: string): boolean {
 		return !['running', 'starting', 'stopping'].includes(this.getStatus(nodeId));
 	}
@@ -31,7 +36,18 @@ export class Orchestrator {
 	}
 
 	#getWebContainer() {
-		this.#webContainerPromise ??= WebContainer.boot({ workdirName: 'infralab' });
+		this.#webContainerPromise ??= WebContainer.boot({ workdirName: 'infralab' }).then(
+			(webContainer) => {
+				// server-ready only gives us a port, not which node started the so we have to derive it
+				webContainer.on('server-ready', (port, url) => {
+					const node = this.#graphState.nodes.find(
+						(node) => (node.data as Record<string, unknown>).port === port
+					);
+					if (node) this.#previewUrls.set(node.id, url);
+				});
+				return webContainer;
+			}
+		);
 		return this.#webContainerPromise;
 	}
 
@@ -53,8 +69,10 @@ export class Orchestrator {
 				this.#processes.set(node.id, process);
 				this.#statuses.set(node.id, 'running');
 
-				// Set status as 'crash' if process ends unexpectedly
 				process.exit.then(() => {
+					this.#previewUrls.delete(node.id);
+
+					// Set status to 'crashed' if process ends unexpectedly
 					if (this.getStatus(node.id) === 'running') {
 						this.#processes.delete(node.id);
 						this.#statuses.set(node.id, 'crashed');

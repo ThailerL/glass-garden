@@ -1,81 +1,36 @@
 <script lang="ts">
-	import { useSvelteFlow, type Node } from '@xyflow/svelte';
-	import { untrack, type Component } from 'svelte';
-	import { z } from 'zod';
-	import { superForm, defaults } from 'sveltekit-superforms';
-	import { zod4 } from 'sveltekit-superforms/adapters';
-	import { toast } from 'svelte-sonner';
-	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
-	import * as Form from '$lib/components/ui/form';
+	import type { Node } from '@xyflow/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import { Button } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
-	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import ConfigTab from './ConfigTab.svelte';
+	import PreviewTab from './PreviewTab.svelte';
 
-	const {
-		node,
-		ConfigComponent
-	}: { node: Node; ConfigComponent: Component<{ form: unknown; node: Node }> } = $props();
-	const graphState = getGraphState();
+	const { node }: { node: Node } = $props();
 	const orchestrator = getOrchestrator();
-
-	const { updateNodeData } = useSvelteFlow();
-
-	const schema: z.ZodObject<z.ZodRawShape> = untrack(
-		() => resourceDefinitions[node.type as ResourceType].configSchema
-	);
-	const form = $derived.by(() => {
-		const form = superForm(defaults(zod4(schema), { id: node.id }), {
-			SPA: true,
-			validators: zod4(schema),
-			dataType: 'json',
-			resetForm: false
-		});
-		form.reset({ data: node.data });
-		return form;
-	});
-	const { form: formData, validateForm, errors } = $derived(form);
-
-	async function handleSubmit() {
-		const result = await validateForm();
-		const nodeConfig = $formData;
-
-		const portInUse =
-			'port' in nodeConfig && graphState.portInUse(nodeConfig.port as number, node.id);
-
-		if (!result.valid || portInUse) {
-			errors.update((v) => {
-				return {
-					...v,
-					...result.errors,
-					...(portInUse && {
-						port: [`Port ${nodeConfig.port} is already in use by another resource`]
-					})
-				};
-			});
-
-			return;
-		}
-
-		node.data = nodeConfig;
-		updateNodeData(node.id, node.data);
-		graphState.setNodeInStorage(node);
-		toast.success('Successfully saved config', { position: 'bottom-center', duration: 2000 });
-	}
 </script>
 
 <Sidebar.Root side="right">
-	<Sidebar.Header>Config for {node.data.name}</Sidebar.Header>
 	<Sidebar.Content>
-		<Sidebar.Group>
-			<Sidebar.GroupContent>
-				<form method="dialog" onsubmit={handleSubmit}>
-					<ConfigComponent {form} {node} />
-				</form>
+		<Sidebar.Group class="h-full">
+			<Sidebar.GroupContent class="h-full">
+				<UnderlineTabs.Root value="config" class="h-full">
+					<UnderlineTabs.List>
+						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
+						<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
+					</UnderlineTabs.List>
+					<UnderlineTabs.Content value="config">
+						<ConfigTab {node} />
+					</UnderlineTabs.Content>
+					<UnderlineTabs.Content value="preview" class="h-full">
+						<PreviewTab {node} />
+					</UnderlineTabs.Content>
+				</UnderlineTabs.Root>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
@@ -94,7 +49,7 @@
 						</Button>
 					{/snippet}
 				</Tooltip.Trigger>
-				<Tooltip.Content>Start resource</Tooltip.Content>
+				<Tooltip.Content>Start</Tooltip.Content>
 			</Tooltip.Root>
 
 			<Tooltip.Root>
@@ -110,9 +65,8 @@
 						</Button>
 					{/snippet}
 				</Tooltip.Trigger>
-				<Tooltip.Content>Stop resource</Tooltip.Content>
+				<Tooltip.Content>Stop</Tooltip.Content>
 			</Tooltip.Root>
 		</ButtonGroup.Root>
-		<Form.Button type="submit" onclick={handleSubmit}>Save changes</Form.Button>
 	</Sidebar.Footer>
 </Sidebar.Root>
