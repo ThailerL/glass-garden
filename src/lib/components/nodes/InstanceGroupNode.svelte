@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { Handle, Position } from '@xyflow/svelte';
 	import ServerIcon from '@lucide/svelte/icons/server';
+	import NodeTemplate from './NodeTemplate.svelte';
 
 	const { data } = $props();
 </script>
 
-<span class="text-nowrap">{data.config.name}</span>
-<ServerIcon class="h-full w-full" />
+<NodeTemplate {data} Icon={ServerIcon} />
 <Handle type="target" position={Position.Left} />

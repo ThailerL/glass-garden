@@ -29,7 +29,7 @@ export class GraphState {
 			id: nanoid(8),
 			type,
 			position,
-			data: { config },
+			data: { config, status: 'not started' },
 			origin: [0.5, 0.5]
 		};
 		this.nodes = [...this.nodes, node];
