@@ -7,9 +7,16 @@ export class FileState {
 	files = $state(new SvelteMap<string, FileSystemTree>());
 	#loading = new SvelteMap<string, Promise<FileSystemTree>>();
 	#db: IDBPDatabase;
+	// Other tabs write to the same IndexedDB, so our cache can go stale
+	// when another tab saves. This channel tells other tabs when it saves
+	// files so that the other tabs delete the stale data
+	#channel = new BroadcastChannel('infralab:file-state');
 
 	constructor(db: IDBPDatabase) {
 		this.#db = db;
+		this.#channel.onmessage = (event: MessageEvent<{ nodeId: string }>) => {
+			this.files.delete(event.data.nodeId);
+		};
 	}
 
 	async loadFiles(nodeId: string) {
@@ -33,11 +40,13 @@ export class FileState {
 	async setFiles(nodeId: string, fileTree: FileSystemTree) {
 		this.files.set(nodeId, fileTree);
 		await this.#db.put('files', $state.snapshot(fileTree), nodeId);
+		this.#channel.postMessage({ nodeId });
 	}
 
 	async deleteFiles(nodeId: string) {
 		this.files.delete(nodeId);
 		await this.#db.delete('files', nodeId);
+		this.#channel.postMessage({ nodeId });
 	}
 }
 

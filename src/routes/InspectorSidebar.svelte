@@ -2,7 +2,7 @@
 	import { useSvelteFlow, type Node } from '@xyflow/svelte';
 	import { untrack, type Component } from 'svelte';
 	import { z } from 'zod';
-	import { superForm } from 'sveltekit-superforms';
+	import { superForm, defaults } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
 	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
@@ -22,33 +22,39 @@
 		() => resourceDefinitions[node.type as ResourceType].configSchema
 	);
 	const form = $derived.by(() => {
-		const form = superForm(zod4(schema), {
+		const form = superForm(defaults(zod4(schema), { id: node.id }), {
 			SPA: true,
 			validators: zod4(schema),
 			dataType: 'json',
 			resetForm: false
 		});
-		form.reset({ data: node.data.config as Record<string, unknown> });
+		form.reset({ data: node.data });
 		return form;
 	});
 	const { form: formData, validateForm, errors } = $derived(form);
 
 	async function handleSubmit() {
 		const result = await validateForm();
+		const nodeConfig = $formData;
 
-		if (!result.valid) {
+		const portInUse =
+			'port' in nodeConfig && graphState.portInUse(nodeConfig.port as number, node.id);
+
+		if (!result.valid || portInUse) {
 			errors.update((v) => {
 				return {
 					...v,
-					...result.errors
+					...result.errors,
+					...(portInUse && {
+						port: [`Port ${nodeConfig.port} is already in use by another resource`]
+					})
 				};
 			});
 
 			return;
 		}
 
-		const nodeConfig = $formData;
-		node.data.config = nodeConfig;
+		node.data = nodeConfig;
 		updateNodeData(node.id, node.data);
 		graphState.setNodeInStorage(node);
 		toast.success('Successfully saved config', { position: 'bottom-center', duration: 2000 });

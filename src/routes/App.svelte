@@ -17,16 +17,23 @@
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from './InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getFileState } from '$lib/file-state.svelte';
+	import { setOrchestrator } from '$lib/orchestrator.svelte';
+	import OrchestratorControls from '$lib/components/OrchestratorControls.svelte';
 
 	const graphState = getGraphState();
+	setOrchestrator(graphState, getFileState());
 	const { screenToFlowPosition } = useSvelteFlow();
 
+	function createNodeConfig(type: ResourceType) {
+		const schema = resourceDefinitions[type].configSchema;
+		return 'port' in schema.shape
+			? schema.parse({ port: graphState.randomAvailablePort() })
+			: schema.parse({});
+	}
+
 	if (graphState.nodes.length === 0) {
-		graphState.addNode(
-			'instanceGroup',
-			{ x: 0, y: 0 },
-			resourceDefinitions.instanceGroup.configSchema.parse({})
-		);
+		graphState.addNode('instanceGroup', { x: 0, y: 0 }, createNodeConfig('instanceGroup'));
 	}
 
 	const nodeTypes = Object.fromEntries(
@@ -64,11 +71,7 @@
 			y: pointerPosition.y
 		});
 
-		graphState.addNode(
-			draggedItem,
-			position,
-			resourceDefinitions[draggedItem].configSchema.parse({})
-		);
+		graphState.addNode(draggedItem, position, createNodeConfig(draggedItem));
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
@@ -91,6 +94,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="h-dvh w-screen" ondragover={trackPointer}>
+	<OrchestratorControls />
 	<ResourceSidebar />
 	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
 		<SvelteFlow

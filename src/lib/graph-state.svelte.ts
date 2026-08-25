@@ -2,7 +2,13 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { FileState } from './file-state.svelte';
-import { resourceDefinitions, defaultFiles, type ResourceType } from './resource-definitions';
+import {
+	resourceDefinitions,
+	defaultFiles,
+	MIN_PORT,
+	MAX_PORT,
+	type ResourceType
+} from './resource-definitions';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
@@ -29,7 +35,7 @@ export class GraphState {
 			id: nanoid(8),
 			type,
 			position,
-			data: { config, status: 'not started' },
+			data: config,
 			origin: [0.5, 0.5]
 		};
 		this.nodes = [...this.nodes, node];
@@ -38,6 +44,19 @@ export class GraphState {
 		if (resourceDefinitions[type].hasEditableFiles) {
 			this.#fileState.setFiles(node.id, defaultFiles);
 		}
+	}
+
+	portInUse(port: number, excludeNodeId?: string) {
+		return this.nodes.some((node) => node.id !== excludeNodeId && node.data.port === port);
+	}
+
+	randomAvailablePort() {
+		let port: number;
+		do {
+			port = Math.floor(Math.random() * (MAX_PORT - MIN_PORT + 1)) + MIN_PORT;
+		} while (this.portInUse(port));
+
+		return port;
 	}
 
 	getNode(id: string) {
