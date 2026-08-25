@@ -23,13 +23,13 @@ export class GraphState {
 	async addNode(
 		type: ResourceType,
 		position: { x: number; y: number },
-		data: Record<string, unknown>
+		config: Record<string, unknown>
 	) {
 		const node: Node = {
 			id: nanoid(8),
 			type,
 			position,
-			data,
+			data: { config },
 			origin: [0.5, 0.5]
 		};
 		this.nodes = [...this.nodes, node];

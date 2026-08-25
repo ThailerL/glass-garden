@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useSvelteFlow, useUpdateNodeInternals, type Node } from '@xyflow/svelte';
+	import { useSvelteFlow, type Node } from '@xyflow/svelte';
 	import { untrack, type Component } from 'svelte';
 	import { z } from 'zod';
 	import { superForm } from 'sveltekit-superforms';
@@ -12,15 +12,14 @@
 
 	const {
 		node,
-		SettingsComponent
-	}: { node: Node; SettingsComponent: Component<{ form: unknown; node: Node }> } = $props();
+		ConfigComponent
+	}: { node: Node; ConfigComponent: Component<{ form: unknown; node: Node }> } = $props();
 	const graphState = getGraphState();
 
 	const { updateNodeData } = useSvelteFlow();
-	const updateNodeInternals = useUpdateNodeInternals();
 
 	const schema: z.ZodObject<z.ZodRawShape> = untrack(
-		() => resourceDefinitions[node.type as ResourceType].settingsSchema
+		() => resourceDefinitions[node.type as ResourceType].configSchema
 	);
 	const form = $derived.by(() => {
 		const form = superForm(zod4(schema), {
@@ -29,7 +28,7 @@
 			dataType: 'json',
 			resetForm: false
 		});
-		form.reset({ data: node.data });
+		form.reset({ data: node.data.config as Record<string, unknown> });
 		return form;
 	});
 	const { form: formData, validateForm, errors } = $derived(form);
@@ -48,33 +47,21 @@
 			return;
 		}
 
-		// We only want fields related to the node, not any of the SuperForm fields
-		const {
-			constraints: _constraints,
-			defaults: _defaults,
-			id: _id,
-			jsonSchema: _jsonSchema,
-			shape: _shape,
-			superFormValidationLibrary: _superFormValidationLibrary,
-			validate: _validate,
-			...nodeData
-		} = $formData;
-
-		updateNodeData(node.id, nodeData);
-		updateNodeInternals(node.id);
-		node.data = nodeData; // updateNodeData takes time to propagate so instantly update here
+		const nodeConfig = $formData;
+		node.data.config = nodeConfig;
+		updateNodeData(node.id, node.data);
 		graphState.setNodeInStorage(node);
-		toast.success('Successfully saved settings', { position: 'bottom-center', duration: 2000 });
+		toast.success('Successfully saved config', { position: 'bottom-center', duration: 2000 });
 	}
 </script>
 
 <Sidebar.Root side="right">
-	<Sidebar.Header>Settings for {node.data.name}</Sidebar.Header>
+	<Sidebar.Header>Config for {node.data.name}</Sidebar.Header>
 	<Sidebar.Content>
 		<Sidebar.Group>
 			<Sidebar.GroupContent>
 				<form method="dialog" onsubmit={handleSubmit}>
-					<SettingsComponent {form} {node} />
+					<ConfigComponent {form} {node} />
 				</form>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>

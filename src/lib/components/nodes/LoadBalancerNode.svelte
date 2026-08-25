@@ -5,7 +5,7 @@
 	const { data } = $props();
 </script>
 
-<span class="text-nowrap">{data.name}</span>
+<span class="text-nowrap">{data.config.name}</span>
 <NetworkIcon class="h-full w-full rotate-270" />
 <Handle type="target" position={Position.Left} />
 <Handle type="source" position={Position.Right} />

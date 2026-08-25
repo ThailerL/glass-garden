@@ -4,7 +4,7 @@ import ServerIcon from '@lucide/svelte/icons/server';
 import SquareFunctionIcon from '@lucide/svelte/icons/square-function';
 import NetworkIcon from '@lucide/svelte/icons/network';
 import * as NodeComponents from './components/nodes';
-import * as SettingsComponents from './components/node-settings';
+import * as ConfigComponents from './components/node-configs';
 
 export const resourceDefinitions = {
 	instanceGroup: {
@@ -12,8 +12,8 @@ export const resourceDefinitions = {
 		icon: ServerIcon,
 		hasEditableFiles: true,
 		nodeComponent: NodeComponents.InstanceGroupNode,
-		settingsComponent: SettingsComponents.InstanceGroupSettings,
-		settingsSchema: z.object({
+		configComponent: ConfigComponents.InstanceGroupConfig,
+		configSchema: z.object({
 			name: z.string().min(1).default('Instance Group'),
 			instanceCount: z.number().int().positive().default(1),
 			runtime: z.enum(['node.js']).default('node.js'),
@@ -25,8 +25,8 @@ export const resourceDefinitions = {
 		icon: SquareFunctionIcon,
 		hasEditableFiles: true,
 		nodeComponent: NodeComponents.FunctionNode,
-		settingsComponent: SettingsComponents.FunctionSettings,
-		settingsSchema: z.object({
+		configComponent: ConfigComponents.FunctionConfig,
+		configSchema: z.object({
 			name: z.string().min(1).default('Function'),
 			runtime: z.enum(['node.js']).default('node.js')
 		})
@@ -36,8 +36,8 @@ export const resourceDefinitions = {
 		icon: NetworkIcon,
 		hasEditableFiles: false,
 		nodeComponent: NodeComponents.LoadBalancerNode,
-		settingsComponent: SettingsComponents.LoadBalancerSettings,
-		settingsSchema: z.object({
+		configComponent: ConfigComponents.LoadBalancerConfig,
+		configSchema: z.object({
 			name: z.string().min(1).default('Load Balancer')
 		})
 	}

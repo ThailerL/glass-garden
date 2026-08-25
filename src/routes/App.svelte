@@ -25,7 +25,7 @@
 		graphState.addNode(
 			'instanceGroup',
 			{ x: 0, y: 0 },
-			resourceDefinitions.instanceGroup.settingsSchema.parse({})
+			resourceDefinitions.instanceGroup.configSchema.parse({})
 		);
 	}
 
@@ -67,7 +67,7 @@
 		graphState.addNode(
 			draggedItem,
 			position,
-			resourceDefinitions[draggedItem].settingsSchema.parse({})
+			resourceDefinitions[draggedItem].configSchema.parse({})
 		);
 	}
 
@@ -112,8 +112,7 @@
 		{#key selectedNodes[0].id}
 			<InspectorSidebar
 				node={selectedNodes[0]}
-				SettingsComponent={resourceDefinitions[selectedNodes[0].type as ResourceType]
-					.settingsComponent}
+				ConfigComponent={resourceDefinitions[selectedNodes[0].type as ResourceType].configComponent}
 			/>
 		{/key}
 	{/if}
