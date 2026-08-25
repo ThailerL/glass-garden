@@ -8,13 +8,20 @@
 	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
 	import * as Form from '$lib/components/ui/form';
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
+	import { Button } from '$lib/components/ui/button';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import PlayIcon from '@lucide/svelte/icons/play';
+	import SquareIcon from '@lucide/svelte/icons/square';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getOrchestrator } from '$lib/orchestrator.svelte';
 
 	const {
 		node,
 		ConfigComponent
 	}: { node: Node; ConfigComponent: Component<{ form: unknown; node: Node }> } = $props();
 	const graphState = getGraphState();
+	const orchestrator = getOrchestrator();
 
 	const { updateNodeData } = useSvelteFlow();
 
@@ -73,6 +80,39 @@
 		</Sidebar.Group>
 	</Sidebar.Content>
 	<Sidebar.Footer>
+		<ButtonGroup.Root>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="outline"
+							disabled={!orchestrator.canStart(node.id)}
+							onclick={() => orchestrator.start(node)}
+						>
+							<PlayIcon />
+						</Button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content>Start resource</Tooltip.Content>
+			</Tooltip.Root>
+
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="outline"
+							disabled={!orchestrator.canStop(node.id)}
+							onclick={() => orchestrator.stop(node)}
+						>
+							<SquareIcon />
+						</Button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content>Stop resource</Tooltip.Content>
+			</Tooltip.Root>
+		</ButtonGroup.Root>
 		<Form.Button type="submit" onclick={handleSubmit}>Save changes</Form.Button>
 	</Sidebar.Footer>
 </Sidebar.Root>

@@ -49,6 +49,7 @@ export const resourceDefinitions = {
 		},
 		stop: async (process: WebContainerProcess) => {
 			process.kill();
+			await process.exit;
 		}
 	},
 	loadBalancer: {
@@ -63,6 +64,7 @@ export const resourceDefinitions = {
 		},
 		stop: async (process: WebContainerProcess) => {
 			process.kill();
+			await process.exit;
 		}
 	}
 };

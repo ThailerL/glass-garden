@@ -10,16 +10,8 @@
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
 
-	const startDisabled = $derived(
-		graphState.nodes.every((node) =>
-			['running', 'starting', 'stopping'].includes(orchestrator.getStatus(node.id))
-		)
-	);
-	const stopDisabled = $derived(
-		graphState.nodes.every((node) =>
-			['stopped', 'starting', 'stopping'].includes(orchestrator.getStatus(node.id))
-		)
-	);
+	const startDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStart(node.id)));
+	const stopDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStop(node.id)));
 </script>
 
 <div
