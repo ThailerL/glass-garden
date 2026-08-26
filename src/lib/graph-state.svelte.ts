@@ -11,10 +11,10 @@ export class GraphState {
 
 	constructor(fileStore: FileStore) {
 		this.nodes = Object.keys(localStorage)
-			.filter((key) => key.startsWith('node'))
+			.filter((key) => key.startsWith('node:'))
 			.map((key) => JSON.parse(localStorage[key]));
 		this.edges = Object.keys(localStorage)
-			.filter((key) => key.startsWith('edge'))
+			.filter((key) => key.startsWith('edge:'))
 			.map((key) => JSON.parse(localStorage[key]));
 
 		this.#fileStore = fileStore;

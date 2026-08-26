@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { EditorState } from '@codemirror/state';
 import type { FileSystemTree } from '@webcontainer/api';
-import { getFileContents } from '../routes/edit/[nodeId]/FileTree.svelte';
+import { getFileContents } from './file-tree';
 
 export class FileDraftState {
 	editorStates = new SvelteMap<string, EditorState>();

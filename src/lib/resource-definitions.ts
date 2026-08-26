@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { WebContainer, type FileSystemTree, type WebContainerProcess } from '@webcontainer/api';
-import type { Node } from '@xyflow/svelte';
+import { Position, type Node } from '@xyflow/svelte';
 import ServerIcon from '@lucide/svelte/icons/server';
 import NetworkIcon from '@lucide/svelte/icons/network';
-import * as NodeComponents from './components/nodes';
 import * as ConfigComponents from './components/node-configs';
+
+type HandleConfig = { type: 'source' | 'target'; position: Position };
 
 const instanceGroupConfigSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
@@ -21,7 +22,7 @@ export const resourceDefinitions = {
 		name: 'Instance Group',
 		icon: ServerIcon,
 		hasEditableFiles: true,
-		nodeComponent: NodeComponents.InstanceGroupNode,
+		handles: [{ type: 'target', position: Position.Left }] satisfies HandleConfig[],
 		configComponent: ConfigComponents.InstanceGroupConfig,
 		configSchema: instanceGroupConfigSchema,
 		instanceCount: (node: Node) =>
@@ -60,7 +61,10 @@ export const resourceDefinitions = {
 		name: 'Load Balancer',
 		icon: NetworkIcon,
 		hasEditableFiles: false,
-		nodeComponent: NodeComponents.LoadBalancerNode,
+		handles: [
+			{ type: 'target', position: Position.Left },
+			{ type: 'source', position: Position.Right }
+		] satisfies HandleConfig[],
 		configComponent: ConfigComponents.LoadBalancerConfig,
 		configSchema: loadBalancerConfigSchema,
 		instanceCount: () => 1,
@@ -78,7 +82,8 @@ export const resourceDefinitions = {
 export type ResourceType = keyof typeof resourceDefinitions;
 export type ResourceDefinition = (typeof resourceDefinitions)[ResourceType];
 
-export function getResourceDefinition(node: Node): ResourceDefinition {
+// Only the type is used, so this also accepts a bare NodeProps from a node component
+export function getResourceDefinition(node: Pick<Node, 'type'>): ResourceDefinition {
 	const definition = resourceDefinitions[node.type as ResourceType];
 	if (!definition) {
 		throw new Error(`Unknown resource type: ${node.type}`);

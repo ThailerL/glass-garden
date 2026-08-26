@@ -9,7 +9,8 @@
 	import Terminal from '$lib/components/Terminal.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
-	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
+	import { getItemNamesInOrder } from '$lib/file-tree';
+	import FileTree from './FileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
 	import { getFileStore, withoutExcludedFiles } from '$lib/file-store.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';

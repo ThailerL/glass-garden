@@ -14,6 +14,7 @@
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
+	import { ResourceNode } from '$lib/components/nodes';
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
@@ -33,11 +34,10 @@
 		graphState.addNode('instanceGroup', { x: 0, y: 0 }, createNodeConfig('instanceGroup'));
 	}
 
+	// Every resource type renders through the same component, which reads its icon and
+	// handles from the node's own definition
 	const nodeTypes = Object.fromEntries(
-		Object.entries(resourceDefinitions).map(([resource, definition]) => [
-			resource,
-			definition.nodeComponent
-		])
+		Object.keys(resourceDefinitions).map((resource) => [resource, ResourceNode])
 	);
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {

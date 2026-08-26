@@ -4,7 +4,7 @@
 	import type { EditorView } from '@codemirror/view';
 	import { WebContainer, type FileSystemTree } from '@webcontainer/api';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
-	import { getFileContents } from './FileTree.svelte';
+	import { getFileContents } from '$lib/file-tree';
 	import { dracula } from '@uiw/codemirror-theme-dracula';
 	import { mode } from 'mode-watcher';
 

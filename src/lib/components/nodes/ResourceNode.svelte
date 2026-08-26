@@ -1,13 +1,14 @@
 <script lang="ts">
-	import type { LucideIcon } from '@lucide/svelte';
-	import type { NodeProps } from '@xyflow/svelte';
+	import { Handle, type NodeProps } from '@xyflow/svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getResourceDefinition } from '$lib/resource-definitions';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 
-	const { node, Icon }: { node: NodeProps; Icon: LucideIcon } = $props();
+	const node: NodeProps = $props();
 
 	const orchestrator = getOrchestrator();
 	const status = $derived(orchestrator.getStatus(node.id));
+	const definition = $derived(getResourceDefinition(node));
 
 	function fitText(el: HTMLSpanElement) {
 		const container = el.parentElement as HTMLElement;
@@ -36,4 +37,7 @@
 <span class="block origin-center whitespace-nowrap" use:fitText>
 	{node.data.name}
 </span>
-<Icon class="h-full w-full" />
+<definition.icon class="h-full w-full" />
+{#each definition.handles as handle (handle.type)}
+	<Handle type={handle.type} position={handle.position} />
+{/each}

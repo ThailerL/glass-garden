@@ -1,42 +1,9 @@
-<script module>
-	import type { FileSystemTree, DirectoryNode, FileNode, SymlinkNode } from '@webcontainer/api';
-
-	export function getItemNamesInOrder(directory: FileSystemTree): string[] {
-		const directoryNames = Object.keys(directory)
-			.filter((itemName) => Object.hasOwn(directory[itemName], 'directory'))
-			.sort();
-		const fileNames = Object.keys(directory)
-			.filter((itemName) => Object.hasOwn(directory[itemName], 'file'))
-			.sort();
-
-		return [...directoryNames, ...fileNames];
-	}
-
-	export function getFileContents(tree: FileSystemTree, path: string[]): string | undefined {
-		let node: DirectoryNode | FileNode | SymlinkNode | undefined = tree[path[0]];
-		for (let i = 1; i < path.length; i++) {
-			if (!node || !('directory' in node)) {
-				return undefined;
-			}
-			node = node.directory[path[i]];
-		}
-		if (
-			!node ||
-			!('file' in node) ||
-			!('contents' in node.file) ||
-			typeof node.file.contents !== 'string'
-		) {
-			return undefined;
-		}
-		return node.file.contents;
-	}
-</script>
-
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
-	import type { WebContainer } from '@webcontainer/api';
+	import type { WebContainer, FileSystemTree, FileNode, SymlinkNode } from '@webcontainer/api';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
+	import { getItemNamesInOrder } from '$lib/file-tree';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import * as Rename from '$lib/components/ui/rename';
