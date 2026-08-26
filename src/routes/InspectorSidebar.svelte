@@ -27,7 +27,7 @@
 					<UnderlineTabs.Content value="config">
 						<ConfigTab {node} />
 					</UnderlineTabs.Content>
-					<UnderlineTabs.Content value="preview" class="h-full">
+					<UnderlineTabs.Content value="preview">
 						<PreviewTab {node} />
 					</UnderlineTabs.Content>
 				</UnderlineTabs.Root>

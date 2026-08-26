@@ -6,15 +6,10 @@ import NetworkIcon from '@lucide/svelte/icons/network';
 import * as NodeComponents from './components/nodes';
 import * as ConfigComponents from './components/node-configs';
 
-// IANA registered port range
-export const MIN_PORT = 1024;
-export const MAX_PORT = 49151;
-
 const instanceGroupConfigSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
 	instanceCount: z.number().int().positive().default(1),
-	command: z.string().min(1).default('npm run start'),
-	port: z.number().int().min(MIN_PORT).max(MAX_PORT)
+	command: z.string().min(1).default('npm run start')
 });
 
 const loadBalancerConfigSchema = z.object({
@@ -29,14 +24,22 @@ export const resourceDefinitions = {
 		nodeComponent: NodeComponents.InstanceGroupNode,
 		configComponent: ConfigComponents.InstanceGroupConfig,
 		configSchema: instanceGroupConfigSchema,
-		start: async (node: Node, webContainer: WebContainer): Promise<WebContainerProcess> => {
+		instanceCount: (node: Node) =>
+			(node.data as z.infer<typeof instanceGroupConfigSchema>).instanceCount,
+		// Runs once per group rather than once per instance, so instances don't race each other
+		prepare: async (node: Node, webContainer: WebContainer) => {
 			const installProcess = await webContainer.spawn('npm', ['install'], { cwd: node.id });
 			if ((await installProcess.exit) !== 0) {
 				throw new Error('Unable to run npm install');
 			}
-
+		},
+		start: async (
+			node: Node,
+			webContainer: WebContainer,
+			port: number
+		): Promise<WebContainerProcess> => {
 			// Split command by whitespace
-			const { command, port } = node.data as z.infer<typeof instanceGroupConfigSchema>;
+			const { command } = node.data as z.infer<typeof instanceGroupConfigSchema>;
 			const commandParts = command.match(/\S+/g);
 			if (!commandParts) {
 				throw new Error('Command is empty');
@@ -60,6 +63,8 @@ export const resourceDefinitions = {
 		nodeComponent: NodeComponents.LoadBalancerNode,
 		configComponent: ConfigComponents.LoadBalancerConfig,
 		configSchema: loadBalancerConfigSchema,
+		instanceCount: () => 1,
+		prepare: async () => {},
 		start: async (): Promise<WebContainerProcess> => {
 			throw new Error('Load balancer is not implemented yet');
 		},
@@ -80,9 +85,11 @@ export const defaultFiles: FileSystemTree = {
 					contents: `import express from 'express';
 const app = express();
 const port = process.env.PORT || 3000;
+// Picked once at startup so every instance of this group serves a different number
+const instanceId = Math.floor(Math.random() * 10000);
 
 app.get('/', (req, res) => {
-  res.send('Hello World');
+  res.send(\`Hello World from instance \${instanceId}\`);
 });
 
 app.listen(port, () => {

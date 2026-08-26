@@ -3,6 +3,9 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { FileSystemTree } from '@webcontainer/api';
 import { SvelteMap } from 'svelte/reactivity';
 
+// Poor man's .gitignore
+const EXCLUDED_FROM_PERSISTENCE = ['node_modules'];
+
 export class FileState {
 	files = $state(new SvelteMap<string, FileSystemTree>());
 	#loading = new SvelteMap<string, Promise<FileSystemTree>>();
@@ -39,7 +42,12 @@ export class FileState {
 
 	async setFiles(nodeId: string, fileTree: FileSystemTree) {
 		this.files.set(nodeId, fileTree);
-		await this.#db.put('files', $state.snapshot(fileTree), nodeId);
+		const persistedTree = Object.fromEntries(
+			Object.entries($state.snapshot(fileTree)).filter(
+				([name]) => !EXCLUDED_FROM_PERSISTENCE.includes(name)
+			)
+		);
+		await this.#db.put('files', persistedTree, nodeId);
 		this.#channel.postMessage({ nodeId });
 	}
 

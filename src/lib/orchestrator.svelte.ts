@@ -6,12 +6,24 @@ import { FileState } from './file-state.svelte';
 import { resourceDefinitions, type ResourceType } from './resource-definitions';
 import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 
+// IANA registered port range
+const MIN_PORT = 1024;
+const MAX_PORT = 49151;
+
+type ResourceDefinition = (typeof resourceDefinitions)[ResourceType];
+
+// A port is reserved first, then process starts and gives a preview URL
+export type Instance = {
+	port: number;
+	process?: WebContainerProcess;
+	previewUrl?: string;
+};
+
 export class Orchestrator {
 	#graphState: GraphState;
 	#fileState: FileState;
-	#processes = new SvelteMap<string, WebContainerProcess>();
+	#instances = new SvelteMap<string, Instance[]>();
 	#statuses = new SvelteMap<string, ResourceStatus>();
-	#previewUrls = new SvelteMap<string, string>();
 	#webContainerPromise: Promise<WebContainer> | undefined;
 
 	constructor(graphState: GraphState, fileState: FileState) {
@@ -23,8 +35,8 @@ export class Orchestrator {
 		return this.#statuses.get(nodeId) ?? 'stopped';
 	}
 
-	getPreviewUrl(nodeId: string): string | undefined {
-		return this.#previewUrls.get(nodeId);
+	getInstances(nodeId: string): Instance[] {
+		return this.#instances.get(nodeId) ?? [];
 	}
 
 	canStart(nodeId: string): boolean {
@@ -38,12 +50,9 @@ export class Orchestrator {
 	#getWebContainer() {
 		this.#webContainerPromise ??= WebContainer.boot({ workdirName: 'infralab' }).then(
 			(webContainer) => {
-				// server-ready only gives us a port, not which node started the so we have to derive it
 				webContainer.on('server-ready', (port, url) => {
-					const node = this.#graphState.nodes.find(
-						(node) => (node.data as Record<string, unknown>).port === port
-					);
-					if (node) this.#previewUrls.set(node.id, url);
+					const instance = this.#allInstances().find((instance) => instance.port === port);
+					if (instance) instance.previewUrl = url;
 				});
 				return webContainer;
 			}
@@ -51,32 +60,82 @@ export class Orchestrator {
 		return this.#webContainerPromise;
 	}
 
+	#allInstances(): Instance[] {
+		return [...this.#instances.values()].flat();
+	}
+
+	#allocatePort(): number {
+		let port: number;
+		do {
+			port = Math.floor(Math.random() * (MAX_PORT - MIN_PORT + 1)) + MIN_PORT;
+		} while (this.#allInstances().some((instance) => instance.port === port));
+		return port;
+	}
+
+	// If any process fails to spawn then the whole thing fails and cleans up
+	async #spawnInstances(
+		node: Node,
+		definition: ResourceDefinition,
+		webContainer: WebContainer,
+		instances: Instance[]
+	): Promise<WebContainerProcess[]> {
+		const results = await Promise.allSettled(
+			instances.map((instance) => definition.start(node, webContainer, instance.port))
+		);
+
+		const processes: WebContainerProcess[] = [];
+		const errors: unknown[] = [];
+		for (const result of results) {
+			if (result.status === 'fulfilled') processes.push(result.value);
+			else errors.push(result.reason);
+		}
+
+		if (errors.length > 0) {
+			await Promise.all(processes.map((process) => definition.stop(process)));
+			throw errors[0];
+		}
+
+		return processes;
+	}
+
 	start(node: Node) {
 		if (!this.canStart(node.id)) return;
 		this.#statuses.set(node.id, 'starting');
+
+		const definition = resourceDefinitions[node.type as ResourceType];
+
+		const instances = $state<Instance[]>([]);
+		this.#instances.set(node.id, instances);
+		for (let i = 0; i < definition.instanceCount(node); i++) {
+			instances.push({ port: this.#allocatePort() });
+		}
+
 		this.#getWebContainer()
 			.then(async (webContainer) => {
-				if (resourceDefinitions[node.type as ResourceType].hasEditableFiles) {
+				if (definition.hasEditableFiles) {
 					const fileTree = await this.#fileState.loadFiles(node.id);
 					if (fileTree) {
 						await webContainer.fs.mkdir(node.id, { recursive: true });
 						await webContainer.mount(fileTree, { mountPoint: node.id });
 					}
 				}
-				return resourceDefinitions[node.type as ResourceType].start(node, webContainer);
+				await definition.prepare(node, webContainer);
+				return this.#spawnInstances(node, definition, webContainer, instances);
 			})
-			.then((process) => {
-				this.#processes.set(node.id, process);
+			.then((processes) => {
 				this.#statuses.set(node.id, 'running');
 
-				process.exit.then(() => {
-					this.#previewUrls.delete(node.id);
+				processes.forEach((process, index) => {
+					instances[index].process = process;
 
-					// Set status to 'crashed' if process ends unexpectedly
-					if (this.getStatus(node.id) === 'running') {
-						this.#processes.delete(node.id);
-						this.#statuses.set(node.id, 'crashed');
-					}
+					process.exit.then(() => {
+						instances[index].previewUrl = undefined;
+
+						// Set status to 'crashed' if a process ends unexpectedly
+						if (this.getStatus(node.id) === 'running') {
+							this.#statuses.set(node.id, 'crashed');
+						}
+					});
 				});
 			})
 			.catch((e) => {
@@ -91,14 +150,16 @@ export class Orchestrator {
 
 	stop(node: Node) {
 		if (!this.canStop(node.id)) return;
-		const process = this.#processes.get(node.id);
-		if (!process) return;
+		const processes = this.getInstances(node.id)
+			.map((instance) => instance.process)
+			.filter((process) => process !== undefined);
+		if (processes.length === 0) return;
 
+		const definition = resourceDefinitions[node.type as ResourceType];
 		this.#statuses.set(node.id, 'stopping');
-		resourceDefinitions[node.type as ResourceType]
-			.stop(process)
+		Promise.all(processes.map((process) => definition.stop(process)))
 			.then(() => {
-				this.#processes.delete(node.id);
+				this.#instances.delete(node.id);
 				this.#statuses.set(node.id, 'stopped');
 			})
 			.catch((e) => {

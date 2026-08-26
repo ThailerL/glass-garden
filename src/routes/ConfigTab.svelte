@@ -35,26 +35,13 @@
 
 	async function handleSubmit() {
 		const result = await validateForm();
-		const nodeConfig = $formData;
 
-		const portInUse =
-			'port' in nodeConfig && graphState.portInUse(nodeConfig.port as number, node.id);
-
-		if (!result.valid || portInUse) {
-			errors.update((v) => {
-				return {
-					...v,
-					...result.errors,
-					...(portInUse && {
-						port: [`Port ${nodeConfig.port} is already in use by another resource`]
-					})
-				};
-			});
-
+		if (!result.valid) {
+			errors.update((v) => ({ ...v, ...result.errors }));
 			return;
 		}
 
-		node.data = nodeConfig;
+		node.data = $formData;
 		updateNodeData(node.id, node.data);
 		graphState.setNodeInStorage(node);
 		toast.success('Successfully saved config', { position: 'bottom-center', duration: 2000 });

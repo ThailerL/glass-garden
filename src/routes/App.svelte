@@ -26,10 +26,7 @@
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	function createNodeConfig(type: ResourceType) {
-		const schema = resourceDefinitions[type].configSchema;
-		return 'port' in schema.shape
-			? schema.parse({ port: graphState.randomAvailablePort() })
-			: schema.parse({});
+		return resourceDefinitions[type].configSchema.parse({});
 	}
 
 	if (graphState.nodes.length === 0) {

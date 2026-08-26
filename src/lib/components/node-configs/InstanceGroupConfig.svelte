@@ -15,20 +15,20 @@
 	</Form.Control>
 	<Form.FieldErrors />
 </Form.Field>
+<Form.Field {form} name="instanceCount">
+	<Form.Control>
+		{#snippet children({ props })}
+			<Form.Label>Instance Count</Form.Label>
+			<Input type="number" {...props} bind:value={$formData.instanceCount} />
+		{/snippet}
+	</Form.Control>
+	<Form.FieldErrors />
+</Form.Field>
 <Form.Field {form} name="command">
 	<Form.Control>
 		{#snippet children({ props })}
 			<Form.Label>Command</Form.Label>
 			<Input {...props} bind:value={$formData.command} />
-		{/snippet}
-	</Form.Control>
-	<Form.FieldErrors />
-</Form.Field>
-<Form.Field {form} name="port">
-	<Form.Control>
-		{#snippet children({ props })}
-			<Form.Label>Port</Form.Label>
-			<Input type="number" {...props} bind:value={$formData.port} />
 		{/snippet}
 	</Form.Control>
 	<Form.FieldErrors />
