@@ -11,7 +11,8 @@ const MIN_PORT = 1024;
 const MAX_PORT = 49151;
 
 // No 'stopped': a stopped instance is dropped from its group
-export type InstanceStatus = 'starting' | 'running' | 'stopping' | 'crashed';
+// 'unresponsive' means failed to stop/kill the instance/process
+export type InstanceStatus = 'starting' | 'running' | 'stopping' | 'crashed' | 'unresponsive';
 
 // A port is reserved first, then process starts and gives a preview URL
 export type Instance = {
@@ -21,10 +22,17 @@ export type Instance = {
 	previewUrl?: string;
 };
 
+// The definition is kept here rather than looked up, so a pool can still
+// be stopped after its node is deleted from the graph
+type Pool = {
+	definition: ResourceDefinition;
+	instances: Instance[];
+};
+
 export class Orchestrator {
 	#graphState: GraphState;
 	#fileState: FileState;
-	#instances = new SvelteMap<string, Instance[]>();
+	#pools = new SvelteMap<string, Pool>();
 	#webContainerPromise: Promise<WebContainer> | undefined;
 
 	constructor(graphState: GraphState, fileState: FileState) {
@@ -35,15 +43,18 @@ export class Orchestrator {
 	getStatus(nodeId: string): ResourceStatus {
 		const instances = this.getInstances(nodeId);
 		if (instances.length === 0) return 'stopped';
+		if (instances.every((instance) => instance.status === 'running')) return 'running';
+		// 'starting' and 'stopping' take precedent because canStart and canStop gate on these
+		// and we don't want overlapping runs
 		if (instances.some((instance) => instance.status === 'starting')) return 'starting';
 		if (instances.some((instance) => instance.status === 'stopping')) return 'stopping';
-		if (instances.every((instance) => instance.status === 'running')) return 'running';
+		if (instances.some((instance) => instance.status === 'unresponsive')) return 'unresponsive';
 		if (instances.some((instance) => instance.status === 'running')) return 'degraded';
 		return 'crashed';
 	}
 
 	getInstances(nodeId: string): Instance[] {
-		return this.#instances.get(nodeId) ?? [];
+		return this.#pools.get(nodeId)?.instances ?? [];
 	}
 
 	// Every method takes a node id and resolves the node from the graph rather than accepting
@@ -56,10 +67,9 @@ export class Orchestrator {
 		if (status === 'starting' || status === 'stopping') return false;
 
 		const instances = this.getInstances(nodeId);
-		// Too few instances means there are some to add, too many means some to stop
 		if (instances.length !== getResourceDefinition(node).instanceCount(node)) return true;
-		// At the right count there is only work to do if something can be replaced
-		return instances.some((instance) => this.#isReplaceable(instance));
+		// At the right count there is only work to do if something crashed
+		return instances.some((instance) => instance.status === 'crashed');
 	}
 
 	canStop(nodeId: string): boolean {
@@ -80,7 +90,7 @@ export class Orchestrator {
 	}
 
 	#allInstances(): Instance[] {
-		return [...this.#instances.values()].flat();
+		return [...this.#pools.values()].flatMap((pool) => pool.instances);
 	}
 
 	#allocatePort(): number {
@@ -91,29 +101,46 @@ export class Orchestrator {
 		return port;
 	}
 
-	// An instance whose process died on its own is kept so getStatus can report the crash,
-	// and is only replaced by the next start. One that failed to stop still owns its
-	// process, so it needs another stop rather than a replacement
-	#isReplaceable(instance: Instance): boolean {
-		return instance.status === 'crashed' && !instance.process;
-	}
-
-	#instancesFor(nodeId: string): Instance[] {
-		const existing = this.#instances.get(nodeId);
+	#poolFor(nodeId: string, definition: ResourceDefinition): Pool {
+		const existing = this.#pools.get(nodeId);
 		if (existing) return existing;
 		const instances = $state<Instance[]>([]);
-		this.#instances.set(nodeId, instances);
-		return instances;
+		const pool = { definition, instances };
+		this.#pools.set(nodeId, pool);
+		return pool;
 	}
 
 	async #startInstance(
 		node: Node,
 		definition: ResourceDefinition,
 		webContainer: WebContainer,
+		instances: Instance[],
 		instance: Instance
 	) {
 		try {
+			// #stopInstance drops an instance that has no process yet, so a stop that lands
+			// while the pool is preparing removes this one before it owns anything
+			if (!instances.includes(instance)) return;
+
 			const process = await definition.start(node, webContainer, instance.port);
+
+			// A stop can also land while the process is spawning. Once it has dropped the
+			// instance nothing else holds the process, so this is the only chance to kill it
+			if (!instances.includes(instance)) {
+				try {
+					await definition.stop(process);
+				} catch (e) {
+					console.error(e);
+					// The kill failed, so put the instance back rather than leaving a live process with nothing tracking it.
+					// A later stop can retry. #poolFor rather than the captured array because the
+					// stop that dropped this instance may have deleted the pool it came from
+					instance.process = process;
+					instance.status = 'unresponsive';
+					this.#poolFor(node.id, definition).instances.push(instance);
+				}
+				return;
+			}
+
 			instance.process = process;
 			instance.status = 'running';
 
@@ -138,8 +165,8 @@ export class Orchestrator {
 				await definition.stop(process);
 			} catch (e) {
 				console.error(e);
-				// Keeps its slot and its reserved port so a later stop can retry the kill
-				instance.status = 'crashed';
+				// Keeps its slot, its process and its reserved port so a later stop can retry the kill
+				instance.status = 'unresponsive';
 				return;
 			}
 		}
@@ -153,12 +180,12 @@ export class Orchestrator {
 		if (!node || !this.canStart(nodeId)) return;
 
 		const definition = getResourceDefinition(node);
-		const instances = this.#instancesFor(nodeId);
+		const { instances } = this.#poolFor(nodeId, definition);
 		const desired = definition.instanceCount(node);
 
 		// Reclaim the slots held by instances that died on their own
 		for (let i = instances.length - 1; i >= 0; i--) {
-			if (this.#isReplaceable(instances[i])) instances.splice(i, 1);
+			if (instances[i].status === 'crashed') instances.splice(i, 1);
 		}
 
 		// Scale down. Instances that fail to stop drop out of the surplus but stay in the
@@ -190,7 +217,9 @@ export class Orchestrator {
 			// Runs once per group rather than once per instance, so instances don't race each other
 			await definition.prepare(node, webContainer);
 			await Promise.all(
-				pending.map((instance) => this.#startInstance(node, definition, webContainer, instance))
+				pending.map((instance) =>
+					this.#startInstance(node, definition, webContainer, instances, instance)
+				)
 			);
 		} catch (e) {
 			// Only group-wide failures land here (boot, mount, npm install) - per-instance
@@ -205,20 +234,32 @@ export class Orchestrator {
 	}
 
 	async stop(nodeId: string) {
-		const node = this.#graphState.getNode(nodeId);
-		if (!node || !this.canStop(nodeId)) return;
+		if (!this.canStop(nodeId)) return;
+		await this.#stopPool(nodeId);
+	}
 
-		const definition = getResourceDefinition(node);
-		const instances = this.getInstances(nodeId);
+	// Called once a node is gone from the graph. Skips canStop because a node deleted while
+	// starting or stopping still has to give its processes back
+	async remove(nodeId: string) {
+		await this.#stopPool(nodeId);
+	}
+
+	// Works off the pool alone, with no lookup in the graph, so a node deleted from the canvas
+	// can still have its processes killed
+	async #stopPool(nodeId: string) {
+		const pool = this.#pools.get(nodeId);
+		if (!pool) return;
+
+		const { definition, instances } = pool;
 
 		// Iterated over a copy so instances that remove themselves don't cause the next one to be skipped
 		await Promise.all(
 			[...instances].map((instance) => this.#stopInstance(definition, instances, instance))
 		);
 
-		// #stopInstance drops each one as it goes, so an empty group means every process is
+		// #stopInstance drops each one as it goes, so an empty pool means every process is
 		// gone. Anything that failed to stop is left for the next try
-		if (instances.length === 0) this.#instances.delete(nodeId);
+		if (instances.length === 0) this.#pools.delete(nodeId);
 	}
 
 	async stopAll() {

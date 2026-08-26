@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type { Node } from '@xyflow/svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import { Button } from '$lib/components/ui/button';
@@ -8,11 +7,27 @@
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getResourceDefinition } from '$lib/resource-definitions';
+	import StatusDot from '$lib/components/StatusDot.svelte';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
 
-	const { node }: { node: Node } = $props();
+	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
+	const graphState = getGraphState();
+
+	const node = $derived(graphState.getNode(nodeId));
+	const status = $derived(orchestrator.getStatus(nodeId));
+
+	// A stopping instance still owns its process and its port until the kill lands, so it
+	// counts as up and the number ticks down as each one actually dies
+	const up = $derived(
+		orchestrator
+			.getInstances(nodeId)
+			.filter(({ status }) => status === 'running' || status === 'stopping').length
+	);
+	const desired = $derived(node ? getResourceDefinition(node).instanceCount(node) : 0);
 </script>
 
 <Sidebar.Root side="right">
@@ -25,16 +40,26 @@
 						<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
 					<UnderlineTabs.Content value="config">
-						<ConfigTab {node} />
+						<ConfigTab {nodeId} />
 					</UnderlineTabs.Content>
 					<UnderlineTabs.Content value="preview">
-						<PreviewTab {node} />
+						<PreviewTab {nodeId} />
 					</UnderlineTabs.Content>
 				</UnderlineTabs.Root>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
-	<Sidebar.Footer>
+	<Sidebar.Footer class="flex-row items-center justify-between gap-2">
+		<div class="flex items-center gap-1.5 text-sm">
+			<StatusDot {status} />
+			<span class="capitalize">{status}</span>
+			{#if desired > 1}
+				<span class="text-muted-foreground" title="Instances running out of the configured count">
+					{up}/{desired}
+				</span>
+			{/if}
+		</div>
+
 		<ButtonGroup.Root>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
@@ -42,8 +67,8 @@
 						<Button
 							{...props}
 							variant="outline"
-							disabled={!orchestrator.canStart(node.id)}
-							onclick={() => orchestrator.start(node.id)}
+							disabled={!orchestrator.canStart(nodeId)}
+							onclick={() => orchestrator.start(nodeId)}
 						>
 							<PlayIcon />
 						</Button>
@@ -58,8 +83,8 @@
 						<Button
 							{...props}
 							variant="outline"
-							disabled={!orchestrator.canStop(node.id)}
-							onclick={() => orchestrator.stop(node.id)}
+							disabled={!orchestrator.canStop(nodeId)}
+							onclick={() => orchestrator.stop(nodeId)}
 						>
 							<SquareIcon />
 						</Button>

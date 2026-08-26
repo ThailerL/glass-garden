@@ -1,1 +1,2 @@
-type ResourceStatus = 'starting' | 'running' | 'stopping' | 'stopped' | 'degraded' | 'crashed';
+type ResourceStatus =
+	'starting' | 'running' | 'stopping' | 'stopped' | 'degraded' | 'crashed' | 'unresponsive';

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useSvelteFlow, type Node } from '@xyflow/svelte';
+	import { useSvelteFlow } from '@xyflow/svelte';
 	import { untrack } from 'svelte';
 	import { z } from 'zod';
 	import { resolve } from '$app/paths';
@@ -10,8 +10,16 @@
 	import * as Form from '$lib/components/ui/form';
 	import { getGraphState } from '$lib/graph-state.svelte';
 
-	const { node }: { node: Node } = $props();
+	const { nodeId }: { nodeId: string } = $props();
 	const graphState = getGraphState();
+
+	// Read once because the graph replaces the node object on every drag, and
+	// re-reading it would rebuild the form and discard whatever is being typed
+	const node = untrack(() => {
+		const found = graphState.getNode(nodeId);
+		if (!found) throw new Error(`Unknown node: ${nodeId}`);
+		return found;
+	});
 
 	const { updateNodeData } = useSvelteFlow();
 

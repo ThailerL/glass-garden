@@ -22,7 +22,7 @@
 	import OrchestratorControls from '$lib/components/OrchestratorControls.svelte';
 
 	const graphState = getGraphState();
-	setOrchestrator(graphState, getFileState());
+	const orchestrator = setOrchestrator(graphState, getFileState());
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	function createNodeConfig(type: ResourceType) {
@@ -41,7 +41,10 @@
 	);
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
-		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
+		nodes.forEach((node) => {
+			orchestrator.remove(node.id);
+			graphState.deleteNodeFromStorage(node.id);
+		});
 		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
 	};
 
@@ -111,7 +114,8 @@
 	</div>
 	{#if selectedNodes.length === 1 && selectedEdges.length === 0}
 		{#key selectedNodes[0].id}
-			<InspectorSidebar node={selectedNodes[0]} />
+			<!-- pass in a nodeId instead of node because selectedNodes is a snapshot that can get stale -->
+			<InspectorSidebar nodeId={selectedNodes[0].id} />
 		{/key}
 	{/if}
 </div>

@@ -6,9 +6,26 @@
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import StatusDot from '$lib/components/StatusDot.svelte';
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
+
+	// Worst first, so the summary reports whichever resource most needs attention
+	const STATUS_PRECEDENCE: ResourceStatus[] = [
+		'unresponsive',
+		'crashed',
+		'degraded',
+		'starting',
+		'stopping',
+		'running',
+		'stopped'
+	];
+
+	const status = $derived.by(() => {
+		const statuses = graphState.nodes.map((node) => orchestrator.getStatus(node.id));
+		return STATUS_PRECEDENCE.find((candidate) => statuses.includes(candidate)) ?? 'stopped';
+	});
 
 	const startDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStart(node.id)));
 	const stopDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStop(node.id)));
@@ -19,8 +36,8 @@
          rounded-full border bg-background px-3 py-1.5 shadow-lg backdrop-blur"
 >
 	<div class="flex items-center gap-1.5">
-		<span class="size-2 rounded-full bg-muted-foreground"></span>
-		<span class="capitalize">status</span>
+		<StatusDot {status} />
+		<span class="capitalize">{status}</span>
 	</div>
 
 	<ButtonGroup.Root>

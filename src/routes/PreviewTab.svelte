@@ -1,14 +1,13 @@
 <script lang="ts">
-	import type { Node } from '@xyflow/svelte';
 	import * as Select from '$lib/components/ui/select';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 
-	const { node }: { node: Node } = $props();
+	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
 
-	const instances = $derived(orchestrator.getInstances(node.id));
+	const instances = $derived(orchestrator.getInstances(nodeId));
 	let selected = $state(0);
 	// Restarting with a lower instance count can leave the selection out of range
 	const selectedIndex = $derived(selected < instances.length ? selected : 0);
