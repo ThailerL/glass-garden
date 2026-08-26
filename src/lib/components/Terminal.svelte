@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { Xterm, XtermAddon } from '@battlefieldduck/xterm-svelte';
 	import type {
 		ITerminalOptions,
@@ -20,11 +21,13 @@
 	let fitAddon: FitAddon | undefined;
 	let shellProcess: WebContainerProcess | undefined;
 
-	$effect(() => {
+	onMount(() => {
 		const observer = new ResizeObserver(resize);
 		observer.observe(terminalHost);
 		return () => observer.disconnect();
 	});
+
+	onDestroy(() => shellProcess?.kill());
 
 	function resize() {
 		fitAddon?.fit();
