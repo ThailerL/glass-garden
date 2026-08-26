@@ -1,4 +1,4 @@
-import { createFileDB } from '$lib/file-state.svelte';
+import { createFileDB } from '$lib/file-store.svelte';
 import type { LayoutLoad } from './$types';
 
 export const ssr = false;

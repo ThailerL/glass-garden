@@ -11,7 +11,7 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
-	import { getFileState, withoutExcludedFiles } from '$lib/file-state.svelte';
+	import { getFileStore, withoutExcludedFiles } from '$lib/file-store.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
 
 	const WATCH_DEBOUNCE_MS = 100;
@@ -20,7 +20,7 @@
 
 	setFileDraftState(() => files);
 
-	const fileState = getFileState();
+	const fileStore = getFileStore();
 
 	const root = untrack(() => nodeId);
 
@@ -47,7 +47,7 @@
 		// This is the easy way: just export the whole directory no matter what the change was
 		watchTimer = setTimeout(async () => {
 			files = withoutExcludedFiles(structuredClone(await webContainer.export(root)));
-			fileState.setFiles(root, files);
+			fileStore.setFiles(root, files);
 		}, WATCH_DEBOUNCE_MS);
 	});
 

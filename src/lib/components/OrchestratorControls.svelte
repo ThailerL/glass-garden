@@ -4,7 +4,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
-	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getOrchestrator, type ResourceStatus } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 

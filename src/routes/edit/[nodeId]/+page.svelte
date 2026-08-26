@@ -2,7 +2,7 @@
 	import { untrack } from 'svelte';
 	import type { PageProps } from './$types';
 	import Editor from './Editor.svelte';
-	import { getFileState } from '$lib/file-state.svelte';
+	import { getFileStore } from '$lib/file-store.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 
 	const { params }: PageProps = $props();
@@ -11,7 +11,7 @@
 	const nodeName = getGraphState().getNode(nodeId)?.data.name;
 
 	// Undefined when the node has no stored files, i.e. the id in the URL isn't a real node
-	const files = await getFileState().loadFiles(nodeId);
+	const files = await getFileStore().loadFiles(nodeId);
 </script>
 
 <svelte:head>

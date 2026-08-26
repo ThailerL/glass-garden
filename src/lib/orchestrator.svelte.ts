@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import { GraphState } from './graph-state.svelte';
-import { FileState } from './file-state.svelte';
+import { FileStore } from './file-store.svelte';
 import { getResourceDefinition, type ResourceDefinition } from './resource-definitions';
 import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 import { getWebContainer, mountNodeFiles } from './web-container';
@@ -14,6 +14,10 @@ const MAX_PORT = 49151;
 // No 'stopped': a stopped instance is dropped from its group
 // 'unresponsive' means failed to stop/kill the instance/process
 export type InstanceStatus = 'starting' | 'running' | 'stopping' | 'crashed' | 'unresponsive';
+
+// A resource aggregates its instances, so it has two states no single instance can be in:
+// 'stopped' when it has none left, and 'degraded' when only some of them are running
+export type ResourceStatus = InstanceStatus | 'stopped' | 'degraded';
 
 // A port is reserved first, then process starts and gives a preview URL
 export type Instance = {
@@ -32,13 +36,13 @@ type Pool = {
 
 export class Orchestrator {
 	#graphState: GraphState;
-	#fileState: FileState;
+	#fileStore: FileStore;
 	#pools = new SvelteMap<string, Pool>();
 	#webContainerPromise: Promise<WebContainer> | undefined;
 
-	constructor(graphState: GraphState, fileState: FileState) {
+	constructor(graphState: GraphState, fileStore: FileStore) {
 		this.#graphState = graphState;
-		this.#fileState = fileState;
+		this.#fileStore = fileStore;
 	}
 
 	getStatus(nodeId: string): ResourceStatus {
@@ -207,7 +211,7 @@ export class Orchestrator {
 		try {
 			const webContainer = await this.#getWebContainer();
 			if (definition.hasEditableFiles) {
-				const fileTree = await this.#fileState.loadFiles(node.id);
+				const fileTree = await this.#fileStore.loadFiles(node.id);
 				if (fileTree) await mountNodeFiles(node.id, fileTree);
 			}
 			// Runs once per group rather than once per instance, so instances don't race each other
@@ -265,8 +269,8 @@ export class Orchestrator {
 
 const ORCHESTRATOR_KEY = Symbol('ORCHESTRATOR');
 
-export function setOrchestrator(graphState: GraphState, fileState: FileState) {
-	return setContext(ORCHESTRATOR_KEY, new Orchestrator(graphState, fileState));
+export function setOrchestrator(graphState: GraphState, fileStore: FileStore) {
+	return setContext(ORCHESTRATOR_KEY, new Orchestrator(graphState, fileStore));
 }
 
 export function getOrchestrator() {

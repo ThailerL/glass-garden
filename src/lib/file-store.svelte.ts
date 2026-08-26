@@ -1,7 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { FileSystemTree } from '@webcontainer/api';
-import { SvelteMap } from 'svelte/reactivity';
 
 // Poor man's .gitignore
 const EXCLUDED_FROM_PERSISTENCE = ['node_modules'];
@@ -24,9 +23,12 @@ interface FileDB extends DBSchema {
 
 export type FileDatabase = IDBPDatabase<FileDB>;
 
-export class FileState {
-	files = $state(new SvelteMap<string, FileSystemTree>());
-	#loading = new SvelteMap<string, Promise<FileSystemTree | undefined>>();
+export class FileStore {
+	// Nothing renders from this map, so it doesn't need to be a SvelteMap
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	files = new Map<string, FileSystemTree>();
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	#loading = new Map<string, Promise<FileSystemTree | undefined>>();
 	#db: FileDatabase;
 
 	constructor(db: FileDatabase) {
@@ -40,10 +42,7 @@ export class FileState {
 		const promise = this.#db
 			.get('files', nodeId)
 			.then((fileTree) => {
-				if (fileTree) {
-					const reactiveFileTree = $state(fileTree);
-					this.files.set(nodeId, reactiveFileTree);
-				}
+				if (fileTree) this.files.set(nodeId, fileTree);
 				return fileTree;
 			})
 			.finally(() => this.#loading.delete(nodeId));
@@ -64,12 +63,12 @@ export class FileState {
 
 const FILE_KEY = Symbol('FILE');
 
-export function setFileState(db: FileDatabase) {
-	return setContext(FILE_KEY, new FileState(db));
+export function setFileStore(db: FileDatabase) {
+	return setContext(FILE_KEY, new FileStore(db));
 }
 
-export function getFileState() {
-	return getContext<ReturnType<typeof setFileState>>(FILE_KEY);
+export function getFileStore() {
+	return getContext<ReturnType<typeof setFileStore>>(FILE_KEY);
 }
 
 export async function createFileDB(): Promise<FileDatabase> {
