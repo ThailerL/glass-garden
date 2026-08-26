@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { FileSystemTree } from '@webcontainer/api';
-	import { getWebContainer, mountNodeFiles } from '$lib/web-container';
+	import { getWebContainer, mountNodeFiles } from '$lib/webcontainer';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as Resizable from '$lib/components/ui/resizable';

@@ -5,7 +5,7 @@ import { GraphState } from './graph-state.svelte';
 import { FileStore } from './file-store.svelte';
 import { getResourceDefinition, type ResourceDefinition } from './resource-definitions';
 import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
-import { getWebContainer, mountNodeFiles } from './web-container';
+import { getWebContainer, mountNodeFiles } from './webcontainer';
 
 // IANA registered port range
 const MIN_PORT = 1024;
