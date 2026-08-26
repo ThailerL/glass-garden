@@ -3,6 +3,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
+	import StatusDot from '$lib/components/StatusDot.svelte';
 
 	const { node }: { node: Node } = $props();
 	const orchestrator = getOrchestrator();
@@ -11,7 +12,8 @@
 	let selected = $state(0);
 	// Restarting with a lower instance count can leave the selection out of range
 	const selectedIndex = $derived(selected < instances.length ? selected : 0);
-	const previewUrl = $derived(instances[selectedIndex]?.previewUrl);
+	const selectedInstance = $derived(instances[selectedIndex]);
+	const previewUrl = $derived(selectedInstance?.previewUrl);
 </script>
 
 <div class="flex h-full flex-col gap-2">
@@ -22,10 +24,16 @@
 			value={String(selectedIndex)}
 			onValueChange={(value) => (selected = Number(value))}
 		>
-			<Select.Trigger>Instance {selectedIndex + 1}</Select.Trigger>
+			<Select.Trigger>
+				<StatusDot status={selectedInstance.status} />
+				Instance {selectedIndex + 1}
+			</Select.Trigger>
 			<Select.Content>
-				{#each instances as _, index (index)}
-					<Select.Item value={String(index)}>Instance {index + 1}</Select.Item>
+				{#each instances as instance, index (index)}
+					<Select.Item value={String(index)}>
+						<StatusDot status={instance.status} />
+						Instance {index + 1}
+					</Select.Item>
 				{/each}
 			</Select.Content>
 		</Select.Root>

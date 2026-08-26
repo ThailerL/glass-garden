@@ -2,20 +2,12 @@
 	import type { LucideIcon } from '@lucide/svelte';
 	import type { NodeProps } from '@xyflow/svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import StatusDot from '$lib/components/StatusDot.svelte';
 
 	const { node, Icon }: { node: NodeProps; Icon: LucideIcon } = $props();
 
 	const orchestrator = getOrchestrator();
 	const status = $derived(orchestrator.getStatus(node.id));
-
-	const statusDotClass: Record<ResourceStatus, string> = {
-		starting: 'bg-blue-500 animate-pulse',
-		running: 'bg-green-500',
-		stopping: 'bg-blue-500 animate-pulse',
-		stopped: 'bg-muted-foreground',
-		degraded: 'bg-amber-500',
-		crashed: 'bg-red-500'
-	};
 
 	function fitText(el: HTMLSpanElement) {
 		const container = el.parentElement as HTMLElement;
@@ -40,7 +32,7 @@
 	}
 </script>
 
-<span class="absolute top-1 right-1 size-2 rounded-full {statusDotClass[status]}"></span>
+<StatusDot {status} class="absolute top-1 right-1" />
 <span class="block origin-center whitespace-nowrap" use:fitText>
 	{node.data.name}
 </span>

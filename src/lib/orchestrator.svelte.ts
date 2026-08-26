@@ -46,19 +46,24 @@ export class Orchestrator {
 		return this.#instances.get(nodeId) ?? [];
 	}
 
-	canStart(node: Node): boolean {
-		const status = this.getStatus(node.id);
+	// Every method takes a node id and resolves the node from the graph rather than accepting
+	// a Node, so a caller holding a stale copy still reads current config
+	canStart(nodeId: string): boolean {
+		const node = this.#graphState.getNode(nodeId);
+		if (!node) return false;
+
+		const status = this.getStatus(nodeId);
 		if (status === 'starting' || status === 'stopping') return false;
 
-		const instances = this.getInstances(node.id);
+		const instances = this.getInstances(nodeId);
 		// Too few instances means there are some to add, too many means some to stop
 		if (instances.length !== getResourceDefinition(node).instanceCount(node)) return true;
 		// At the right count there is only work to do if something can be replaced
 		return instances.some((instance) => this.#isReplaceable(instance));
 	}
 
-	canStop(node: Node): boolean {
-		return !['stopped', 'starting', 'stopping'].includes(this.getStatus(node.id));
+	canStop(nodeId: string): boolean {
+		return !['stopped', 'starting', 'stopping'].includes(this.getStatus(nodeId));
 	}
 
 	#getWebContainer() {
@@ -143,11 +148,12 @@ export class Orchestrator {
 	}
 
 	// Tries to reach group's configured instance count without bouncing any instances
-	async start(node: Node) {
-		if (!this.canStart(node)) return;
+	async start(nodeId: string) {
+		const node = this.#graphState.getNode(nodeId);
+		if (!node || !this.canStart(nodeId)) return;
 
 		const definition = getResourceDefinition(node);
-		const instances = this.#instancesFor(node.id);
+		const instances = this.#instancesFor(nodeId);
 		const desired = definition.instanceCount(node);
 
 		// Reclaim the slots held by instances that died on their own
@@ -195,14 +201,15 @@ export class Orchestrator {
 	}
 
 	async startAll() {
-		await Promise.all(this.#graphState.nodes.map((node) => this.start(node)));
+		await Promise.all(this.#graphState.nodes.map((node) => this.start(node.id)));
 	}
 
-	async stop(node: Node) {
-		if (!this.canStop(node)) return;
+	async stop(nodeId: string) {
+		const node = this.#graphState.getNode(nodeId);
+		if (!node || !this.canStop(nodeId)) return;
 
 		const definition = getResourceDefinition(node);
-		const instances = this.getInstances(node.id);
+		const instances = this.getInstances(nodeId);
 
 		// Iterated over a copy so instances that remove themselves don't cause the next one to be skipped
 		await Promise.all(
@@ -211,11 +218,11 @@ export class Orchestrator {
 
 		// #stopInstance drops each one as it goes, so an empty group means every process is
 		// gone. Anything that failed to stop is left for the next try
-		if (instances.length === 0) this.#instances.delete(node.id);
+		if (instances.length === 0) this.#instances.delete(nodeId);
 	}
 
 	async stopAll() {
-		await Promise.all(this.#graphState.nodes.map((node) => this.stop(node)));
+		await Promise.all(this.#graphState.nodes.map((node) => this.stop(node.id)));
 	}
 }
 
