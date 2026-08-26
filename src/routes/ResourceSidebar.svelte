@@ -4,10 +4,10 @@
 	import { draggable } from '@thisux/sveltednd';
 </script>
 
-<Sidebar.Root>
+<Sidebar.Root collapsible="none" class="w-full!">
 	<Sidebar.Content>
 		<Sidebar.Group>
-			<Sidebar.GroupLabel>Components</Sidebar.GroupLabel>
+			<Sidebar.GroupLabel>Resources</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
 					{#each Object.entries(resourceDefinitions) as [resource, definition] (resource)}

@@ -8,7 +8,7 @@
 	import type { FitAddon } from '@xterm/addon-fit';
 	import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 
-	const { webContainer }: { webContainer: WebContainer } = $props();
+	const { webContainer, cwd }: { webContainer: WebContainer; cwd?: string } = $props();
 
 	const options: ITerminalOptions & ITerminalInitOnlyOptions = {
 		convertEol: true
@@ -37,6 +37,7 @@
 		fitAddon.fit();
 
 		shellProcess = await webContainer.spawn('jsh', {
+			cwd,
 			terminal: {
 				cols: terminal?.cols ?? 80,
 				rows: terminal?.rows ?? 24

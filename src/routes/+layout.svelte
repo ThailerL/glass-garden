@@ -6,18 +6,25 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { setFileState } from '$lib/file-state.svelte';
+	import { setOrchestrator } from '$lib/orchestrator.svelte';
+	import * as Sidebar from '$lib/components/ui/sidebar';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
 
 	const fileState = setFileState(untrack(() => data.db));
-	setGraphState(fileState);
+	const graphState = setGraphState(fileState);
+	// Set here rather than on the canvas so the editor route shares one orchestrator,
+	// and with it one WebContainer and one set of running instances
+	setOrchestrator(graphState, fileState);
 </script>
 
 <Toaster />
 <ModeWatcher />
 
-{@render children?.()}
+<Sidebar.Provider>
+	{@render children?.()}
+</Sidebar.Provider>
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<title>InfraLab</title>

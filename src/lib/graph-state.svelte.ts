@@ -44,6 +44,18 @@ export class GraphState {
 		return this.nodes.find((node) => node.id === id);
 	}
 
+	// nodes is $state.raw, so the array is replaced rather than the node mutated in place.
+	// The data is snapshotted because callers pass a live form object they keep editing
+	updateNodeData(id: string, data: Record<string, unknown>) {
+		const updated = this.nodes.map((node) =>
+			node.id === id ? { ...node, data: $state.snapshot(data) } : node
+		);
+		this.nodes = updated;
+
+		const node = updated.find((node) => node.id === id);
+		if (node) this.setNodeInStorage(node);
+	}
+
 	setNodeInStorage(node: Node) {
 		node.selected = false;
 		localStorage.setItem(`node:${node.id}`, JSON.stringify(node));

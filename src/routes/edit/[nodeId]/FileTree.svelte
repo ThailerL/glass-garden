@@ -51,6 +51,7 @@
 		itemType,
 		parentDirectory,
 		parentPath,
+		root,
 		webContainer,
 		handleDrop
 	}: {
@@ -61,6 +62,7 @@
 		itemType: 'file' | 'directory';
 		parentDirectory: FileSystemTree;
 		parentPath: string[];
+		root: string;
 		webContainer: WebContainer;
 		handleDrop: (state: DragDropState<string>) => void;
 	} = $props();
@@ -68,6 +70,10 @@
 	const fileDraftState = getFileDraftState();
 
 	const itemPath = untrack(() => [...parentPath, itemName]);
+
+	function fsPath(path: string[]) {
+		return [root, ...path].join('/');
+	}
 	let itemRenameMode = $state<'view' | 'edit'>('view');
 
 	$effect(() => {
@@ -79,7 +85,7 @@
 		while (Object.hasOwn(item, `new-file-${i}`)) {
 			i++;
 		}
-		webContainer.fs.writeFile([...itemPath, `new-file-${i}`].join('/'), '');
+		webContainer.fs.writeFile(fsPath([...itemPath, `new-file-${i}`]), '');
 	}
 
 	function newFolder() {
@@ -87,7 +93,7 @@
 		while (Object.hasOwn(item, `new-folder-${i}`)) {
 			i++;
 		}
-		webContainer.fs.mkdir([...itemPath, `new-folder-${i}`].join('/'));
+		webContainer.fs.mkdir(fsPath([...itemPath, `new-folder-${i}`]));
 	}
 
 	function validateName(newName: string) {
@@ -96,17 +102,17 @@
 		);
 	}
 	function renameItem(newName: string) {
-		webContainer.fs.rename(itemPath.join('/'), [...parentPath, newName].join('/'));
+		webContainer.fs.rename(fsPath(itemPath), fsPath([...parentPath, newName]));
 	}
 
 	function deleteItem() {
-		webContainer.fs.rm(itemPath.join('/'), { recursive: true });
+		webContainer.fs.rm(fsPath(itemPath), { recursive: true });
 	}
 </script>
 
 {#if itemType === 'file'}
 	<div
-		class="hover:bg-gray-900"
+		class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 		use:draggable={{
 			container: parentPath.join('/'),
 			dragData: itemName,
@@ -119,7 +125,7 @@
 					{@const highlightSelected =
 						selectedFilePath.length === itemPath.length &&
 						selectedFilePath.every((val, i) => val === itemPath[i])
-							? 'bg-gray-500'
+							? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
 							: ''}
 					<TreeView.File
 						class="w-full cursor-pointer {highlightSelected}"
@@ -177,7 +183,9 @@
 				<ContextMenu.Trigger>
 					<TreeView.Folder
 						open={false}
-						class="handle-{itemPath.join('-')} w-full cursor-pointer hover:bg-gray-900"
+						class="handle-{itemPath.join(
+							'-'
+						)} w-full cursor-pointer hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 					>
 						{#snippet label()}
 							<Rename.Root
@@ -205,6 +213,7 @@
 								itemType={'directory' in directory[childName] ? 'directory' : 'file'}
 								parentDirectory={directory}
 								parentPath={itemPath}
+								{root}
 								{webContainer}
 								{handleDrop}
 							/>

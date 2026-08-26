@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { useSvelteFlow } from '@xyflow/svelte';
 	import { untrack } from 'svelte';
 	import { z } from 'zod';
-	import { resolve } from '$app/paths';
 	import { superForm, defaults } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
@@ -20,8 +18,6 @@
 		if (!found) throw new Error(`Unknown node: ${nodeId}`);
 		return found;
 	});
-
-	const { updateNodeData } = useSvelteFlow();
 
 	const ConfigComponent = untrack(
 		() => resourceDefinitions[node.type as ResourceType].configComponent
@@ -49,23 +45,11 @@
 			return;
 		}
 
-		node.data = $formData;
-		updateNodeData(node.id, node.data);
-		graphState.setNodeInStorage(node);
+		graphState.updateNodeData(node.id, $formData);
 		toast.success('Successfully saved config', { position: 'bottom-center', duration: 2000 });
 	}
 </script>
 
-{#if resourceDefinitions[node.type as ResourceType].hasEditableFiles}
-	<Form.Button
-		type="button"
-		class="mb-3"
-		href={resolve('/edit/[nodeId]', { nodeId: node.id })}
-		target="_blank"
-	>
-		Edit Service Code
-	</Form.Button>
-{/if}
 <form method="dialog" onsubmit={handleSubmit}>
 	<ConfigComponent {form} />
 </form>

@@ -4,8 +4,12 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
+	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getResourceDefinition } from '$lib/resource-definitions';
@@ -28,9 +32,11 @@
 			.filter(({ status }) => status === 'running' || status === 'stopping').length
 	);
 	const desired = $derived(node ? getResourceDefinition(node).instanceCount(node) : 0);
+	const editing = $derived(page.route.id === '/edit/[nodeId]');
+	const editable = $derived(!!node && getResourceDefinition(node).hasEditableFiles);
 </script>
 
-<Sidebar.Root side="right">
+<Sidebar.Root side="right" collapsible="none" class="w-full!">
 	<Sidebar.Content>
 		<Sidebar.Group class="h-full">
 			<Sidebar.GroupContent class="h-full">
@@ -49,49 +55,63 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
-	<Sidebar.Footer class="flex-row items-center justify-between gap-2">
-		<div class="flex items-center gap-1.5 text-sm">
-			<StatusDot {status} />
-			<span class="capitalize">{status}</span>
-			{#if desired > 1}
-				<span class="text-muted-foreground" title="Instances running out of the configured count">
-					{up}/{desired}
-				</span>
-			{/if}
+	<Sidebar.Footer>
+		{#if editing}
+			<Button variant="outline" href={resolve('/')}>
+				<ArrowLeftIcon />
+				Back to Canvas
+			</Button>
+		{:else if editable}
+			<Button variant="outline" href={resolve('/edit/[nodeId]', { nodeId })}>
+				<FilePenIcon />
+				Edit Resource Code
+			</Button>
+		{/if}
+
+		<div class="flex flex-row items-center justify-between gap-2">
+			<div class="flex items-center gap-1.5 text-sm">
+				<StatusDot {status} />
+				<span class="capitalize">{status}</span>
+				{#if desired > 1}
+					<span class="text-muted-foreground" title="Instances running out of the configured count">
+						{up}/{desired}
+					</span>
+				{/if}
+			</div>
+
+			<ButtonGroup.Root>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="outline"
+								disabled={!orchestrator.canStart(nodeId)}
+								onclick={() => orchestrator.start(nodeId)}
+							>
+								<PlayIcon />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>Start</Tooltip.Content>
+				</Tooltip.Root>
+
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="outline"
+								disabled={!orchestrator.canStop(nodeId)}
+								onclick={() => orchestrator.stop(nodeId)}
+							>
+								<SquareIcon />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>Stop</Tooltip.Content>
+				</Tooltip.Root>
+			</ButtonGroup.Root>
 		</div>
-
-		<ButtonGroup.Root>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="outline"
-							disabled={!orchestrator.canStart(nodeId)}
-							onclick={() => orchestrator.start(nodeId)}
-						>
-							<PlayIcon />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>Start</Tooltip.Content>
-			</Tooltip.Root>
-
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="outline"
-							disabled={!orchestrator.canStop(nodeId)}
-							onclick={() => orchestrator.stop(nodeId)}
-						>
-							<SquareIcon />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>Stop</Tooltip.Content>
-			</Tooltip.Root>
-		</ButtonGroup.Root>
 	</Sidebar.Footer>
 </Sidebar.Root>

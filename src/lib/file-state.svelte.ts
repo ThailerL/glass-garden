@@ -1,25 +1,36 @@
 import { getContext, setContext } from 'svelte';
-import { openDB, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { FileSystemTree } from '@webcontainer/api';
 import { SvelteMap } from 'svelte/reactivity';
 
 // Poor man's .gitignore
 const EXCLUDED_FROM_PERSISTENCE = ['node_modules'];
 
+export function withoutExcludedFiles(tree: FileSystemTree): FileSystemTree {
+	const result: FileSystemTree = {};
+	for (const [name, node] of Object.entries(tree)) {
+		if (EXCLUDED_FROM_PERSISTENCE.includes(name)) continue;
+		result[name] = 'directory' in node ? { directory: withoutExcludedFiles(node.directory) } : node;
+	}
+	return result;
+}
+
+interface FileDB extends DBSchema {
+	files: {
+		key: string;
+		value: FileSystemTree;
+	};
+}
+
+export type FileDatabase = IDBPDatabase<FileDB>;
+
 export class FileState {
 	files = $state(new SvelteMap<string, FileSystemTree>());
-	#loading = new SvelteMap<string, Promise<FileSystemTree>>();
-	#db: IDBPDatabase;
-	// Other tabs write to the same IndexedDB, so our cache can go stale
-	// when another tab saves. This channel tells other tabs when it saves
-	// files so that the other tabs delete the stale data
-	#channel = new BroadcastChannel('infralab:file-state');
+	#loading = new SvelteMap<string, Promise<FileSystemTree | undefined>>();
+	#db: FileDatabase;
 
-	constructor(db: IDBPDatabase) {
+	constructor(db: FileDatabase) {
 		this.#db = db;
-		this.#channel.onmessage = (event: MessageEvent<{ nodeId: string }>) => {
-			this.files.delete(event.data.nodeId);
-		};
 	}
 
 	async loadFiles(nodeId: string) {
@@ -42,25 +53,18 @@ export class FileState {
 
 	async setFiles(nodeId: string, fileTree: FileSystemTree) {
 		this.files.set(nodeId, fileTree);
-		const persistedTree = Object.fromEntries(
-			Object.entries($state.snapshot(fileTree)).filter(
-				([name]) => !EXCLUDED_FROM_PERSISTENCE.includes(name)
-			)
-		);
-		await this.#db.put('files', persistedTree, nodeId);
-		this.#channel.postMessage({ nodeId });
+		await this.#db.put('files', withoutExcludedFiles($state.snapshot(fileTree)), nodeId);
 	}
 
 	async deleteFiles(nodeId: string) {
 		this.files.delete(nodeId);
 		await this.#db.delete('files', nodeId);
-		this.#channel.postMessage({ nodeId });
 	}
 }
 
 const FILE_KEY = Symbol('FILE');
 
-export function setFileState(db: IDBPDatabase) {
+export function setFileState(db: FileDatabase) {
 	return setContext(FILE_KEY, new FileState(db));
 }
 
@@ -68,8 +72,8 @@ export function getFileState() {
 	return getContext<ReturnType<typeof setFileState>>(FILE_KEY);
 }
 
-export async function createFileDB() {
-	return openDB('infralab', 1, {
+export async function createFileDB(): Promise<FileDatabase> {
+	return openDB<FileDB>('infralab', 1, {
 		upgrade(db) {
 			db.createObjectStore('files');
 		}

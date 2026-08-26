@@ -10,10 +10,12 @@
 
 	const {
 		webContainer,
+		root,
 		selectedFilePath,
 		files
 	}: {
 		webContainer: WebContainer;
+		root: string;
 		selectedFilePath: string[];
 		files: FileSystemTree;
 	} = $props();
@@ -44,7 +46,7 @@
 		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
 			e.preventDefault();
 			if (nothingSelected) return;
-			await webContainer.fs.writeFile(selectedFilePath.join('/'), currentDraft);
+			await webContainer.fs.writeFile([root, ...selectedFilePath].join('/'), currentDraft);
 		}
 	}
 </script>

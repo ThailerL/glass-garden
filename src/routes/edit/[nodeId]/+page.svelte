@@ -1,148 +1,27 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { WebContainer } from '@webcontainer/api';
-	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import type { PageProps } from './$types';
-	import Eye from '@lucide/svelte/icons/eye';
-	import EyeOff from '@lucide/svelte/icons/eye-off';
-	import * as TreeView from '$lib/components/ui/tree-view';
-	import * as Resizable from '$lib/components/ui/resizable';
-	import { Toggle } from '$lib/components/ui/toggle';
-	import Terminal from '$lib/components/Terminal.svelte';
-	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
-	import FileTree, { getItemNamesInOrder } from './FileTree.svelte';
-	import TextEditor from './TextEditor.svelte';
+	import Editor from './Editor.svelte';
 	import { getFileState } from '$lib/file-state.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
-	import { setFileDraftState } from '$lib/file-draft-state.svelte';
 
 	const { params }: PageProps = $props();
 
-	setFileDraftState(() => files);
-
 	const nodeId = untrack(() => params.nodeId);
 	const nodeName = getGraphState().getNode(nodeId)?.data.name;
-	const fileState = getFileState();
 
-	let files = $state(await fileState.loadFiles(nodeId));
-	let selectedFilePath = $state<string[]>([]);
-	let anyItemBeingRenamed = $state(false);
-	let previewUrl = $state<string | undefined>(undefined);
-	let showPreview = $state(true);
-
-	const webContainer = await WebContainer.boot({ workdirName: 'infralab' });
-	webContainer.on('server-ready', (_port, url) => {
-		previewUrl = url;
-	});
-	webContainer.mount(untrack(() => files));
-	// When files are updated in the WebContainers FS it will sync the changes to the app
-	// So to manage files only need to call the WebContainer API
-	webContainer.fs.watch(
-		'',
-		{ recursive: true },
-		// This is the easy way: just export the whole filesystem no matter what the change was
-		async () => {
-			files = structuredClone(await webContainer.export(''));
-			fileState.setFiles(nodeId, files);
-		}
-	);
-
-	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
-		// directories can't be dragged into itself or a child directory of itself
-		if (
-			targetContainer === null ||
-			sourceContainer === targetContainer ||
-			targetContainer.startsWith(
-				sourceContainer === '' ? draggedItem : [sourceContainer, draggedItem].join('/')
-			)
-		) {
-			return;
-		}
-
-		webContainer.fs.rename(
-			[sourceContainer, draggedItem].join('/'),
-			[targetContainer, draggedItem].join('/')
-		);
-
-		const sourcePath = sourceContainer === '' ? [] : sourceContainer.split('/');
-		const targetPath = targetContainer === '' ? [] : targetContainer.split('/');
-		if (selectedFilePath.join('/') === [...sourcePath, draggedItem].join('/')) {
-			selectedFilePath = [...targetPath, draggedItem];
-		}
-	}
+	// Undefined when the node has no stored files, i.e. the id in the URL isn't a real node
+	const files = await getFileState().loadFiles(nodeId);
 </script>
 
 <svelte:head>
 	<title>Editing {nodeName}</title>
 </svelte:head>
 
-<Resizable.PaneGroup
-	direction="horizontal"
-	class="h-dvh! w-screen!"
-	autoSaveId="code-editor-layout-0"
->
-	<Resizable.Pane defaultSize={14} minSize={10} maxSize={40}>
-		<div use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
-			<TreeView.Root>
-				{#each getItemNamesInOrder(files) as itemName (itemName)}
-					<FileTree
-						bind:selectedFilePath
-						bind:anyItemBeingRenamed
-						item={Object.hasOwn(files[itemName], 'directory')
-							? files[itemName].directory
-							: files[itemName].file}
-						{itemName}
-						itemType={Object.hasOwn(files[itemName], 'directory') ? 'directory' : 'file'}
-						parentDirectory={files}
-						parentPath={[]}
-						{webContainer}
-						{handleDrop}
-					/>
-				{/each}
-			</TreeView.Root>
-		</div>
-	</Resizable.Pane>
-
-	<Resizable.Handle />
-
-	<Resizable.Pane defaultSize={86}>
-		<Resizable.PaneGroup direction="vertical" autoSaveId="code-editor-layout-1">
-			<Resizable.Pane defaultSize={60} minSize={20}>
-				<div class="flex h-full flex-col">
-					<div class="flex items-center justify-between text-sm text-muted-foreground">
-						<span class="truncate">{selectedFilePath.join('/')}</span>
-						<Toggle
-							size="sm"
-							class="hover:bg-transparent aria-pressed:bg-transparent"
-							title="Show preview"
-							bind:pressed={showPreview}
-						>
-							{#if showPreview}
-								<Eye />
-							{:else}
-								<EyeOff />
-							{/if}
-						</Toggle>
-					</div>
-					<Resizable.PaneGroup direction="horizontal" autoSaveId="code-editor-layout-2">
-						<Resizable.Pane defaultSize={50} minSize={20}>
-							<TextEditor {webContainer} {selectedFilePath} {files} />
-						</Resizable.Pane>
-						{#if showPreview}
-							<Resizable.Handle />
-							<Resizable.Pane defaultSize={50} minSize={20}>
-								<PreviewFrame {previewUrl} />
-							</Resizable.Pane>
-						{/if}
-					</Resizable.PaneGroup>
-				</div>
-			</Resizable.Pane>
-
-			<Resizable.Handle />
-
-			<Resizable.Pane defaultSize={40} minSize={10}>
-				<Terminal {webContainer} />
-			</Resizable.Pane>
-		</Resizable.PaneGroup>
-	</Resizable.Pane>
-</Resizable.PaneGroup>
+{#if files}
+	<Editor {nodeId} initialFiles={files} />
+{:else}
+	<div class="flex h-dvh w-screen items-center justify-center text-muted-foreground">
+		No files found for this resource
+	</div>
+{/if}

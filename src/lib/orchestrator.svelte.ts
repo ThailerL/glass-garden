@@ -4,7 +4,8 @@ import type { Node } from '@xyflow/svelte';
 import { GraphState } from './graph-state.svelte';
 import { FileState } from './file-state.svelte';
 import { getResourceDefinition, type ResourceDefinition } from './resource-definitions';
-import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
+import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+import { getWebContainer, mountNodeFiles } from './web-container';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -77,15 +78,13 @@ export class Orchestrator {
 	}
 
 	#getWebContainer() {
-		this.#webContainerPromise ??= WebContainer.boot({ workdirName: 'infralab' }).then(
-			(webContainer) => {
-				webContainer.on('server-ready', (port, url) => {
-					const instance = this.#allInstances().find((instance) => instance.port === port);
-					if (instance) instance.previewUrl = url;
-				});
-				return webContainer;
-			}
-		);
+		this.#webContainerPromise ??= getWebContainer().then((webContainer) => {
+			webContainer.on('server-ready', (port, url) => {
+				const instance = this.#allInstances().find((instance) => instance.port === port);
+				if (instance) instance.previewUrl = url;
+			});
+			return webContainer;
+		});
 		return this.#webContainerPromise;
 	}
 
@@ -209,10 +208,7 @@ export class Orchestrator {
 			const webContainer = await this.#getWebContainer();
 			if (definition.hasEditableFiles) {
 				const fileTree = await this.#fileState.loadFiles(node.id);
-				if (fileTree) {
-					await webContainer.fs.mkdir(node.id, { recursive: true });
-					await webContainer.mount(fileTree, { mountPoint: node.id });
-				}
+				if (fileTree) await mountNodeFiles(node.id, fileTree);
 			}
 			// Runs once per group rather than once per instance, so instances don't race each other
 			await definition.prepare(node, webContainer);

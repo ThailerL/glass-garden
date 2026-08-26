@@ -15,14 +15,14 @@
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
 	import ResourceSidebar from './ResourceSidebar.svelte';
-	import InspectorSidebar from './InspectorSidebar.svelte';
+	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
-	import { getFileState } from '$lib/file-state.svelte';
-	import { setOrchestrator } from '$lib/orchestrator.svelte';
+	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import OrchestratorControls from '$lib/components/OrchestratorControls.svelte';
+	import Workspace from '$lib/components/Workspace.svelte';
 
 	const graphState = getGraphState();
-	const orchestrator = setOrchestrator(graphState, getFileState());
+	const orchestrator = getOrchestrator();
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	function createNodeConfig(type: ResourceType) {
@@ -92,11 +92,17 @@
 	};
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="h-dvh w-screen" ondragover={trackPointer}>
-	<OrchestratorControls />
+{#snippet leftSidebar()}
 	<ResourceSidebar />
-	<div class="h-full w-full" use:droppable={{ container: 'canvas', callbacks: { onDrop } }}>
+{/snippet}
+
+{#snippet mainContent()}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="h-full w-full"
+		ondragover={trackPointer}
+		use:droppable={{ container: 'canvas', callbacks: { onDrop } }}
+	>
 		<SvelteFlow
 			bind:nodes={graphState.nodes}
 			bind:edges={graphState.edges}
@@ -112,10 +118,19 @@
 			<Background />
 		</SvelteFlow>
 	</div>
-	{#if selectedNodes.length === 1 && selectedEdges.length === 0}
-		{#key selectedNodes[0].id}
-			<!-- pass in a nodeId instead of node because selectedNodes is a snapshot that can get stale -->
-			<InspectorSidebar nodeId={selectedNodes[0].id} />
-		{/key}
-	{/if}
-</div>
+{/snippet}
+
+{#snippet inspector()}
+	{#key selectedNodes[0].id}
+		<!-- pass in a nodeId instead of node because selectedNodes is a snapshot that can get stale -->
+		<InspectorSidebar nodeId={selectedNodes[0].id} />
+	{/key}
+{/snippet}
+
+<OrchestratorControls />
+
+<Workspace
+	{leftSidebar}
+	{mainContent}
+	rightSidebar={selectedNodes.length === 1 && selectedEdges.length === 0 ? inspector : undefined}
+/>
