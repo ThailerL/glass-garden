@@ -76,6 +76,15 @@ export const resourceDefinitions = {
 };
 
 export type ResourceType = keyof typeof resourceDefinitions;
+export type ResourceDefinition = (typeof resourceDefinitions)[ResourceType];
+
+export function getResourceDefinition(node: Node): ResourceDefinition {
+	const definition = resourceDefinitions[node.type as ResourceType];
+	if (!definition) {
+		throw new Error(`Unknown resource type: ${node.type}`);
+	}
+	return definition;
+}
 
 export const defaultFiles: FileSystemTree = {
 	src: {

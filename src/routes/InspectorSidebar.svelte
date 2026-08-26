@@ -42,7 +42,7 @@
 						<Button
 							{...props}
 							variant="outline"
-							disabled={!orchestrator.canStart(node.id)}
+							disabled={!orchestrator.canStart(node)}
 							onclick={() => orchestrator.start(node)}
 						>
 							<PlayIcon />
@@ -58,7 +58,7 @@
 						<Button
 							{...props}
 							variant="outline"
-							disabled={!orchestrator.canStop(node.id)}
+							disabled={!orchestrator.canStop(node)}
 							onclick={() => orchestrator.stop(node)}
 						>
 							<SquareIcon />

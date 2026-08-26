@@ -13,6 +13,7 @@
 		running: 'bg-green-500',
 		stopping: 'bg-blue-500 animate-pulse',
 		stopped: 'bg-muted-foreground',
+		degraded: 'bg-amber-500',
 		crashed: 'bg-red-500'
 	};
 
