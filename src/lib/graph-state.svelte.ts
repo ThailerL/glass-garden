@@ -56,14 +56,14 @@ export class GraphState {
 		if (node) this.setNodeInStorage(node);
 	}
 
+	// Clones before clearing `selected` so persisted state doesn't affect the live node,
+	// which is the same object reference when called from updateNodeData
 	setNodeInStorage(node: Node) {
-		node.selected = false;
-		localStorage.setItem(`node:${node.id}`, JSON.stringify(node));
+		localStorage.setItem(`node:${node.id}`, JSON.stringify({ ...node, selected: false }));
 	}
 
 	setEdgeInStorage(edge: Edge) {
-		edge.selected = false;
-		localStorage.setItem(`edge:${edge.id}`, JSON.stringify(edge));
+		localStorage.setItem(`edge:${edge.id}`, JSON.stringify({ ...edge, selected: false }));
 	}
 
 	async deleteNodeFromStorage(id: string) {
