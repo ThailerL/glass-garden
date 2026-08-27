@@ -72,7 +72,7 @@ export function getFileStore() {
 }
 
 export async function createFileDB(): Promise<FileDatabase> {
-	return openDB<FileDB>('infralab', 1, {
+	return openDB<FileDB>('glass-garden', 1, {
 		upgrade(db) {
 			db.createObjectStore('files');
 		}

@@ -27,5 +27,5 @@
 </Sidebar.Provider>
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>InfraLab</title>
+	<title>Glass Garden</title>
 </svelte:head>

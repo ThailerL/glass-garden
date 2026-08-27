@@ -1,4 +1,4 @@
-# InfraLab
+# Glass Garden
 
 ## Setup
 
@@ -6,9 +6,9 @@ To self-host with Docker, use this `compose.yaml`
 
 ```yaml
 services:
-  infralab:
-    image: ghcr.io/thailerl/infralab:latest
-    container_name: infralab
+  glass-garden:
+    image: ghcr.io/thailerl/glass-garden:latest
+    container_name: glass-garden
     ports:
       - '3000:3000'
     restart: unless-stopped
@@ -21,7 +21,7 @@ Then visit `http://localhost:3000`. If you are not accessing the website from `l
 Run the dev server and access on port `3000`:
 
 ```sh
-git clone https://github.com/ThailerL/infralab.git
+git clone https://github.com/ThailerL/glass-garden.git
 docker compose -f compose.dev.yaml up
 ```
 

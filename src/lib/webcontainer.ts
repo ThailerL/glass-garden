@@ -4,7 +4,7 @@ import { WebContainer, type FileSystemTree } from '@webcontainer/api';
 let webContainerPromise: Promise<WebContainer> | undefined;
 
 export function getWebContainer() {
-	webContainerPromise ??= WebContainer.boot({ workdirName: 'infralab' });
+	webContainerPromise ??= WebContainer.boot({ workdirName: 'glass-garden' });
 	return webContainerPromise;
 }
 
