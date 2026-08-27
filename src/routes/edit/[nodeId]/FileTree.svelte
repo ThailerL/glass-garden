@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
-	import type { WebContainer, FileSystemTree, FileNode, SymlinkNode } from '@webcontainer/api';
+	import type {
+		WebContainer,
+		FileSystemTree,
+		DirectoryNode,
+		FileNode,
+		SymlinkNode
+	} from '@webcontainer/api';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
 	import { getItemNamesInOrder, createFile, createFolder } from '$lib/file-tree';
 	import * as TreeView from '$lib/components/ui/tree-view';
@@ -13,9 +19,8 @@
 	let {
 		selectedFilePath = $bindable(),
 		anyItemBeingRenamed = $bindable(),
-		item,
+		node,
 		itemName,
-		itemType,
 		parentDirectory,
 		parentPath,
 		root,
@@ -24,9 +29,8 @@
 	}: {
 		selectedFilePath: string[];
 		anyItemBeingRenamed: boolean;
-		item: FileSystemTree | FileNode['file'] | SymlinkNode['file'];
+		node: DirectoryNode | FileNode | SymlinkNode;
 		itemName: string;
-		itemType: 'file' | 'directory';
 		parentDirectory: FileSystemTree;
 		parentPath: string[];
 		root: string;
@@ -47,12 +51,12 @@
 		anyItemBeingRenamed = itemRenameMode === 'edit';
 	});
 
-	function newFile() {
-		createFile(webContainer, item as FileSystemTree, fsPath(itemPath));
+	function newFile(directory: FileSystemTree) {
+		createFile(webContainer, directory, fsPath(itemPath));
 	}
 
-	function newFolder() {
-		createFolder(webContainer, item as FileSystemTree, fsPath(itemPath));
+	function newFolder(directory: FileSystemTree) {
+		createFolder(webContainer, directory, fsPath(itemPath));
 	}
 
 	function validateName(newName: string) {
@@ -69,63 +73,11 @@
 	}
 </script>
 
-{#if itemType === 'file'}
+{#if 'directory' in node}
+	{@const directory = node.directory}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-		use:draggable={{
-			container: parentPath.join('/'),
-			dragData: itemName,
-			disabled: anyItemBeingRenamed
-		}}
-	>
-		<Rename.Provider>
-			<ContextMenu.Root>
-				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
-					{@const highlightSelected =
-						selectedFilePath.length === itemPath.length &&
-						selectedFilePath.every((val, i) => val === itemPath[i])
-							? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-							: ''}
-					<TreeView.File
-						class="w-full cursor-pointer {highlightSelected}"
-						name={itemName}
-						editing={itemRenameMode === 'edit'}
-						onclick={() => {
-							if (itemRenameMode === 'view') selectedFilePath = itemPath;
-						}}
-					>
-						{#snippet label()}
-							<Rename.Root
-								this="span"
-								value={itemName}
-								bind:mode={itemRenameMode}
-								blurBehavior="exit"
-								class="flex place-items-center gap-1 pl-0.75"
-								textClass="block truncate"
-								validate={validateName}
-								onSave={renameItem}
-								fallbackSelectionBehavior="all"
-							/>
-							{#if fileDraftState.isDirty(itemPath)}
-								<UnsavedIcon class="size-3.5 shrink-0" />
-							{/if}
-						{/snippet}
-					</TreeView.File>
-				</ContextMenu.Trigger>
-				<ContextMenu.Content>
-					<Rename.Edit>
-						{#snippet child({ edit })}
-							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>
-						{/snippet}
-					</Rename.Edit>
-					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
-				</ContextMenu.Content>
-			</ContextMenu.Root>
-		</Rename.Provider>
-	</div>
-{:else if itemType === 'directory'}
-	{@const directory = item as FileSystemTree}
-	<div
+		ondragstart={(event) => event.stopPropagation()}
 		use:draggable={{
 			container: parentPath.join('/'),
 			dragData: itemName,
@@ -167,11 +119,8 @@
 							<FileTree
 								bind:selectedFilePath
 								bind:anyItemBeingRenamed
-								item={'directory' in directory[childName]
-									? directory[childName].directory
-									: directory[childName].file}
+								node={directory[childName]}
 								itemName={childName}
-								itemType={'directory' in directory[childName] ? 'directory' : 'file'}
 								parentDirectory={directory}
 								parentPath={itemPath}
 								{root}
@@ -182,9 +131,64 @@
 					</TreeView.Folder>
 				</ContextMenu.Trigger>
 				<ContextMenu.Content>
-					<ContextMenu.Item onSelect={newFile}>New File</ContextMenu.Item>
-					<ContextMenu.Item onSelect={newFolder}>New Folder</ContextMenu.Item>
+					<ContextMenu.Item onSelect={() => newFile(directory)}>New File</ContextMenu.Item>
+					<ContextMenu.Item onSelect={() => newFolder(directory)}>New Folder</ContextMenu.Item>
 					<ContextMenu.Separator />
+					<Rename.Edit>
+						{#snippet child({ edit })}
+							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>
+						{/snippet}
+					</Rename.Edit>
+					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
+				</ContextMenu.Content>
+			</ContextMenu.Root>
+		</Rename.Provider>
+	</div>
+{:else}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+		ondragstart={(event) => event.stopPropagation()}
+		use:draggable={{
+			container: parentPath.join('/'),
+			dragData: itemName,
+			disabled: anyItemBeingRenamed
+		}}
+	>
+		<Rename.Provider>
+			<ContextMenu.Root>
+				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
+					{@const highlightSelected =
+						selectedFilePath.join('/') === itemPath.join('/')
+							? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+							: ''}
+					<TreeView.File
+						class="w-full cursor-pointer {highlightSelected}"
+						name={itemName}
+						editing={itemRenameMode === 'edit'}
+						onclick={() => {
+							if (itemRenameMode === 'view') selectedFilePath = itemPath;
+						}}
+					>
+						{#snippet label()}
+							<Rename.Root
+								this="span"
+								value={itemName}
+								bind:mode={itemRenameMode}
+								blurBehavior="exit"
+								class="flex place-items-center gap-1 pl-0.75"
+								textClass="block truncate"
+								validate={validateName}
+								onSave={renameItem}
+								fallbackSelectionBehavior="all"
+							/>
+							{#if fileDraftState.isDirty(itemPath)}
+								<UnsavedIcon class="size-3.5 shrink-0" />
+							{/if}
+						{/snippet}
+					</TreeView.File>
+				</ContextMenu.Trigger>
+				<ContextMenu.Content>
 					<Rename.Edit>
 						{#snippet child({ edit })}
 							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>

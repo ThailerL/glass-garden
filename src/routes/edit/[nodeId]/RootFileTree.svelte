@@ -67,11 +67,8 @@
 						<FileTree
 							bind:selectedFilePath
 							bind:anyItemBeingRenamed
-							item={'directory' in files[itemName]
-								? files[itemName].directory
-								: files[itemName].file}
+							node={files[itemName]}
 							{itemName}
-							itemType={'directory' in files[itemName] ? 'directory' : 'file'}
 							parentDirectory={files}
 							parentPath={[]}
 							{root}
