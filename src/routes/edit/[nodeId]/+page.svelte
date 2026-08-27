@@ -4,22 +4,26 @@
 	import Editor from './Editor.svelte';
 	import { getFileStore } from '$lib/file-store.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getResourceDefinition } from '$lib/resource-definitions';
 
 	const { params }: PageProps = $props();
 
 	const nodeId = untrack(() => params.nodeId);
-	const nodeName = getGraphState().getNode(nodeId)?.data.name;
+	// Undefined when the id in the URL isn't a real node
+	const node = getGraphState().getNode(nodeId);
 
-	// Undefined when the node has no stored files, i.e. the id in the URL isn't a real node
-	const files = await getFileStore().loadFiles(nodeId);
+	// Falls back to the original snapshot for a node that has never been started or edited
+	const initialFiles = node
+		? ((await getFileStore().loadFiles(nodeId)) ?? getResourceDefinition(node).snapshot)
+		: undefined;
 </script>
 
 <svelte:head>
-	<title>Editing {nodeName}</title>
+	<title>Editing {node?.data.name}</title>
 </svelte:head>
 
-{#if files}
-	<Editor {nodeId} initialFiles={files} />
+{#if initialFiles}
+	<Editor {nodeId} {initialFiles} />
 {:else}
 	<div class="flex h-dvh w-screen items-center justify-center text-muted-foreground">
 		No files found for this resource

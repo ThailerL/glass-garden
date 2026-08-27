@@ -7,3 +7,6 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Mounted into the WebContainer and shown in the editor, so it keeps its own formatting
+/webcontainer/

@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import type { Component } from 'svelte';
-import { WebContainer, type FileSystemTree, type WebContainerProcess } from '@webcontainer/api';
+import { WebContainer, type WebContainerProcess } from '@webcontainer/api';
 import { Position, type Edge, type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
 import ServerIcon from '@lucide/svelte/icons/server';
 import NetworkIcon from '@lucide/svelte/icons/network';
 import * as ConfigComponents from './components/node-configs';
-import { instanceGroupFiles, loadBalancerFiles } from './webcontainer-files';
+import * as snapshots from 'virtual:webcontainer-snapshots';
 import type { Instance } from './orchestrator.svelte';
 
 type HandleConfig = { type: 'source' | 'target'; position: Position };
@@ -22,7 +22,7 @@ export type ResourceDefinition = {
 	name: string;
 	icon: LucideIcon;
 	// Mounted for every resource. hasEditableFiles only decides whether the editor exposes them
-	files: FileSystemTree;
+	snapshot: Uint8Array;
 	hasEditableFiles: boolean;
 	handles: HandleConfig[];
 	configComponent: Component<{ form: unknown }>;
@@ -78,7 +78,7 @@ export const resourceDefinitions = {
 	instanceGroup: {
 		name: 'Instance Group',
 		icon: ServerIcon,
-		files: instanceGroupFiles,
+		snapshot: snapshots.instanceGroup,
 		hasEditableFiles: true,
 		handles: [{ type: 'target', position: Position.Left }] satisfies HandleConfig[],
 		configComponent: ConfigComponents.InstanceGroupConfig,
@@ -111,7 +111,7 @@ export const resourceDefinitions = {
 	loadBalancer: {
 		name: 'Load Balancer',
 		icon: NetworkIcon,
-		files: loadBalancerFiles,
+		snapshot: snapshots.loadBalancer,
 		hasEditableFiles: false,
 		handles: [
 			{ type: 'target', position: Position.Left },

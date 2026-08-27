@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { FileStore } from './file-store.svelte';
-import { resourceDefinitions, type ResourceType } from './resource-definitions';
+import { type ResourceType } from './resource-definitions';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
@@ -30,8 +30,6 @@ export class GraphState {
 		};
 		this.nodes = [...this.nodes, node];
 		this.setNodeInStorage(node);
-
-		this.#fileStore.setFiles(node.id, resourceDefinitions[type].files);
 		return node;
 	}
 

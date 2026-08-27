@@ -1,0 +1,10 @@
+{
+  "name": "hello-world",
+  "type": "module",
+  "dependencies": {
+    "express": "latest"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

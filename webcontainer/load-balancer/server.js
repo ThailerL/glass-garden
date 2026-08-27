@@ -1,43 +1,4 @@
-import type { FileSystemTree } from '@webcontainer/api';
-
-export const instanceGroupFiles: FileSystemTree = {
-	'server.js': {
-		file: {
-			contents: `import express from 'express';
-const app = express();
-const port = process.env.PORT || 3000;
-// Picked once at startup so every instance of this group serves a different number
-const instanceId = Math.floor(Math.random() * 10000);
-
-app.get('/', (req, res) => {
-  res.send(\`Hello World from instance \${instanceId}\`);
-});
-
-app.listen(port, () => {
-  console.log(\`Server running on http://localhost:\${port}\`);
-});`
-		}
-	},
-	'package.json': {
-		file: {
-			contents: `{
-  "name": "hello-world",
-  "type": "module",
-  "dependencies": {
-    "express": "latest"
-  },
-  "scripts": {
-    "start": "node server.js"
-  }
-}`
-		}
-	}
-};
-
-export const loadBalancerFiles: FileSystemTree = {
-	'server.js': {
-		file: {
-			contents: `import http from 'node:http';
+import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 
 const port = process.env.PORT || 3000;
@@ -98,19 +59,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(\`Load balancer running on http://localhost:\${port}\`);
-});`
-		}
-	},
-	'package.json': {
-		file: {
-			contents: `{
-  "name": "load-balancer",
-  "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  }
-}`
-		}
-	}
-};
+  console.log(`Load balancer running on http://localhost:${port}`);
+});

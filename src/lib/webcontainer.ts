@@ -13,7 +13,7 @@ const mounts = new Map<string, Promise<void>>();
 // The editor and the orchestrator both need a node's files on disk, but they share one
 // container, so whichever arrives first mounts and the other reuses it. Mounting twice
 // would overwrite whatever the editor has written since the last save
-export function mountNodeFiles(nodeId: string, files: FileSystemTree) {
+export function mountNodeFiles(nodeId: string, files: FileSystemTree | Uint8Array) {
 	let mount = mounts.get(nodeId);
 	if (!mount) {
 		mount = (async () => {

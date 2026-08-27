@@ -17,7 +17,8 @@
 
 	const WATCH_DEBOUNCE_MS = 100;
 
-	const { nodeId, initialFiles }: { nodeId: string; initialFiles: FileSystemTree } = $props();
+	const { nodeId, initialFiles }: { nodeId: string; initialFiles: FileSystemTree | Uint8Array } =
+		$props();
 
 	setFileDraftState(() => files);
 
@@ -25,7 +26,7 @@
 
 	const root = untrack(() => nodeId);
 
-	let files = $state(untrack(() => initialFiles));
+	let files = $state<FileSystemTree>({});
 	let selectedFilePath = $state<string[]>([]);
 	let anyItemBeingRenamed = $state(false);
 
