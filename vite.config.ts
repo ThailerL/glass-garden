@@ -8,9 +8,9 @@ import { snapshot } from '@webcontainer/snapshot';
 
 const SNAPSHOT_MODULE = 'virtual:webcontainer-snapshots';
 const RESOLVED_SNAPSHOT_MODULE = `\0${SNAPSHOT_MODULE}`;
-const SOURCE_DIRECTORY = 'webcontainer';
+const SOURCE_DIRECTORY = 'resources';
 
-// Exports one binary snapshot per directory under webcontainer/, named after it in camel case
+// Exports one binary snapshot per directory under resources/, named after it in camel case
 // so the keys line up with ResourceType. Keeps the resource sources plain files rather than
 // escaped template literals
 function webcontainerSnapshots(): Plugin {

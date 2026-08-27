@@ -11,7 +11,7 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
 	// Mounted into the WebContainer rather than bundled, so the app's rules don't apply
-	{ ignores: ['webcontainer/'] },
+	{ ignores: ['resources/'] },
 	js.configs.recommended,
 	ts.configs.recommended,
 	svelte.configs.recommended,

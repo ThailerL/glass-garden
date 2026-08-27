@@ -19,7 +19,7 @@
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import OrchestratorControls from '$lib/components/OrchestratorControls.svelte';
+	import OrchestratorControls from './OrchestratorControls.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 
 	const graphState = getGraphState();

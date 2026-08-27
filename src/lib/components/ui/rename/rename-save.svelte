@@ -1,11 +1,11 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import Button, { type ButtonProps } from '$lib/components/button.svelte';
+	import { LoadingButton as Button, type LoadingButtonProps } from '$lib/components/ui/button';
 	import { useRenameSave } from './rename.svelte.js';
 
 	const saveState = useRenameSave();
 
-	type Props = Omit<ButtonProps, 'type' | 'onclick'> & {
+	type Props = Omit<LoadingButtonProps, 'type' | 'onclick'> & {
 		child?: Snippet<[{ save: () => void }]>;
 	};
 

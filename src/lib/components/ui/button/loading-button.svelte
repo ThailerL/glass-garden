@@ -1,7 +1,7 @@
 <script lang="ts" module>
 	import type { MouseEventHandler } from 'svelte/elements';
 
-	export type ButtonProps = ButtonPrimitiveProps & {
+	export type LoadingButtonProps = ButtonPrimitiveProps & {
 		loading?: boolean;
 		onClickPromise?: (
 			e:
@@ -34,11 +34,11 @@
 		}
 	} as const;
 
-	export { type ButtonSize, type ButtonVariant } from '$lib/components/ui/button';
+	export { type ButtonSize, type ButtonVariant } from './button.svelte';
 </script>
 
 <script lang="ts">
-	import { Button, type ButtonProps as ButtonPrimitiveProps } from '$lib/components/ui/button';
+	import Button, { type ButtonProps as ButtonPrimitiveProps } from './button.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { cn } from '$lib/utils.js';
 
@@ -51,7 +51,7 @@
 		class: className,
 		children,
 		...restProps
-	}: ButtonProps = $props();
+	}: LoadingButtonProps = $props();
 
 	let pending = $state(false);
 

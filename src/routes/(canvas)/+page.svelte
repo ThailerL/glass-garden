@@ -2,9 +2,9 @@
 	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import './index.css';
 
-	import App from './App.svelte';
+	import Canvas from './Canvas.svelte';
 </script>
 
 <SvelteFlowProvider>
-	<App />
+	<Canvas />
 </SvelteFlowProvider>
