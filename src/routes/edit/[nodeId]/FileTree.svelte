@@ -3,7 +3,7 @@
 	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
 	import type { WebContainer, FileSystemTree, FileNode, SymlinkNode } from '@webcontainer/api';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
-	import { getItemNamesInOrder } from '$lib/file-tree';
+	import { getItemNamesInOrder, createFile, createFolder } from '$lib/file-tree';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import * as Rename from '$lib/components/ui/rename';
@@ -48,19 +48,11 @@
 	});
 
 	function newFile() {
-		let i = 1;
-		while (Object.hasOwn(item, `new-file-${i}`)) {
-			i++;
-		}
-		webContainer.fs.writeFile(fsPath([...itemPath, `new-file-${i}`]), '');
+		createFile(webContainer, item as FileSystemTree, fsPath(itemPath));
 	}
 
 	function newFolder() {
-		let i = 1;
-		while (Object.hasOwn(item, `new-folder-${i}`)) {
-			i++;
-		}
-		webContainer.fs.mkdir(fsPath([...itemPath, `new-folder-${i}`]));
+		createFolder(webContainer, item as FileSystemTree, fsPath(itemPath));
 	}
 
 	function validateName(newName: string) {
@@ -88,7 +80,7 @@
 	>
 		<Rename.Provider>
 			<ContextMenu.Root>
-				<ContextMenu.Trigger>
+				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
 					{@const highlightSelected =
 						selectedFilePath.length === itemPath.length &&
 						selectedFilePath.every((val, i) => val === itemPath[i])
@@ -109,12 +101,13 @@
 								bind:mode={itemRenameMode}
 								blurBehavior="exit"
 								class="flex place-items-center gap-1 pl-0.75"
+								textClass="block truncate"
 								validate={validateName}
 								onSave={renameItem}
 								fallbackSelectionBehavior="all"
 							/>
 							{#if fileDraftState.isDirty(itemPath)}
-								<UnsavedIcon />
+								<UnsavedIcon class="size-3.5 shrink-0" />
 							{/if}
 						{/snippet}
 					</TreeView.File>
@@ -147,7 +140,7 @@
 	>
 		<Rename.Provider>
 			<ContextMenu.Root>
-				<ContextMenu.Trigger>
+				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
 					<TreeView.Folder
 						open={false}
 						class="handle-{itemPath.join(
@@ -161,12 +154,13 @@
 								bind:mode={itemRenameMode}
 								blurBehavior="exit"
 								class="flex place-items-center gap-1 pl-0.75"
+								textClass="block truncate"
 								validate={validateName}
 								onSave={renameItem}
 								fallbackSelectionBehavior="all"
 							/>
 							{#if fileDraftState.containsDirty(itemPath)}
-								<UnsavedIcon />
+								<UnsavedIcon class="size-3.5 shrink-0" />
 							{/if}
 						{/snippet}
 						{#each getItemNamesInOrder(directory) as childName (childName)}

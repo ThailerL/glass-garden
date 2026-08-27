@@ -2,15 +2,12 @@
 	import { untrack } from 'svelte';
 	import type { FileSystemTree } from '@webcontainer/api';
 	import { getWebContainer, mountNodeFiles } from '$lib/webcontainer';
-	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as Resizable from '$lib/components/ui/resizable';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
-	import { getItemNamesInOrder } from '$lib/file-tree';
-	import FileTree from './FileTree.svelte';
+	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
 	import { getFileStore, withoutExcludedFiles } from '$lib/file-store.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
@@ -28,7 +25,6 @@
 
 	let files = $state<FileSystemTree>({});
 	let selectedFilePath = $state<string[]>([]);
-	let anyItemBeingRenamed = $state(false);
 
 	const webContainer = await getWebContainer();
 	// Each node owns a directory named after it, so the orchestrator and the editor can
@@ -57,55 +53,12 @@
 		clearTimeout(watchTimer);
 		watcher.close();
 	});
-
-	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
-		// directories can't be dragged into itself or a child directory of itself
-		if (
-			targetContainer === null ||
-			sourceContainer === targetContainer ||
-			targetContainer.startsWith(
-				sourceContainer === '' ? draggedItem : [sourceContainer, draggedItem].join('/')
-			)
-		) {
-			return;
-		}
-
-		webContainer.fs.rename(
-			[root, sourceContainer, draggedItem].filter(Boolean).join('/'),
-			[root, targetContainer, draggedItem].filter(Boolean).join('/')
-		);
-
-		const sourcePath = sourceContainer === '' ? [] : sourceContainer.split('/');
-		const targetPath = targetContainer === '' ? [] : targetContainer.split('/');
-		if (selectedFilePath.join('/') === [...sourcePath, draggedItem].join('/')) {
-			selectedFilePath = [...targetPath, draggedItem];
-		}
-	}
 </script>
 
 {#snippet leftSidebar()}
 	<Sidebar.Root collapsible="none" class="w-full!">
 		<Sidebar.Content class="p-2">
-			<div class="min-h-full" use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}>
-				<TreeView.Root>
-					{#each getItemNamesInOrder(files) as itemName (itemName)}
-						<FileTree
-							bind:selectedFilePath
-							bind:anyItemBeingRenamed
-							item={'directory' in files[itemName]
-								? files[itemName].directory
-								: files[itemName].file}
-							{itemName}
-							itemType={'directory' in files[itemName] ? 'directory' : 'file'}
-							parentDirectory={files}
-							parentPath={[]}
-							{root}
-							{webContainer}
-							{handleDrop}
-						/>
-					{/each}
-				</TreeView.Root>
-			</div>
+			<RootFileTree bind:selectedFilePath {files} {root} {webContainer} />
 		</Sidebar.Content>
 	</Sidebar.Root>
 {/snippet}

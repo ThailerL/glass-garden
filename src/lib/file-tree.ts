@@ -1,4 +1,37 @@
-import type { FileSystemTree, DirectoryNode, FileNode, SymlinkNode } from '@webcontainer/api';
+import type {
+	WebContainer,
+	FileSystemTree,
+	DirectoryNode,
+	FileNode,
+	SymlinkNode
+} from '@webcontainer/api';
+
+function unusedName(directory: FileSystemTree, base: string): string {
+	let i = 1;
+	while (Object.hasOwn(directory, `${base}-${i}`)) {
+		i++;
+	}
+	return `${base}-${i}`;
+}
+
+export function createFile(
+	webContainer: WebContainer,
+	directory: FileSystemTree,
+	directoryFsPath: string
+) {
+	return webContainer.fs.writeFile(
+		[directoryFsPath, unusedName(directory, 'new-file')].join('/'),
+		''
+	);
+}
+
+export function createFolder(
+	webContainer: WebContainer,
+	directory: FileSystemTree,
+	directoryFsPath: string
+) {
+	return webContainer.fs.mkdir([directoryFsPath, unusedName(directory, 'new-folder')].join('/'));
+}
 
 export function getItemNamesInOrder(directory: FileSystemTree): string[] {
 	const directoryNames = Object.keys(directory)

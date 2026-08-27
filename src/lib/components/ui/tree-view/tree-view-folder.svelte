@@ -16,13 +16,13 @@
 </script>
 
 <Collapsible.Root bind:open>
-	<Collapsible.Trigger class={cn('flex place-items-center gap-1', className)}>
+	<Collapsible.Trigger class={cn('flex place-items-center gap-1 text-left', className)}>
 		{#if icon}
 			{@render icon({ name, open })}
 		{:else if open}
-			<FolderOpenIcon class="size-4" />
+			<FolderOpenIcon class="size-4 shrink-0" />
 		{:else}
-			<FolderIcon class="size-4" />
+			<FolderIcon class="size-4 shrink-0" />
 		{/if}
 		{#if label}
 			{@render label()}

@@ -14,11 +14,11 @@
 	}: TreeViewFileProps = $props();
 </script>
 
-<button {type} class={cn('flex place-items-center gap-1 pl-[3px]', className)} {...rest}>
+<button {type} class={cn('flex place-items-center gap-1 pl-[3px] text-left', className)} {...rest}>
 	{#if icon}
 		{@render icon({ name })}
 	{:else}
-		<FileIcon class="size-4" />
+		<FileIcon class="size-4 shrink-0" />
 	{/if}
 	{#if label}
 		{@render label()}
