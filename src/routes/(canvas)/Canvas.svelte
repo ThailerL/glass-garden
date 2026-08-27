@@ -50,15 +50,13 @@
 		Object.keys(resourceDefinitions).map((resource) => [resource, ResourceNode])
 	);
 
-	const onDelete: OnDelete = ({ nodes, edges }) => {
-		nodes.forEach((node) => {
-			orchestrator.remove(node.id);
-			graphState.deleteNodeFromStorage(node.id);
-		});
-		edges.forEach((edge) => {
-			orchestrator.updateDependents(edge.target);
-			graphState.deleteEdgeFromStorage(edge.id);
-		});
+	const onDelete: OnDelete = async ({ nodes, edges }) => {
+		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
+		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
+
+		await Promise.all(nodes.map((node) => orchestrator.remove(node.id)));
+		// Only need to update on edge deletion because deleting a node deletes its edges
+		await orchestrator.updateResources(edges.map((edge) => edge.source));
 	};
 
 	let selectedNodes: Node[] = $state.raw([]);

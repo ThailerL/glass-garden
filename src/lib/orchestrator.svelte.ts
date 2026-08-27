@@ -100,9 +100,16 @@ export class Orchestrator {
 
 	#getWebContainer() {
 		this.#webContainerPromise ??= getWebContainer().then((webContainer) => {
+			// A spawned process is not a listening server, so this is the first point at which
+			// a dependent can be pointed at the port
 			webContainer.on('server-ready', (port, url) => {
-				const instance = this.#allInstances().find((instance) => instance.port === port);
-				if (instance) instance.previewUrl = url;
+				for (const [nodeId, pool] of this.#pools) {
+					const instance = pool.instances.find((instance) => instance.port === port);
+					if (!instance) continue;
+					instance.previewUrl = url;
+					this.updateDependents(nodeId);
+					return;
+				}
 			});
 			return webContainer;
 		});
@@ -264,21 +271,25 @@ export class Orchestrator {
 	}
 
 	async updateDependents(nodeId: string) {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const sourceIds = new Set(
+		await this.updateResources(
 			this.#graphState.edges.filter((edge) => edge.target === nodeId).map((edge) => edge.source)
 		);
-		if (sourceIds.size === 0) return;
+	}
+
+	async updateResources(nodeIds: string[]) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const unique = new Set(nodeIds);
+		if (unique.size === 0) return;
 
 		const webContainer = await this.#getWebContainer();
 		await Promise.all(
-			[...sourceIds].map(async (sourceId) => {
-				const pool = this.#pools.get(sourceId);
-				const node = this.#graphState.getNode(sourceId);
+			[...unique].map(async (nodeId) => {
+				const pool = this.#pools.get(nodeId);
+				const node = this.#graphState.getNode(nodeId);
 				if (!pool || !node || !pool.definition.update) return;
 
 				try {
-					await pool.definition.update(node, webContainer, this.#eventContext(sourceId));
+					await pool.definition.update(node, webContainer, this.#eventContext(nodeId));
 				} catch (e) {
 					// One dependent that can't be reconfigured keeps its old config rather than
 					// failing the batch

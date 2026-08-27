@@ -64,8 +64,9 @@ async function updateLoadBalancer(
 	{ outgoingEdges, getInstances }: EventContext
 ) {
 	const upstreamPorts = outgoingEdges.flatMap((edge) => {
+		// previewUrl is set from 'server-ready', so it marks an instance whose server is listening
 		const healthyTargets = getInstances(edge.target).filter(
-			(instance) => instance.status === 'running'
+			(instance) => instance.status === 'running' && instance.previewUrl
 		);
 		return healthyTargets.map((instance) => instance.port);
 	});
