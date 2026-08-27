@@ -245,7 +245,7 @@ export class Orchestrator {
 				const fileTree = await this.#fileStore.loadFiles(node.id);
 				await mountNodeFiles(node.id, fileTree ?? definition.snapshot);
 				// Runs once per group rather than once per instance, so instances don't race each other
-				await definition.prepare(node, webContainer);
+				await definition.prepare?.(node, webContainer);
 				await Promise.all(
 					pending.map((instance) =>
 						this.#startInstance(node, definition, webContainer, instances, instance)

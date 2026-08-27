@@ -28,7 +28,7 @@ export type ResourceDefinition = {
 	configComponent: Component<{ form: unknown }>;
 	configSchema: z.ZodObject<z.ZodRawShape>;
 	instanceCount: (node: Node) => number;
-	prepare: (node: Node, webContainer: WebContainer) => Promise<void>;
+	prepare?: (node: Node, webContainer: WebContainer) => Promise<void>;
 	start: (
 		node: Node,
 		webContainer: WebContainer,
@@ -87,11 +87,7 @@ export const resourceDefinitions = {
 			(node.data as z.infer<typeof instanceGroupConfigSchema>).instanceCount,
 		// Runs once per group rather than once per instance, so instances don't race each other
 		prepare: async (node: Node, webContainer: WebContainer) => await npmInstall(node, webContainer),
-		start: async (
-			node: Node,
-			webContainer: WebContainer,
-			port: number
-		): Promise<WebContainerProcess> => {
+		start: async (node: Node, webContainer: WebContainer, port: number) => {
 			// Split command by whitespace
 			const { command } = node.data as z.infer<typeof instanceGroupConfigSchema>;
 			const commandParts = command.match(/\S+/g);
@@ -120,16 +116,10 @@ export const resourceDefinitions = {
 		configComponent: ConfigComponents.LoadBalancerConfig,
 		configSchema: loadBalancerConfigSchema,
 		instanceCount: () => 1,
-		prepare: async (node: Node, webContainer: WebContainer) => await npmInstall(node, webContainer),
-		start: async (
-			node: Node,
-			webContainer: WebContainer,
-			port: number,
-			context: EventContext
-		): Promise<WebContainerProcess> => {
+		start: async (node: Node, webContainer: WebContainer, port: number, context: EventContext) => {
 			// Written before the process spawns so its first request already has the right targets
 			await updateLoadBalancer(node, webContainer, context);
-			return await webContainer.spawn('npm', ['run', 'start'], {
+			return await webContainer.spawn('node', ['server.js'], {
 				cwd: node.id,
 				env: { PORT: port }
 			});
