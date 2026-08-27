@@ -24,14 +24,8 @@
 	const node = $derived(graphState.getNode(nodeId));
 	const status = $derived(orchestrator.getStatus(nodeId));
 
-	// A stopping instance still owns its process and its port until the kill lands, so it
-	// counts as up and the number ticks down as each one actually dies
-	const up = $derived(
-		orchestrator
-			.getInstances(nodeId)
-			.filter(({ status }) => status === 'running' || status === 'stopping').length
-	);
-	const desired = $derived(node ? getResourceDefinition(node).instanceCount(node) : 0);
+	const up = $derived(orchestrator.getUpCount(nodeId));
+	const desired = $derived(orchestrator.getDesiredCount(nodeId));
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
 	const editable = $derived(!!node && getResourceDefinition(node).hasEditableFiles);
 </script>

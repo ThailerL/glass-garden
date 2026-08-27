@@ -31,7 +31,17 @@
 	}
 
 	if (graphState.nodes.length === 0) {
-		graphState.addNode('instanceGroup', { x: 0, y: 0 }, createNodeConfig('instanceGroup'));
+		const loadBalancer = graphState.addNode(
+			'loadBalancer',
+			{ x: -100, y: 0 },
+			createNodeConfig('loadBalancer')
+		);
+		const instanceGroup = graphState.addNode(
+			'instanceGroup',
+			{ x: 100, y: 0 },
+			createNodeConfig('instanceGroup')
+		);
+		graphState.addEdge(loadBalancer.id, instanceGroup.id);
 	}
 
 	// Every resource type renders through the same component, which reads its icon and
@@ -45,7 +55,10 @@
 			orchestrator.remove(node.id);
 			graphState.deleteNodeFromStorage(node.id);
 		});
-		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
+		edges.forEach((edge) => {
+			orchestrator.updateDependents(edge.target);
+			graphState.deleteEdgeFromStorage(edge.id);
+		});
 	};
 
 	let selectedNodes: Node[] = $state.raw([]);
@@ -88,7 +101,10 @@
 				edge.sourceHandle == connection.sourceHandle &&
 				edge.targetHandle == connection.targetHandle
 		);
-		if (edge) graphState.setEdgeInStorage(edge);
+		if (edge) {
+			orchestrator.updateDependents(edge.target);
+			graphState.setEdgeInStorage(edge);
+		}
 	};
 </script>
 

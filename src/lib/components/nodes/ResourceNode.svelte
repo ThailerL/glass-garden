@@ -10,6 +10,9 @@
 	const status = $derived(orchestrator.getStatus(node.id));
 	const definition = $derived(getResourceDefinition(node));
 
+	const up = $derived(orchestrator.getUpCount(node.id));
+	const desired = $derived(orchestrator.getDesiredCount(node.id));
+
 	function fitText(el: HTMLSpanElement) {
 		const container = el.parentElement as HTMLElement;
 
@@ -33,7 +36,12 @@
 	}
 </script>
 
-<StatusDot {status} class="absolute top-1 right-1" />
+<div class="absolute top-1 right-1 flex items-center gap-1">
+	{#if desired > 1}
+		<span class="text-[0.5rem] leading-none text-muted-foreground">{up}/{desired}</span>
+	{/if}
+	<StatusDot {status} />
+</div>
 <span class="block origin-center whitespace-nowrap" use:fitText>
 	{node.data.name}
 </span>

@@ -3,7 +3,11 @@ import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import { GraphState } from './graph-state.svelte';
 import { FileStore } from './file-store.svelte';
-import { getResourceDefinition, type ResourceDefinition } from './resource-definitions';
+import {
+	getResourceDefinition,
+	type EventContext,
+	type ResourceDefinition
+} from './resource-definitions';
 import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 import { getWebContainer, mountNodeFiles } from './webcontainer';
 
@@ -62,6 +66,19 @@ export class Orchestrator {
 		return this.#pools.get(nodeId)?.instances ?? [];
 	}
 
+	// A stopping instance still owns its process and its port until the kill lands, so it
+	// counts as up and the number ticks down as each one actually dies
+	getUpCount(nodeId: string): number {
+		return this.getInstances(nodeId).filter(
+			(instance) => instance.status === 'running' || instance.status === 'stopping'
+		).length;
+	}
+
+	getDesiredCount(nodeId: string): number {
+		const node = this.#graphState.getNode(nodeId);
+		return node ? getResourceDefinition(node).instanceCount(node) : 0;
+	}
+
 	// Every method takes a node id and resolves the node from the graph rather than accepting
 	// a Node, so a caller holding a stale copy still reads current config
 	canStart(nodeId: string): boolean {
@@ -104,6 +121,14 @@ export class Orchestrator {
 		return port;
 	}
 
+	// Rebuilt per call rather than cached, so a definition always reads current edges
+	#eventContext(nodeId: string): EventContext {
+		return {
+			outgoingEdges: this.#graphState.edges.filter((edge) => edge.source === nodeId),
+			getInstances: (id: string) => this.getInstances(id)
+		};
+	}
+
 	#poolFor(nodeId: string, definition: ResourceDefinition): Pool {
 		const existing = this.#pools.get(nodeId);
 		if (existing) return existing;
@@ -125,7 +150,12 @@ export class Orchestrator {
 			// while the pool is preparing removes this one before it owns anything
 			if (!instances.includes(instance)) return;
 
-			const process = await definition.start(node, webContainer, instance.port);
+			const process = await definition.start(
+				node,
+				webContainer,
+				instance.port,
+				this.#eventContext(node.id)
+			);
 
 			// A stop can also land while the process is spawning. Once it has dropped the
 			// instance nothing else holds the process, so this is the only chance to kill it
@@ -151,7 +181,10 @@ export class Orchestrator {
 				instance.previewUrl = undefined;
 				instance.process = undefined;
 				// A deliberate stop sets 'stopping' first, so 'running' here means it crashed unexpectedly
-				if (instance.status === 'running') instance.status = 'crashed';
+				if (instance.status === 'running') {
+					instance.status = 'crashed';
+					this.updateDependents(node.id);
+				}
 			});
 		} catch (e) {
 			console.error(e);
@@ -206,27 +239,53 @@ export class Orchestrator {
 
 		// Set of instances that need a process spawned in them
 		const pending = instances.filter((instance) => instance.status === 'starting');
-		if (pending.length === 0) return;
-
-		try {
-			const webContainer = await this.#getWebContainer();
-			if (definition.hasEditableFiles) {
+		if (pending.length > 0) {
+			try {
+				const webContainer = await this.#getWebContainer();
 				const fileTree = await this.#fileStore.loadFiles(node.id);
-				if (fileTree) await mountNodeFiles(node.id, fileTree);
+				await mountNodeFiles(node.id, fileTree ?? definition.files);
+				// Runs once per group rather than once per instance, so instances don't race each other
+				await definition.prepare(node, webContainer);
+				await Promise.all(
+					pending.map((instance) =>
+						this.#startInstance(node, definition, webContainer, instances, instance)
+					)
+				);
+			} catch (e) {
+				// Only group-wide failures land here (boot, mount, npm install) - per-instance
+				// failures are recorded inside #startInstance
+				console.error(e);
+				for (const instance of pending) instance.status = 'crashed';
 			}
-			// Runs once per group rather than once per instance, so instances don't race each other
-			await definition.prepare(node, webContainer);
-			await Promise.all(
-				pending.map((instance) =>
-					this.#startInstance(node, definition, webContainer, instances, instance)
-				)
-			);
-		} catch (e) {
-			// Only group-wide failures land here (boot, mount, npm install) - per-instance
-			// failures are recorded inside #startInstance
-			console.error(e);
-			for (const instance of pending) instance.status = 'crashed';
 		}
+
+		// Scaling either way changes the ports a dependent should be routing to
+		await this.updateDependents(nodeId);
+	}
+
+	async updateDependents(nodeId: string) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const sourceIds = new Set(
+			this.#graphState.edges.filter((edge) => edge.target === nodeId).map((edge) => edge.source)
+		);
+		if (sourceIds.size === 0) return;
+
+		const webContainer = await this.#getWebContainer();
+		await Promise.all(
+			[...sourceIds].map(async (sourceId) => {
+				const pool = this.#pools.get(sourceId);
+				const node = this.#graphState.getNode(sourceId);
+				if (!pool || !node || !pool.definition.update) return;
+
+				try {
+					await pool.definition.update(node, webContainer, this.#eventContext(sourceId));
+				} catch (e) {
+					// One dependent that can't be reconfigured keeps its old config rather than
+					// failing the batch
+					console.error(e);
+				}
+			})
+		);
 	}
 
 	async startAll() {
@@ -260,6 +319,8 @@ export class Orchestrator {
 		// #stopInstance drops each one as it goes, so an empty pool means every process is
 		// gone. Anything that failed to stop is left for the next try
 		if (instances.length === 0) this.#pools.delete(nodeId);
+
+		await this.updateDependents(nodeId);
 	}
 
 	async stopAll() {

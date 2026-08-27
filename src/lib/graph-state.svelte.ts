@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { FileStore } from './file-store.svelte';
-import { resourceDefinitions, defaultFiles, type ResourceType } from './resource-definitions';
+import { resourceDefinitions, type ResourceType } from './resource-definitions';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
@@ -20,11 +20,7 @@ export class GraphState {
 		this.#fileStore = fileStore;
 	}
 
-	async addNode(
-		type: ResourceType,
-		position: { x: number; y: number },
-		config: Record<string, unknown>
-	) {
+	addNode(type: ResourceType, position: { x: number; y: number }, config: Record<string, unknown>) {
 		const node: Node = {
 			id: nanoid(8),
 			type,
@@ -35,9 +31,15 @@ export class GraphState {
 		this.nodes = [...this.nodes, node];
 		this.setNodeInStorage(node);
 
-		if (resourceDefinitions[type].hasEditableFiles) {
-			this.#fileStore.setFiles(node.id, defaultFiles);
-		}
+		this.#fileStore.setFiles(node.id, resourceDefinitions[type].files);
+		return node;
+	}
+
+	addEdge(source: string, target: string) {
+		const edge: Edge = { id: nanoid(8), source, target };
+		this.edges = [...this.edges, edge];
+		this.setEdgeInStorage(edge);
+		return edge;
 	}
 
 	getNode(id: string) {
