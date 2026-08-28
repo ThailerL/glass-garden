@@ -45,8 +45,14 @@ export type Instance = {
 // Read-only snapshot of the graph around a node, rebuilt per call so a resource
 // always reads current topology without reaching into the orchestrator
 export type UpstreamContext = {
-	// Each outgoing edge's target with its current instances
-	upstreams: { nodeId: string; instances: Instance[] }[];
+	// Each outgoing edge's target with its current instances. These are another
+	// controller's live instances passed by reference rather than copied, so the type is
+	// read-only down to the instance itself — mutating one here would corrupt the node
+	// that owns it
+	readonly upstreams: readonly {
+		readonly nodeId: string;
+		readonly instances: readonly Readonly<Instance>[];
+	}[];
 };
 
 export type ResourceDefinition = {

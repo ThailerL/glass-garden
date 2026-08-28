@@ -26,7 +26,7 @@
 	const status = $derived(orchestrator.getStatus(nodeId));
 
 	const up = $derived(orchestrator.getUpCount(nodeId));
-	const desired = $derived(orchestrator.getDesiredCount(nodeId));
+	const configured = $derived(orchestrator.getConfiguredCount(nodeId));
 	const restarts = $derived(orchestrator.getRestarts(nodeId));
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
 	const editable = $derived(!!node && getResourceDefinition(node.type).hasEditableFiles);
@@ -72,9 +72,9 @@
 			<div class="flex items-center gap-1.5 text-sm">
 				<StatusDot {status} />
 				<span class="capitalize">{status}</span>
-				{#if desired > 1}
+				{#if configured > 1}
 					<span class="text-muted-foreground" title="Instances running out of the configured count">
-						{up}/{desired}
+						{up}/{configured}
 					</span>
 				{/if}
 				{#if restarts > 0}

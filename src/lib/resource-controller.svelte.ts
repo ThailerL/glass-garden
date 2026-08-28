@@ -45,6 +45,10 @@ export class ResourceController {
 	#converging = false;
 	// What dependents last saw, so they are only rescheduled on real change
 	#lastEndpoints: number[] = [];
+	// Ports reserved to this node for as long as it exists. This way,
+	// any dependents can rely on consistent port(s) as their target(s).
+	// Released when node is deleted.
+	#portPool: number[] = [];
 	// Consecutive crashes of instances that never became running; at the cap the
 	// reconciler stops respawning so a broken command doesn't loop forever
 	#failedStarts = 0;
@@ -66,6 +70,23 @@ export class ResourceController {
 			return 'unresponsive';
 		if (this.instances.some((instance) => instance.status === 'running')) return 'degraded';
 		return 'crashed';
+	}
+
+	get reservedPorts(): readonly number[] {
+		return this.#portPool;
+	}
+
+	// Start is only useful when it would change desired state: bringing the node up or
+	// reviving crashed instances. Count and config mismatches self-heal, so no lock on
+	// transitional states is needed
+	get canStart(): boolean {
+		return !this.wantsRunning || this.instances.some((instance) => instance.status === 'crashed');
+	}
+
+	// Instances while not wantsRunning are still winding down or unresponsive, and
+	// another stop retries the kill
+	get canStop(): boolean {
+		return this.wantsRunning || this.instances.some((instance) => instance.status !== 'stopping');
 	}
 
 	// A stopping instance still owns its process and its port until the kill lands, so
@@ -164,12 +185,25 @@ export class ResourceController {
 		this.#notifyDependents();
 	}
 
+	// Reservations are exclusive, so no other node can be on one of these and the only
+	// thing to avoid is this node's own live instances.
+	#takePort(): number {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const own = new Set(this.instances.map((instance) => instance.port));
+		const free = this.#portPool.find((port) => !own.has(port));
+		if (free !== undefined) return free;
+
+		const port = this.#services.allocatePort();
+		this.#portPool.push(port);
+		return port;
+	}
+
 	async #spawnDeficit(node: Node, desired: number, configStamp: string) {
 		const pending: Instance[] = [];
 		while (this.instances.length < desired) {
 			const index =
 				this.instances.push({
-					port: this.#services.allocatePort(),
+					port: this.#takePort(),
 					status: 'starting',
 					configStamp
 				}) - 1;

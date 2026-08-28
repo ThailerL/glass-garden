@@ -11,7 +11,7 @@
 	const definition = $derived(getResourceDefinition(node.type));
 
 	const up = $derived(orchestrator.getUpCount(node.id));
-	const desired = $derived(orchestrator.getDesiredCount(node.id));
+	const configured = $derived(orchestrator.getConfiguredCount(node.id));
 
 	function fitText(el: HTMLSpanElement) {
 		const container = el.parentElement as HTMLElement;
@@ -37,8 +37,8 @@
 </script>
 
 <div class="absolute top-1 right-1 flex items-center gap-1">
-	{#if desired > 1}
-		<span class="text-[0.5rem] leading-none text-muted-foreground">{up}/{desired}</span>
+	{#if configured > 1}
+		<span class="text-[0.5rem] leading-none text-muted-foreground">{up}/{configured}</span>
 	{/if}
 	<StatusDot {status} />
 </div>

@@ -46,7 +46,7 @@ export class Orchestrator {
 		return this.#controllers.get(nodeId)?.upCount ?? 0;
 	}
 
-	getDesiredCount(nodeId: string): number {
+	getConfiguredCount(nodeId: string): number {
 		const node = this.#graphState.getNode(nodeId);
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
 	}
@@ -59,28 +59,15 @@ export class Orchestrator {
 		return this.#controllers.get(nodeId)?.restarts ?? 0;
 	}
 
-	// Start is only useful when it would change desired state: bringing the node up or
-	// reviving crashed instances. Count and config mismatches self-heal, so no lock on
-	// transitional states is needed
+	// No controller means the node has never been started, so starting is what it needs
+	// and stopping is meaningless
 	canStart(nodeId: string): boolean {
 		if (!this.#graphState.getNode(nodeId)) return false;
-		const controller = this.#controllers.get(nodeId);
-		if (!controller) return true;
-		return (
-			!controller.wantsRunning ||
-			controller.instances.some((instance) => instance.status === 'crashed')
-		);
+		return this.#controllers.get(nodeId)?.canStart ?? true;
 	}
 
 	canStop(nodeId: string): boolean {
-		const controller = this.#controllers.get(nodeId);
-		if (!controller) return false;
-		// Instances while not wantsRunning are still winding down or unresponsive, and
-		// another stop retries the kill
-		return (
-			controller.wantsRunning ||
-			controller.instances.some((instance) => instance.status !== 'stopping')
-		);
+		return this.#controllers.get(nodeId)?.canStop ?? false;
 	}
 
 	start(nodeId: string) {
@@ -150,17 +137,20 @@ export class Orchestrator {
 		return this.#containerPromise;
 	}
 
+	// Mints a port reserved by no node. A reservation outlives the instance that
+	// prompted it and is only released when its node is deleted and the controller
+	// unregisters, so a port is never handed to a second node while the first still
+	// exists. Every live port is in its own node's reservations, so this is strictly
+	// stronger than checking instances
 	#allocatePort(): number {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const inUse = new Set(
-			[...this.#controllers.values()].flatMap((controller) =>
-				controller.instances.map((instance) => instance.port)
-			)
+		const reserved = new Set(
+			[...this.#controllers.values()].flatMap((controller) => controller.reservedPorts)
 		);
 		let port: number;
 		do {
 			port = Math.floor(Math.random() * (MAX_PORT - MIN_PORT + 1)) + MIN_PORT;
-		} while (inUse.has(port));
+		} while (reserved.has(port));
 		return port;
 	}
 
