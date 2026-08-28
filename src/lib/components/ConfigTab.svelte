@@ -54,9 +54,11 @@
 	}
 </script>
 
-<form method="dialog" onsubmit={handleSubmit}>
-	<ConfigComponent {form} />
-</form>
-<div class="sticky bottom-0 -mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">
+<div class="min-h-0 flex-1 overflow-y-auto">
+	<form method="dialog" onsubmit={handleSubmit}>
+		<ConfigComponent {form} />
+	</form>
+</div>
+<div class="-mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">
 	<Form.Button type="submit" onclick={handleSubmit}>Save changes</Form.Button>
 </div>

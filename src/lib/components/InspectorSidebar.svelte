@@ -42,7 +42,7 @@
 						<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
 						<UnderlineTabs.Trigger value="events">Events</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
-					<UnderlineTabs.Content value="config" class="overflow-y-auto">
+					<UnderlineTabs.Content value="config" class="flex flex-col">
 						<ConfigTab {nodeId} />
 					</UnderlineTabs.Content>
 					<UnderlineTabs.Content value="preview">
