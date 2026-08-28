@@ -4,12 +4,14 @@
 	import { superForm, defaults } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
-	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
+	import { resourceDefinitions, type ResourceType } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getOrchestrator } from '$lib/orchestrator.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const graphState = getGraphState();
+	const orchestrator = getOrchestrator();
 
 	// Read once because the graph replaces the node object on every drag, and
 	// re-reading it would rebuild the form and discard whatever is being typed
@@ -46,7 +48,9 @@
 		}
 
 		graphState.updateNodeData(node.id, $formData);
-		toast.success('Successfully saved config', { position: 'bottom-center', duration: 2000 });
+		// A running node reconciles toward the new config immediately
+		orchestrator.refresh(node.id);
+		toast.success('Successfully saved config');
 	}
 </script>
 

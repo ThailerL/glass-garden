@@ -12,10 +12,11 @@
 	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
-	import { getResourceDefinition } from '$lib/resource-definitions';
+	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
+	import EventsTab from './EventsTab.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
@@ -26,8 +27,9 @@
 
 	const up = $derived(orchestrator.getUpCount(nodeId));
 	const desired = $derived(orchestrator.getDesiredCount(nodeId));
+	const restarts = $derived(orchestrator.getRestarts(nodeId));
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
-	const editable = $derived(!!node && getResourceDefinition(node).hasEditableFiles);
+	const editable = $derived(!!node && getResourceDefinition(node.type).hasEditableFiles);
 </script>
 
 <Sidebar.Root side="right" collapsible="none" class="w-full!">
@@ -38,12 +40,16 @@
 					<UnderlineTabs.List>
 						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
 						<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
+						<UnderlineTabs.Trigger value="events">Events</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
-					<UnderlineTabs.Content value="config">
+					<UnderlineTabs.Content value="config" class="overflow-y-auto">
 						<ConfigTab {nodeId} />
 					</UnderlineTabs.Content>
 					<UnderlineTabs.Content value="preview">
 						<PreviewTab {nodeId} />
+					</UnderlineTabs.Content>
+					<UnderlineTabs.Content value="events" class="overflow-y-auto">
+						<EventsTab {nodeId} />
 					</UnderlineTabs.Content>
 				</UnderlineTabs.Root>
 			</Sidebar.GroupContent>
@@ -69,6 +75,11 @@
 				{#if desired > 1}
 					<span class="text-muted-foreground" title="Instances running out of the configured count">
 						{up}/{desired}
+					</span>
+				{/if}
+				{#if restarts > 0}
+					<span class="text-muted-foreground" title="Automatic restarts since the last start">
+						· {restarts} restart{restarts === 1 ? '' : 's'}
 					</span>
 				{/if}
 			</div>

@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { Handle, type NodeProps } from '@xyflow/svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { getResourceDefinition } from '$lib/resource-definitions';
+	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 
 	const node: NodeProps = $props();
 
 	const orchestrator = getOrchestrator();
 	const status = $derived(orchestrator.getStatus(node.id));
-	const definition = $derived(getResourceDefinition(node));
+	const definition = $derived(getResourceDefinition(node.type));
 
 	const up = $derived(orchestrator.getUpCount(node.id));
 	const desired = $derived(orchestrator.getDesiredCount(node.id));

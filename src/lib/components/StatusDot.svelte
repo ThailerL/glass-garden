@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
-	import type { ResourceStatus } from '$lib/orchestrator.svelte';
+	import type { ResourceStatus } from '$lib/resources';
 
 	// InstanceStatus is a subset of ResourceStatus, so this covers a single instance too
 	const { status, class: className }: { status: ResourceStatus; class?: string } = $props();

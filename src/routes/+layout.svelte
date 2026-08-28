@@ -19,7 +19,7 @@
 	setOrchestrator(graphState, fileStore);
 </script>
 
-<Toaster />
+<Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
 <ModeWatcher />
 
 <Sidebar.Provider>

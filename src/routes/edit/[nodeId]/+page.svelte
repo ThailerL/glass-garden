@@ -4,7 +4,7 @@
 	import Editor from './Editor.svelte';
 	import { getFileStore } from '$lib/file-store.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
-	import { getResourceDefinition } from '$lib/resource-definitions';
+	import { getResourceDefinition } from '$lib/resources';
 
 	const { params }: PageProps = $props();
 
@@ -14,7 +14,7 @@
 
 	// Falls back to the original snapshot for a node that has never been started or edited
 	const initialFiles = node
-		? ((await getFileStore().loadFiles(nodeId)) ?? getResourceDefinition(node).snapshot)
+		? ((await getFileStore().loadFiles(nodeId)) ?? getResourceDefinition(node.type).snapshot)
 		: undefined;
 </script>
 

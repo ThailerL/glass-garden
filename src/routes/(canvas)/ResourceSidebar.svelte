@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { resourceDefinitions } from '$lib/resource-definitions';
+	import { resourceDefinitions } from '$lib/resources';
 	import { draggable } from '@thisux/sveltednd';
 </script>
 

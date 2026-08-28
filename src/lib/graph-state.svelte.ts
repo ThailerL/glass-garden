@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { FileStore } from './file-store.svelte';
-import { type ResourceType } from './resource-definitions';
+import { type ResourceType } from './resources';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);

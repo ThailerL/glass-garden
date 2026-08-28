@@ -13,8 +13,8 @@
 		type OnConnect
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import { resourceDefinitions, type ResourceType } from '$lib/resource-definitions';
-	import { ResourceNode } from '$lib/components/nodes';
+	import { resourceDefinitions, type ResourceType } from '$lib/resources';
+	import ResourceNode from './ResourceNode.svelte';
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
@@ -50,13 +50,13 @@
 		Object.keys(resourceDefinitions).map((resource) => [resource, ResourceNode])
 	);
 
-	const onDelete: OnDelete = async ({ nodes, edges }) => {
+	const onDelete: OnDelete = ({ nodes, edges }) => {
 		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
 		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
 
-		await Promise.all(nodes.map((node) => orchestrator.remove(node.id)));
-		// Only need to update on edge deletion because deleting a node deletes its edges
-		await orchestrator.updateResources(edges.map((edge) => edge.source));
+		nodes.forEach((node) => orchestrator.remove(node.id));
+		// A deleted edge changes what its source routes to
+		edges.forEach((edge) => orchestrator.refresh(edge.source));
 	};
 
 	let selectedNodes: Node[] = $state.raw([]);
@@ -100,7 +100,7 @@
 				edge.targetHandle == connection.targetHandle
 		);
 		if (edge) {
-			orchestrator.updateDependents(edge.target);
+			orchestrator.refresh(edge.source);
 			graphState.setEdgeInStorage(edge);
 		}
 	};
