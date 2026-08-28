@@ -12,9 +12,9 @@
 	// Undefined when the id in the URL isn't a real node
 	const node = getGraphState().getNode(nodeId);
 
-	// Falls back to the original snapshot for a node that has never been started or edited
+	// Falls back to the template files for a node that has never been started or edited
 	const initialFiles = node
-		? ((await getFileStore().loadFiles(nodeId)) ?? getResourceDefinition(node.type).snapshot)
+		? ((await getFileStore().loadFiles(nodeId)) ?? getResourceDefinition(node.type).files)
 		: undefined;
 </script>
 

@@ -15,7 +15,7 @@
 	const fileStore = setFileStore(untrack(() => data.db));
 	const graphState = setGraphState(fileStore);
 	// Set here rather than on the canvas so the editor route shares one orchestrator,
-	// and with it one WebContainer and one set of running instances
+	// and with it one container and one set of running instances
 	setOrchestrator(graphState, fileStore);
 </script>
 

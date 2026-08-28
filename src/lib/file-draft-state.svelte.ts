@@ -1,7 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { EditorState } from '@codemirror/state';
-import type { FileSystemTree } from '@webcontainer/api';
+import type { FileSystemTree } from '@vivari/core';
 import { getFileContents } from './file-tree';
 
 export class FileDraftState {

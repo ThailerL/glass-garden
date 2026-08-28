@@ -1,9 +1,9 @@
 import { getContext, setContext } from 'svelte';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { FileSystemTree } from '@webcontainer/api';
+import type { FileSystemTree } from '@vivari/core';
 
 // Poor man's .gitignore
-const EXCLUDED_FROM_PERSISTENCE = ['node_modules'];
+export const EXCLUDED_FROM_PERSISTENCE = ['node_modules'];
 
 export function withoutExcludedFiles(tree: FileSystemTree): FileSystemTree {
 	const result: FileSystemTree = {};

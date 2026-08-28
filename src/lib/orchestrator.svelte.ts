@@ -1,7 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
-import type { WebContainer } from '@webcontainer/api';
+import type { Vivari } from '@vivari/core';
 import { GraphState } from './graph-state.svelte';
 import { FileStore } from './file-store.svelte';
 import {
@@ -15,7 +15,7 @@ import {
 	type ControllerServices,
 	type ResourceEvent
 } from './resource-controller.svelte';
-import { getWebContainer } from './webcontainer';
+import { getContainer } from './container';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -27,7 +27,7 @@ export class Orchestrator {
 	#graphState: GraphState;
 	#fileStore: FileStore;
 	#controllers = new SvelteMap<string, ResourceController>();
-	#webContainerPromise: Promise<WebContainer> | undefined;
+	#containerPromise: Promise<Vivari> | undefined;
 
 	constructor(graphState: GraphState, fileStore: FileStore) {
 		this.#graphState = graphState;
@@ -129,7 +129,7 @@ export class Orchestrator {
 	#servicesFor(nodeId: string): ControllerServices {
 		return {
 			getNode: () => this.#graphState.getNode(nodeId),
-			getWebContainer: () => this.#getWebContainer(),
+			getContainer: () => this.#getContainer(),
 			loadFiles: () => this.#fileStore.loadFiles(nodeId),
 			allocatePort: () => this.#allocatePort(),
 			getUpstreamContext: () => this.#upstreamContext(nodeId),
@@ -138,16 +138,16 @@ export class Orchestrator {
 		};
 	}
 
-	#getWebContainer() {
-		this.#webContainerPromise ??= getWebContainer().then((webContainer) => {
-			webContainer.on('server-ready', (port, url) => {
+	#getContainer() {
+		this.#containerPromise ??= getContainer().then((container) => {
+			container.on('server-ready', (port, url) => {
 				for (const controller of this.#controllers.values()) {
 					if (controller.onServerReady(port, url)) return;
 				}
 			});
-			return webContainer;
+			return container;
 		});
-		return this.#webContainerPromise;
+		return this.#containerPromise;
 	}
 
 	#allocatePort(): number {

@@ -1,0 +1,190 @@
+diff --git a/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js b/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
+index a00b16a..82c766c 100644
+--- a/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
++++ b/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
+@@ -1,3 +1,185 @@
++// Prepended to @vivari/core's process worker by patch-package - that worker is the only one
++// that runs in-VM user code. This patch is the only copy: to change it, edit
++// node_modules/@vivari/core/dist/assets/process-worker-*.js and re-run
++// `npx patch-package @vivari/core`. The patched filename carries a content hash, so a
++// Vivari upgrade fails the patch loudly rather than silently dropping it.
++//
++// Vivari runs in-VM code on the host JS engine and does not implement V8's
++// `Error.prepareStackTrace` hook (its process worker has no prepareStackTrace and no
++// CallSite type at all). On V8 the engine supplies the hook natively, so nothing is
++// needed. On SpiderMonkey it is simply ignored: `Error.captureStackTrace` leaves
++// `obj.stack` as a *string*, so a library asking for structured call sites gets
++// characters. `depd` does exactly that and then calls `callSite.getFileName()`, which is
++// why `node server.js` dies at import time on Firefox for anything built on express.
++//
++// This restores the V8 contract: when `Error.prepareStackTrace` is set, call it with an
++// array of CallSite-shaped objects parsed out of whatever stack string the engine gives.
++// It installs itself only where the hook is not already honoured.
++(function (global) {
++	function splitLocation(location) {
++		// The file part is a URL and contains colons of its own, so the line and column are
++		// taken from the end rather than by splitting on the first colon
++		var match = /^(.*):(\d+):(\d+)$/.exec(location);
++		if (!match) return { file: location || null, line: null, column: null };
++		return { file: match[1] || null, line: Number(match[2]), column: Number(match[3]) };
++	}
++
++	// Frames are parsed in SpiderMonkey's "name@file:line:col" form only. The shim installs
++	// itself solely on engines that ignore prepareStackTrace, so V8's "at name (file:...)"
++	// form can never reach here
++	function parseFrame(text) {
++		var line = String(text).trim();
++		var at = line.indexOf('@');
++		if (!line || at === -1) return null;
++
++		var name = line.slice(0, at);
++		var location = line.slice(at + 1);
++
++		// Firefox writes eval/Function frames as "<file> line N > Function:line:col"
++		var evalOrigin = null;
++		var evalMatch = /^(.*?)\s+line\s+\d+\s+>\s+(?:eval|Function)/.exec(location);
++		if (evalMatch) evalOrigin = evalMatch[1];
++
++		var parts = splitLocation(location);
++		return {
++			name: name,
++			file: parts.file,
++			line: parts.line,
++			column: parts.column,
++			evalOrigin: evalOrigin,
++			isEval: evalOrigin !== null || /\beval\b/.test(location)
++		};
++	}
++
++	function parseFrames(stack) {
++		var lines = String(stack || '').split('\n');
++		var frames = [];
++		for (var i = 0; i < lines.length; i++) {
++			var frame = parseFrame(lines[i]);
++			if (frame) frames.push(frame);
++		}
++		return frames;
++	}
++
++	function toCallSite(frame) {
++		return {
++			getFileName: function () {
++				return frame.file;
++			},
++			getLineNumber: function () {
++				return frame.line;
++			},
++			getColumnNumber: function () {
++				return frame.column;
++			},
++			getFunctionName: function () {
++				return frame.name || null;
++			},
++			getMethodName: function () {
++				return null;
++			},
++			getTypeName: function () {
++				return null;
++			},
++			getThis: function () {
++				return undefined;
++			},
++			getEvalOrigin: function () {
++				return frame.evalOrigin;
++			},
++			isEval: function () {
++				return frame.isEval;
++			},
++			isNative: function () {
++				return false;
++			},
++			isConstructor: function () {
++				return false;
++			},
++			isToplevel: function () {
++				return !frame.name;
++			},
++			toString: function () {
++				var location = (frame.file || '<anonymous>') + ':' + frame.line + ':' + frame.column;
++				return frame.name ? frame.name + ' (' + location + ')' : location;
++			}
++		};
++	}
++
++	// True when the engine already calls prepareStackTrace for us, i.e. V8
++	function isHonoured(ErrorCtor) {
++		var previous = ErrorCtor.prepareStackTrace;
++		var called = false;
++		try {
++			ErrorCtor.prepareStackTrace = function () {
++				called = true;
++				return [];
++			};
++			var probe = {};
++			if (typeof ErrorCtor.captureStackTrace === 'function') {
++				ErrorCtor.captureStackTrace(probe);
++				void probe.stack;
++			}
++			if (!called) void new ErrorCtor('probe').stack;
++		} catch (_error) {
++			called = false;
++		} finally {
++			ErrorCtor.prepareStackTrace = previous;
++		}
++		return called;
++	}
++
++	function install(ErrorCtor) {
++		ErrorCtor.captureStackTrace = function captureStackTrace(target, constructorOpt) {
++			var prepare = ErrorCtor.prepareStackTrace;
++
++			// The caller has usually already installed its own prepareStackTrace - that is
++			// the whole reason it called us - so the hook has to be off while the engine's
++			// own stack string is read, or an engine that honours it hands back the
++			// caller's return value instead of a string
++			var raw;
++			try {
++				ErrorCtor.prepareStackTrace = undefined;
++				raw = new ErrorCtor().stack;
++			} finally {
++				ErrorCtor.prepareStackTrace = prepare;
++			}
++
++			// Drop this shim's own frame, then everything above constructorOpt when the
++			// caller named one, matching V8's behaviour
++			var frames = parseFrames(raw).slice(1);
++			if (typeof constructorOpt === 'function' && constructorOpt.name) {
++				for (var i = 0; i < frames.length; i++) {
++					if (frames[i].name === constructorOpt.name) {
++						frames = frames.slice(i + 1);
++						break;
++					}
++				}
++			}
++
++			var limit = ErrorCtor.stackTraceLimit;
++			if (typeof limit === 'number' && limit >= 0) frames = frames.slice(0, limit);
++
++			if (typeof prepare === 'function') {
++				target.stack = prepare(target, frames.map(toCallSite));
++				return;
++			}
++
++			var header =
++				(target && target.name ? target.name : 'Error') +
++				(target && target.message ? ': ' + target.message : '');
++			target.stack = [header]
++				.concat(
++					frames.map(function (frame) {
++						return '    at ' + toCallSite(frame).toString();
++					})
++				)
++				.join('\n');
++		};
++	}
++
++	if (!isHonoured(global.Error)) install(global.Error);
++})(typeof globalThis !== 'undefined' ? globalThis : self);
+ //#region \0rolldown/runtime.js
+ var __defProp = Object.defineProperty;
+ var __exportAll = (all, no_symbols) => {

@@ -15,3 +15,6 @@ node_modules
 build
 package
 **/.env
+
+# Generated during the image build by scripts/vendor-assets.mjs
+static/vendor

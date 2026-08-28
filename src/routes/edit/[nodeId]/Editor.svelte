@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { FileSystemTree } from '@webcontainer/api';
-	import { getWebContainer, mountNodeFiles } from '$lib/webcontainer';
+	import type { FileSystemTree } from '@vivari/core';
+	import { getContainer, mountNodeFiles, nodeDirectory } from '$lib/container';
 	import * as Resizable from '$lib/components/ui/resizable';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import Terminal from '$lib/components/Terminal.svelte';
@@ -9,24 +9,45 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
-	import { getFileStore, withoutExcludedFiles } from '$lib/file-store.svelte';
+	import { getFileStore } from '$lib/file-store.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
+	import { setFileRefresh } from '$lib/file-refresh';
+	import { exportTree } from '$lib/file-tree';
 
-	const WATCH_DEBOUNCE_MS = 100;
+	// Editor-driven writes refresh almost immediately; the poll is the backstop for writes
+	// made inside the container by the terminal, by npm install, or by a running process
+	const REFRESH_DEBOUNCE_MS = 100;
+	const POLL_INTERVAL_MS = 1000;
 
-	const { nodeId, initialFiles }: { nodeId: string; initialFiles: FileSystemTree | Uint8Array } =
-		$props();
-
-	setFileDraftState(() => files);
+	const { nodeId, initialFiles }: { nodeId: string; initialFiles: FileSystemTree } = $props();
 
 	const fileStore = getFileStore();
 
+	// The node id keys persistence and the mount; rootPath is the same node addressed as an
+	// absolute path inside the container, which is what the fs and the shell want
 	const root = untrack(() => nodeId);
+	const rootPath = nodeDirectory(root);
 
 	let files = $state<FileSystemTree>({});
 	let selectedFilePath = $state<string[]>([]);
+	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-	const webContainer = await getWebContainer();
+	async function readFiles() {
+		files = await exportTree(container, rootPath);
+		fileStore.setFiles(root, files);
+	}
+
+	function scheduleRefresh() {
+		clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(readFiles, REFRESH_DEBOUNCE_MS);
+	}
+
+	setFileDraftState(() => files);
+	// Both contexts are registered before the first await so they land during component
+	// init; the container scheduleRefresh needs is assigned just below
+	setFileRefresh(scheduleRefresh);
+
+	const container = await getContainer();
 	// Each node owns a directory named after it, so the orchestrator and the editor can
 	// share one container without stepping on each other
 	await mountNodeFiles(
@@ -35,30 +56,20 @@
 	);
 	// Read back rather than trusting initialFiles, because a running node may have
 	// changed the directory since it was persisted
-	files = withoutExcludedFiles(structuredClone(await webContainer.export(root)));
+	files = await exportTree(container, rootPath);
 
-	let watchTimer: ReturnType<typeof setTimeout> | undefined;
-	// When files are updated in the WebContainers FS it will sync the changes to the app
-	// So to manage files only need to call the WebContainer API
-	const watcher = webContainer.fs.watch(root, { recursive: true }, () => {
-		clearTimeout(watchTimer);
-		// This is the easy way: just export the whole directory no matter what the change was
-		watchTimer = setTimeout(async () => {
-			files = withoutExcludedFiles(structuredClone(await webContainer.export(root)));
-			fileStore.setFiles(root, files);
-		}, WATCH_DEBOUNCE_MS);
-	});
+	const poll = setInterval(readFiles, POLL_INTERVAL_MS);
 
 	$effect(() => () => {
-		clearTimeout(watchTimer);
-		watcher.close();
+		clearTimeout(refreshTimer);
+		clearInterval(poll);
 	});
 </script>
 
 {#snippet leftSidebar()}
 	<Sidebar.Root collapsible="none" class="w-full!">
 		<Sidebar.Content class="p-2">
-			<RootFileTree bind:selectedFilePath {files} {root} {webContainer} />
+			<RootFileTree bind:selectedFilePath {files} root={rootPath} {container} />
 		</Sidebar.Content>
 	</Sidebar.Root>
 {/snippet}
@@ -69,7 +80,7 @@
 			<div class="flex h-full flex-col">
 				<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
 				<div class="min-h-0 flex-1">
-					<TextEditor {webContainer} {root} {selectedFilePath} {files} />
+					<TextEditor {container} root={rootPath} {selectedFilePath} {files} />
 				</div>
 			</div>
 		</Resizable.Pane>
@@ -77,7 +88,7 @@
 		<Resizable.Handle />
 
 		<Resizable.Pane defaultSize={40} minSize={10}>
-			<Terminal {webContainer} cwd={root} />
+			<Terminal {container} cwd={rootPath} />
 		</Resizable.Pane>
 	</Resizable.PaneGroup>
 {/snippet}

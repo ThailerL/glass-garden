@@ -7,9 +7,9 @@
 		Terminal
 	} from '@battlefieldduck/xterm-svelte';
 	import type { FitAddon } from '@xterm/addon-fit';
-	import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+	import type { Vivari, VivariProcess } from '@vivari/core';
 
-	const { webContainer, cwd }: { webContainer: WebContainer; cwd?: string } = $props();
+	const { container, cwd }: { container: Vivari; cwd?: string } = $props();
 
 	const options: ITerminalOptions & ITerminalInitOnlyOptions = {
 		convertEol: true
@@ -19,7 +19,7 @@
 	let terminalHost: HTMLDivElement;
 	let input: WritableStreamDefaultWriter<string> | undefined;
 	let fitAddon: FitAddon | undefined;
-	let shellProcess: WebContainerProcess | undefined;
+	let shellProcess: VivariProcess | undefined;
 
 	onMount(() => {
 		const observer = new ResizeObserver(resize);
@@ -31,7 +31,6 @@
 
 	function resize() {
 		fitAddon?.fit();
-		if (terminal) shellProcess?.resize({ cols: terminal.cols, rows: terminal.rows });
 	}
 
 	async function onLoad() {
@@ -39,13 +38,7 @@
 		terminal?.loadAddon(fitAddon);
 		fitAddon.fit();
 
-		shellProcess = await webContainer.spawn('jsh', {
-			cwd,
-			terminal: {
-				cols: terminal?.cols ?? 80,
-				rows: terminal?.rows ?? 24
-			}
-		});
+		shellProcess = await container.spawn('sh', [], { cwd });
 
 		shellProcess.output.pipeTo(
 			new WritableStream({

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Component } from 'svelte';
-import { WebContainer } from '@webcontainer/api';
+import { Vivari, type FileSystemTree } from '@vivari/core';
 import { Position, type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
 
@@ -53,7 +53,7 @@ export type ResourceDefinition = {
 	name: string;
 	icon: LucideIcon;
 	// Mounted for every resource. hasEditableFiles only decides whether the editor exposes them
-	snapshot: Uint8Array;
+	files: FileSystemTree;
 	hasEditableFiles: boolean;
 	handles: NodeHandleConfig[];
 	configComponent: Component<{ form: unknown }>;
@@ -66,14 +66,14 @@ export type ResourceDefinition = {
 	// The subset of config whose change requires relaunching instances. Omitted when
 	// nothing does; name-only changes never bounce anything
 	launchConfig?: (node: Node) => unknown;
-	prepare?: (node: Node, webContainer: WebContainer) => Promise<void>;
+	prepare?: (node: Node, container: Vivari) => Promise<void>;
 	start: (
 		node: Node,
-		webContainer: WebContainer,
+		container: Vivari,
 		port: number,
 		context: UpstreamContext
 	) => Promise<InstanceHandle>;
 	// Called when something this resource points at changes, so it can rewrite whatever
 	// config its running process reads
-	update?: (node: Node, webContainer: WebContainer, context: UpstreamContext) => Promise<void>;
+	update?: (node: Node, container: Vivari, context: UpstreamContext) => Promise<void>;
 };

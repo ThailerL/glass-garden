@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { Position, type Node } from '@xyflow/svelte';
-import { WebContainer } from '@webcontainer/api';
+import { Vivari } from '@vivari/core';
 import ServerIcon from '@lucide/svelte/icons/server';
-import * as snapshots from 'virtual:webcontainer-snapshots';
+import * as resourceFiles from 'virtual:resource-files';
 import InstanceGroupConfig from './InstanceGroupConfig.svelte';
 import type { NodeHandleConfig, ResourceDefinition } from '../types';
 import { npmInstall, processHandle } from '../shared';
+import { nodeDirectory } from '../../container';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
@@ -18,7 +19,7 @@ type Config = z.infer<typeof configSchema>;
 export const instanceGroup = {
 	name: 'Instance Group',
 	icon: ServerIcon,
-	snapshot: snapshots.instanceGroup,
+	files: resourceFiles.instanceGroup,
 	hasEditableFiles: true,
 	handles: [{ type: 'target', position: Position.Left }] satisfies NodeHandleConfig[],
 	configComponent: InstanceGroupConfig,
@@ -26,16 +27,16 @@ export const instanceGroup = {
 	instanceCount: (node: Node) => (node.data as Config).instanceCount,
 	launchConfig: (node: Node) => ({ command: (node.data as Config).command }),
 	prepare: npmInstall,
-	start: async (node: Node, webContainer: WebContainer, port: number) => {
+	start: async (node: Node, container: Vivari, port: number) => {
 		// Split command by whitespace
 		const { command } = node.data as Config;
 		const commandParts = command.match(/\S+/g);
 		if (!commandParts) {
 			throw new Error('Command is empty');
 		}
-		const process = await webContainer.spawn(commandParts[0], commandParts.slice(1), {
-			cwd: node.id,
-			env: { PORT: port }
+		const process = await container.spawn(commandParts[0], commandParts.slice(1), {
+			cwd: nodeDirectory(node.id),
+			env: { PORT: String(port) }
 		});
 		return processHandle(process);
 	}

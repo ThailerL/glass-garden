@@ -1,13 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
-	import type {
-		WebContainer,
-		FileSystemTree,
-		DirectoryNode,
-		FileNode,
-		SymlinkNode
-	} from '@webcontainer/api';
+	import type { Vivari, FileSystemTree, DirectoryNode, FileNode } from '@vivari/core';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
 	import { getItemNamesInOrder, createFile, createFolder } from '$lib/file-tree';
 	import * as TreeView from '$lib/components/ui/tree-view';
@@ -15,6 +9,7 @@
 	import * as Rename from '$lib/components/ui/rename';
 	import FileTree from './FileTree.svelte';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
+	import { getFileRefresh } from '$lib/file-refresh';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -24,23 +19,25 @@
 		parentDirectory,
 		parentPath,
 		root,
-		webContainer,
+		container,
 		handleDrop
 	}: {
 		selectedFilePath: string[];
 		anyItemBeingRenamed: boolean;
-		node: DirectoryNode | FileNode | SymlinkNode;
+		node: DirectoryNode | FileNode;
 		itemName: string;
 		parentDirectory: FileSystemTree;
 		parentPath: string[];
 		root: string;
-		webContainer: WebContainer;
+		container: Vivari;
 		handleDrop: (state: DragDropState<string>) => void;
 	} = $props();
 
 	const fileDraftState = getFileDraftState();
 
 	const itemPath = untrack(() => [...parentPath, itemName]);
+
+	const refreshFiles = getFileRefresh();
 
 	function fsPath(path: string[]) {
 		return [root, ...path].join('/');
@@ -52,11 +49,11 @@
 	});
 
 	function newFile(directory: FileSystemTree) {
-		createFile(webContainer, directory, fsPath(itemPath));
+		createFile(container, directory, fsPath(itemPath)).then(refreshFiles);
 	}
 
 	function newFolder(directory: FileSystemTree) {
-		createFolder(webContainer, directory, fsPath(itemPath));
+		createFolder(container, directory, fsPath(itemPath)).then(refreshFiles);
 	}
 
 	function validateName(newName: string) {
@@ -65,11 +62,11 @@
 		);
 	}
 	function renameItem(newName: string) {
-		webContainer.fs.rename(fsPath(itemPath), fsPath([...parentPath, newName]));
+		container.fs.rename(fsPath(itemPath), fsPath([...parentPath, newName])).then(refreshFiles);
 	}
 
 	function deleteItem() {
-		webContainer.fs.rm(fsPath(itemPath), { recursive: true });
+		container.fs.rm(fsPath(itemPath), { recursive: true }).then(refreshFiles);
 	}
 </script>
 
@@ -124,7 +121,7 @@
 								parentDirectory={directory}
 								parentPath={itemPath}
 								{root}
-								{webContainer}
+								{container}
 								{handleDrop}
 							/>
 						{/each}

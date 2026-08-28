@@ -2,19 +2,20 @@
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { javascript } from '@codemirror/lang-javascript';
 	import type { EditorView } from '@codemirror/view';
-	import { WebContainer, type FileSystemTree } from '@webcontainer/api';
+	import { Vivari, type FileSystemTree } from '@vivari/core';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
 	import { getFileContents } from '$lib/file-tree';
 	import { dracula } from '@uiw/codemirror-theme-dracula';
 	import { mode } from 'mode-watcher';
+	import { getFileRefresh } from '$lib/file-refresh';
 
 	const {
-		webContainer,
+		container,
 		root,
 		selectedFilePath,
 		files
 	}: {
-		webContainer: WebContainer;
+		container: Vivari;
 		root: string;
 		selectedFilePath: string[];
 		files: FileSystemTree;
@@ -27,6 +28,8 @@
 	const nothingSelected = $derived(selectedFilePath.length === 0);
 
 	let view: EditorView | undefined = $state();
+
+	const refreshFiles = getFileRefresh();
 
 	function onChange() {
 		if (view) fileDraftState.setEditorState(selectedFilePath, view.state);
@@ -46,7 +49,8 @@
 		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
 			e.preventDefault();
 			if (nothingSelected) return;
-			await webContainer.fs.writeFile([root, ...selectedFilePath].join('/'), currentDraft);
+			await container.fs.writeFile([root, ...selectedFilePath].join('/'), currentDraft);
+			refreshFiles();
 		}
 	}
 </script>

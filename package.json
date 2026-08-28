@@ -3,8 +3,14 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.12.0"
+	},
 	"scripts": {
+		"vendor": "node scripts/vendor-assets.mjs",
+		"predev": "npm run vendor",
 		"dev": "vite dev --host --port 3000",
+		"prebuild": "npm run vendor",
 		"build": "vite build",
 		"preview": "vite preview --host --port 3000",
 		"prepare": "svelte-kit sync || echo ''",
@@ -30,8 +36,7 @@
 		"@thisux/sveltednd": "^0.7.0",
 		"@types/node": "^24",
 		"@uiw/codemirror-theme-dracula": "^4.25.11",
-		"@webcontainer/api": "^1.6.4",
-		"@webcontainer/snapshot": "^0.1.0",
+		"@vivari/core": "^1.0.0",
 		"@xterm/xterm": "^6.0.0",
 		"@xyflow/svelte": "^1.6.3",
 		"bits-ui": "^2.18.1",

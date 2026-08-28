@@ -1,25 +1,28 @@
 <script lang="ts">
-	import type { WebContainer, FileSystemTree } from '@webcontainer/api';
+	import type { Vivari, FileSystemTree } from '@vivari/core';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { cn } from '$lib/utils.js';
 	import { getItemNamesInOrder, createFile, createFolder } from '$lib/file-tree';
 	import FileTree from './FileTree.svelte';
+	import { getFileRefresh } from '$lib/file-refresh';
 
 	let {
 		selectedFilePath = $bindable(),
 		files,
 		root,
-		webContainer
+		container
 	}: {
 		selectedFilePath: string[];
 		files: FileSystemTree;
 		root: string;
-		webContainer: WebContainer;
+		container: Vivari;
 	} = $props();
 
 	let anyItemBeingRenamed = $state(false);
+
+	const refreshFiles = getFileRefresh();
 
 	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
 		// directories can't be dragged into itself or a child directory of itself
@@ -33,10 +36,12 @@
 			return;
 		}
 
-		webContainer.fs.rename(
-			[root, sourceContainer, draggedItem].filter(Boolean).join('/'),
-			[root, targetContainer, draggedItem].filter(Boolean).join('/')
-		);
+		container.fs
+			.rename(
+				[root, sourceContainer, draggedItem].filter(Boolean).join('/'),
+				[root, targetContainer, draggedItem].filter(Boolean).join('/')
+			)
+			.then(refreshFiles);
 
 		const sourcePath = sourceContainer === '' ? [] : sourceContainer.split('/');
 		const targetPath = targetContainer === '' ? [] : targetContainer.split('/');
@@ -46,11 +51,11 @@
 	}
 
 	function newFile() {
-		createFile(webContainer, files, root);
+		createFile(container, files, root).then(refreshFiles);
 	}
 
 	function newFolder() {
-		createFolder(webContainer, files, root);
+		createFolder(container, files, root).then(refreshFiles);
 	}
 </script>
 
@@ -72,7 +77,7 @@
 							parentDirectory={files}
 							parentPath={[]}
 							{root}
-							{webContainer}
+							{container}
 							{handleDrop}
 						/>
 					{/each}

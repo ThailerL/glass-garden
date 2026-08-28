@@ -1,8 +1,8 @@
 import type { Node } from '@xyflow/svelte';
-import type { FileSystemTree, WebContainer } from '@webcontainer/api';
+import type { FileSystemTree, Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import type { UpstreamContext, Instance, ResourceDefinition, ResourceStatus } from './resources';
-import { mountNodeFiles } from './webcontainer';
+import { mountNodeFiles } from './container';
 
 const MAX_EVENTS = 50;
 const MAX_FAILED_STARTS = 3;
@@ -17,7 +17,7 @@ export type ResourceEvent = {
 // container, global port uniqueness and reaching other controllers
 export type ControllerServices = {
 	getNode: () => Node | undefined;
-	getWebContainer: () => Promise<WebContainer>;
+	getContainer: () => Promise<Vivari>;
 	loadFiles: () => Promise<FileSystemTree | undefined>;
 	allocatePort: () => number;
 	getUpstreamContext: () => UpstreamContext;
@@ -152,7 +152,7 @@ export class ResourceController {
 			try {
 				await this.#definition.update(
 					node,
-					await this.#services.getWebContainer(),
+					await this.#services.getContainer(),
 					this.#services.getUpstreamContext()
 				);
 			} catch (e) {
@@ -178,16 +178,14 @@ export class ResourceController {
 		}
 
 		try {
-			const webContainer = await this.#services.getWebContainer();
+			const container = await this.#services.getContainer();
 			const files = await this.#services.loadFiles();
-			await mountNodeFiles(this.nodeId, files ?? this.#definition.snapshot);
+			await mountNodeFiles(this.nodeId, files ?? this.#definition.files);
 			// Runs once per pass rather than once per instance, so instances don't race each other
-			await this.#definition.prepare?.(node, webContainer);
+			await this.#definition.prepare?.(node, container);
 			const upstreamContext = this.#services.getUpstreamContext();
 			await Promise.all(
-				pending.map((instance) =>
-					this.#spawnInstance(node, webContainer, upstreamContext, instance)
-				)
+				pending.map((instance) => this.#spawnInstance(node, container, upstreamContext, instance))
 			);
 		} catch (e) {
 			// Only group-wide failures land here (boot, mount, npm install) - per-instance
@@ -200,17 +198,12 @@ export class ResourceController {
 
 	async #spawnInstance(
 		node: Node,
-		webContainer: WebContainer,
+		container: Vivari,
 		upstreamContext: UpstreamContext,
 		instance: Instance
 	) {
 		try {
-			const handle = await this.#definition.start(
-				node,
-				webContainer,
-				instance.port,
-				upstreamContext
-			);
+			const handle = await this.#definition.start(node, container, instance.port, upstreamContext);
 			instance.handle = handle;
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
