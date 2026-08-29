@@ -2,34 +2,42 @@
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { javascript } from '@codemirror/lang-javascript';
 	import type { EditorView } from '@codemirror/view';
-	import { Vivari, type FileSystemTree } from '@vivari/core';
+	import { Vivari } from '@vivari/core';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
-	import { getFileContents } from '$lib/file-tree';
 	import { dracula } from '@uiw/codemirror-theme-dracula';
 	import { mode } from 'mode-watcher';
-	import { getFileRefresh } from '$lib/file-refresh';
+	import { getFileRefresh } from '$lib/file-refresh.svelte';
 
 	const {
 		container,
 		root,
-		selectedFilePath,
-		files
+		selectedFilePath
 	}: {
 		container: Vivari;
 		root: string;
 		selectedFilePath: string[];
-		files: FileSystemTree;
 	} = $props();
 
 	const fileDraftState = getFileDraftState();
-	const currentDraft = $derived(
-		fileDraftState.getDraft(selectedFilePath) ?? getFileContents(files, selectedFilePath) ?? ''
-	);
+	const refresh = getFileRefresh();
+
 	const nothingSelected = $derived(selectedFilePath.length === 0);
+	const currentDraft = $derived(
+		fileDraftState.getDraft(selectedFilePath) ?? fileDraftState.getBaseline(selectedFilePath) ?? ''
+	);
 
 	let view: EditorView | undefined = $state();
 
-	const refreshFiles = getFileRefresh();
+	$effect(() => {
+		if (nothingSelected) return;
+		// Captured so a read that lands after the selection moves still writes its own key
+		const path = selectedFilePath;
+		container.fs
+			.readFile([root, ...path].join('/'), 'utf-8')
+			// An unreadable file reads as empty rather than keeping a stale baseline
+			.catch(() => '')
+			.then((contents) => fileDraftState.setBaseline(path, contents));
+	});
 
 	function onChange() {
 		if (view) fileDraftState.setEditorState(selectedFilePath, view.state);
@@ -49,8 +57,11 @@
 		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
 			e.preventDefault();
 			if (nothingSelected) return;
-			await container.fs.writeFile([root, ...selectedFilePath].join('/'), currentDraft);
-			refreshFiles();
+			const saved = currentDraft;
+			await container.fs.writeFile([root, ...selectedFilePath].join('/'), saved);
+			// The file holds the draft now, so the marker clears without reading it back
+			fileDraftState.setBaseline(selectedFilePath, saved);
+			refresh.bump();
 		}
 	}
 </script>

@@ -9,13 +9,11 @@
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
-	import { setFileRefresh } from '$lib/file-refresh';
-	import { exportTree } from '$lib/file-tree';
+	import { setFileRefresh } from '$lib/file-refresh.svelte';
 
-	// Editor-driven writes refresh almost immediately; the poll is the backstop for writes
-	// made inside the container by the terminal, by npm install, or by a running process
-	const REFRESH_DEBOUNCE_MS = 100;
-	const POLL_INTERVAL_MS = 1000;
+	// Nothing inside the container announces what it writes, so the open listings re-read on
+	// a timer to catch the terminal, npm install, and running processes
+	const POLL_INTERVAL_MS = 300;
 
 	// rightSidebar is rendered by the parent, which keeps it mounted while these panes
 	// are still waiting on the container
@@ -25,28 +23,15 @@
 		rightSidebar
 	}: { nodeId: string; initialFiles: FileSystemTree; rightSidebar: Snippet } = $props();
 
-	// The node id keys persistence and the mount; rootPath is the same node addressed as an
-	// absolute path inside the container, which is what the fs and the shell want
+	// The node id keys the mount; rootPath is the same node addressed as an absolute path
+	// inside the container, which is what the fs and the shell want
 	const root = untrack(() => nodeId);
 	const rootPath = nodeDirectory(root);
 
-	let files = $state<FileSystemTree>({});
 	let selectedFilePath = $state<string[]>([]);
-	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-	async function readFiles() {
-		files = await exportTree(container, rootPath);
-	}
-
-	function scheduleRefresh() {
-		clearTimeout(refreshTimer);
-		refreshTimer = setTimeout(readFiles, REFRESH_DEBOUNCE_MS);
-	}
-
-	setFileDraftState(() => files);
-	// Both contexts are registered before the first await so they land during component
-	// init; the container scheduleRefresh needs is assigned just below
-	setFileRefresh(scheduleRefresh);
+	setFileDraftState();
+	const refresh = setFileRefresh();
 
 	const container = await getContainer();
 	// Each node owns a directory named after it, so the orchestrator and the editor can
@@ -55,22 +40,16 @@
 		root,
 		untrack(() => initialFiles)
 	);
-	// Read back rather than trusting initialFiles, which is only the template: the mount
-	// above is a no-op for a node whose directory already exists
-	files = await exportTree(container, rootPath);
 
-	const poll = setInterval(readFiles, POLL_INTERVAL_MS);
+	const poll = setInterval(() => refresh.bump(), POLL_INTERVAL_MS);
 
-	$effect(() => () => {
-		clearTimeout(refreshTimer);
-		clearInterval(poll);
-	});
+	$effect(() => () => clearInterval(poll));
 </script>
 
 {#snippet leftSidebar()}
 	<Sidebar.Root collapsible="none" class="w-full!">
 		<Sidebar.Content class="p-2">
-			<RootFileTree bind:selectedFilePath {files} root={rootPath} {container} />
+			<RootFileTree bind:selectedFilePath root={rootPath} {container} />
 		</Sidebar.Content>
 	</Sidebar.Root>
 {/snippet}
@@ -81,7 +60,7 @@
 			<div class="flex h-full flex-col">
 				<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
 				<div class="min-h-0 flex-1">
-					<TextEditor {container} root={rootPath} {selectedFilePath} {files} />
+					<TextEditor {container} root={rootPath} {selectedFilePath} />
 				</div>
 			</div>
 		</Resizable.Pane>

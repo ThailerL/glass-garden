@@ -1,22 +1,21 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
-	import type { Vivari, FileSystemTree, DirectoryNode, FileNode } from '@vivari/core';
+	import type { Vivari, DirEnt } from '@vivari/core';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
-	import { getItemNamesInOrder, createFile, createFolder } from '$lib/file-tree';
+	import { listDirectory, createFile, createFolder } from '$lib/file-tree';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import * as Rename from '$lib/components/ui/rename';
 	import FileTree from './FileTree.svelte';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
-	import { getFileRefresh } from '$lib/file-refresh';
+	import { getFileRefresh } from '$lib/file-refresh.svelte';
 
 	let {
 		selectedFilePath = $bindable(),
 		anyItemBeingRenamed = $bindable(),
-		node,
-		itemName,
-		parentDirectory,
+		entry,
+		siblingNames,
 		parentPath,
 		root,
 		container,
@@ -24,9 +23,8 @@
 	}: {
 		selectedFilePath: string[];
 		anyItemBeingRenamed: boolean;
-		node: DirectoryNode | FileNode;
-		itemName: string;
-		parentDirectory: FileSystemTree;
+		entry: DirEnt;
+		siblingNames: string[];
 		parentPath: string[];
 		root: string;
 		container: Vivari;
@@ -34,44 +32,64 @@
 	} = $props();
 
 	const fileDraftState = getFileDraftState();
+	const refresh = getFileRefresh();
 
+	const itemName = untrack(() => entry.name);
 	const itemPath = untrack(() => [...parentPath, itemName]);
-
-	const refreshFiles = getFileRefresh();
 
 	function fsPath(path: string[]) {
 		return [root, ...path].join('/');
 	}
+
+	// A closed folder never reads its own contents, which is what keeps opening the editor
+	// from walking the entire node
+	let open = $state(false);
+	let entries = $state<DirEnt[]>([]);
+	// The revision the listing was read at, so a slow read can't land on top of a newer one
+	let listedRevision = -1;
+
+	$effect(() => {
+		if (!open) return;
+		const revision = refresh.revision;
+		listDirectory(container, fsPath(itemPath)).then((result) => {
+			if (revision < listedRevision) return;
+			listedRevision = revision;
+			entries = result;
+		});
+	});
+
+	const entryNames = $derived(entries.map((child) => child.name));
+
 	let itemRenameMode = $state<'view' | 'edit'>('view');
 
 	$effect(() => {
 		anyItemBeingRenamed = itemRenameMode === 'edit';
 	});
 
-	function newFile(directory: FileSystemTree) {
-		createFile(container, directory, fsPath(itemPath)).then(refreshFiles);
+	function newFile() {
+		createFile(container, entryNames, fsPath(itemPath)).then(() => refresh.bump());
 	}
 
-	function newFolder(directory: FileSystemTree) {
-		createFolder(container, directory, fsPath(itemPath)).then(refreshFiles);
+	function newFolder() {
+		createFolder(container, entryNames, fsPath(itemPath)).then(() => refresh.bump());
 	}
 
 	function validateName(newName: string) {
-		return (
-			newName.trim() !== '' && (!Object.hasOwn(parentDirectory, newName) || newName === itemName)
-		);
+		return newName.trim() !== '' && (!siblingNames.includes(newName) || newName === itemName);
 	}
+
 	function renameItem(newName: string) {
-		container.fs.rename(fsPath(itemPath), fsPath([...parentPath, newName])).then(refreshFiles);
+		container.fs
+			.rename(fsPath(itemPath), fsPath([...parentPath, newName]))
+			.then(() => refresh.bump());
 	}
 
 	function deleteItem() {
-		container.fs.rm(fsPath(itemPath), { recursive: true }).then(refreshFiles);
+		container.fs.rm(fsPath(itemPath), { recursive: true }).then(() => refresh.bump());
 	}
 </script>
 
-{#if 'directory' in node}
-	{@const directory = node.directory}
+{#if entry.isDirectory()}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		ondragstart={(event) => event.stopPropagation()}
@@ -91,7 +109,7 @@
 			<ContextMenu.Root>
 				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
 					<TreeView.Folder
-						open={false}
+						bind:open
 						class="handle-{itemPath.join(
 							'-'
 						)} w-full cursor-pointer hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -112,24 +130,27 @@
 								<UnsavedIcon class="size-3.5 shrink-0" />
 							{/if}
 						{/snippet}
-						{#each getItemNamesInOrder(directory) as childName (childName)}
-							<FileTree
-								bind:selectedFilePath
-								bind:anyItemBeingRenamed
-								node={directory[childName]}
-								itemName={childName}
-								parentDirectory={directory}
-								parentPath={itemPath}
-								{root}
-								{container}
-								{handleDrop}
-							/>
-						{/each}
+						<!-- Collapsible.Content keeps its children mounted, so the recursion has to be
+						gated here or every folder would list itself on mount -->
+						{#if open}
+							{#each entries as child (child.name)}
+								<FileTree
+									bind:selectedFilePath
+									bind:anyItemBeingRenamed
+									entry={child}
+									siblingNames={entryNames}
+									parentPath={itemPath}
+									{root}
+									{container}
+									{handleDrop}
+								/>
+							{/each}
+						{/if}
 					</TreeView.Folder>
 				</ContextMenu.Trigger>
 				<ContextMenu.Content>
-					<ContextMenu.Item onSelect={() => newFile(directory)}>New File</ContextMenu.Item>
-					<ContextMenu.Item onSelect={() => newFolder(directory)}>New Folder</ContextMenu.Item>
+					<ContextMenu.Item onSelect={newFile}>New File</ContextMenu.Item>
+					<ContextMenu.Item onSelect={newFolder}>New Folder</ContextMenu.Item>
 					<ContextMenu.Separator />
 					<Rename.Edit>
 						{#snippet child({ edit })}
