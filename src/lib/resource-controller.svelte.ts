@@ -6,7 +6,9 @@ import { mountNodeFiles } from './container';
 import { nodeConfig } from './graph-state.svelte';
 
 const MAX_EVENTS = 50;
-const MAX_FAILED_STARTS = 3;
+const MAX_FAILED_DEPLOYMENTS = 3;
+// Before a crashed instance is respawned
+const RESTART_DELAY_MS = 2000;
 
 // Instances carry the stamp rather than the config itself, so staleness is one comparison
 export const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
@@ -49,9 +51,16 @@ export class ResourceController {
 	#converging = false;
 	// What dependents last saw, so they are only rescheduled on real change
 	#lastEndpoints: number[] = [];
-	// Consecutive crashes of instances that never became running; at the cap the
+	// Consecutive deployments that never got an instance running; at the cap the
 	// reconciler stops respawning so a broken command doesn't loop forever
-	#failedStarts = 0;
+	#failedDeployments = 0;
+	// Numbers deployments, so the instances of one can be told from the next
+	#deployments = 0;
+	// The deployment that last spent from the budget, so it is charged only once
+	#lastFailedDeployment = 0;
+	// The newest crash, which the restart delay runs from
+	#lastCrashAt = 0;
+	#restartTimer: ReturnType<typeof setTimeout> | undefined;
 	#forgotten = false;
 
 	constructor(nodeId: string, definition: ResourceDefinition, services: ControllerServices) {
@@ -95,22 +104,25 @@ export class ResourceController {
 
 	start() {
 		this.restarts = 0;
-		this.#failedStarts = 0;
+		this.#failedDeployments = 0;
+		// Asked for explicitly, so it does not sit out the delay of an earlier crash
+		this.#lastCrashAt = 0;
+		this.#cancelRestart();
 		this.wantsRunning = true;
 		this.schedule();
 	}
 
 	stop() {
 		this.wantsRunning = false;
+		this.#cancelRestart();
 		this.schedule();
 	}
 
 	// Called once the node is gone from the graph; winds everything down and
 	// unregisters once the last instance is gone
 	forget() {
-		this.wantsRunning = false;
 		this.#forgotten = true;
-		this.schedule();
+		this.stop();
 	}
 
 	// Every trigger funnels through here. At most one pass runs at a time; anything
@@ -146,13 +158,20 @@ export class ResourceController {
 		const configStamp = stampOf(launchConfig);
 
 		// Auto-restart: free the slots of crashed instances so the deficit step below
-		// respawns them. Skipped at the failed-start cap, leaving the pool visibly
+		// respawns them. Skipped at the failed-deployment cap, leaving the pool visibly
 		// crashed instead of looping; a config fix still recovers via the stale check below
-		if (this.#failedStarts < MAX_FAILED_STARTS) {
+		if (this.#failedDeployments < MAX_FAILED_DEPLOYMENTS) {
 			const crashed = this.instances.filter((instance) => instance.status === 'crashed');
 			if (crashed.length > 0) {
-				this.instances = this.instances.filter((instance) => instance.status !== 'crashed');
-				if (desired > 0) this.restarts += crashed.length;
+				// They stay visibly crashed until the delay is out. It runs from the newest crash,
+				// so siblings that die together are respawned as one deployment
+				const wait = this.wantsRunning ? this.#lastCrashAt + RESTART_DELAY_MS - Date.now() : 0;
+				if (wait > 0) {
+					this.#restartLater(wait);
+				} else {
+					this.instances = this.instances.filter((instance) => instance.status !== 'crashed');
+					if (desired > 0) this.restarts += crashed.length;
+				}
 			}
 		}
 
@@ -193,12 +212,15 @@ export class ResourceController {
 	) {
 		const pending: Instance[] = [];
 		const configStamp = stampOf(launchConfig);
+		// Everything this pass puts up is one deployment, however many instances that is
+		const deployment = ++this.#deployments;
 		while (this.instances.length < desired) {
 			const index =
 				this.instances.push({
 					port: this.#services.takePort(),
 					status: 'starting',
-					configStamp
+					configStamp,
+					deployment
 				}) - 1;
 			// Read back so we hold the reactive proxy rather than the object we pushed
 			pending.push(this.instances[index]);
@@ -258,19 +280,43 @@ export class ResourceController {
 		if (instance.status !== 'starting' && instance.status !== 'running') return;
 		const neverRan = instance.status === 'starting';
 		instance.status = 'crashed';
+		this.#lastCrashAt = Date.now();
 		this.#log('warning', `Instance on port ${instance.port} crashed`);
 
-		if (neverRan) this.#failedStarts++;
-		if (this.#failedStarts === MAX_FAILED_STARTS) {
-			this.#log('error', 'Instances keep crashing before coming up — restarts paused');
+		// The rest of a deployment crashing tells us nothing new, so only its first
+		// casualty spends from the budget
+		const firstOfDeployment = neverRan && instance.deployment !== this.#lastFailedDeployment;
+		if (firstOfDeployment) {
+			this.#lastFailedDeployment = instance.deployment;
+			this.#failedDeployments++;
+		}
+
+		const capped = this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
+		if (firstOfDeployment && capped) {
+			this.#log('error', 'Deployments keep crashing before coming up — restarts paused');
 			if (this.wantsRunning) {
 				toast.error(`${this.#nodeName()} is crash-looping — restarts paused`);
 			}
-		} else if (this.wantsRunning && (!neverRan || this.#failedStarts === 1)) {
-			// Only the first failed start of a streak toasts; later ones stay in the log
+		} else if (this.wantsRunning && !capped && (!neverRan || firstOfDeployment)) {
+			// Only the first crash of a deployment toasts; later ones stay in the log
 			toast.warning(`Instance of ${this.#nodeName()} crashed — restarting`);
 		}
 		this.schedule();
+	}
+
+	// One pending timer is enough: the pass it brings back recomputes what is left to wait,
+	// so crashes landing in the meantime only extend it
+	#restartLater(wait: number) {
+		if (this.#restartTimer !== undefined) return;
+		this.#restartTimer = setTimeout(() => {
+			this.#restartTimer = undefined;
+			this.schedule();
+		}, wait);
+	}
+
+	#cancelRestart() {
+		clearTimeout(this.#restartTimer);
+		this.#restartTimer = undefined;
 	}
 
 	// Drops the instance once it is gone; a failed kill keeps its slot, its handle and
@@ -302,7 +348,7 @@ export class ResourceController {
 		if (instance.status === 'starting') {
 			instance.status = 'running';
 			// An instance coming fully up is proof the config can run
-			this.#failedStarts = 0;
+			this.#failedDeployments = 0;
 			this.#log('info', `Instance on port ${port} running`);
 			this.schedule();
 		}

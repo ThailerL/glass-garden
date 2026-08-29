@@ -40,6 +40,9 @@ export type Instance = {
 	// JSON of the definition's launchConfig at spawn; a mismatch with current
 	// config means the instance must be relaunched to pick up the change
 	configStamp: string;
+	// The deployment that spawned it, so a whole deployment failing counts once against
+	// the restart budget however many instances it put up
+	deployment: number;
 };
 
 // An outgoing edge's target with its current instances. The instances belong to another
