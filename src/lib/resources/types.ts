@@ -47,6 +47,7 @@ export type Instance = {
 export type Upstream = {
 	readonly node: Node;
 	readonly instances: readonly Readonly<Instance>[];
+	readonly reservedPorts: readonly number[];
 };
 
 export type ResourceDefinition = {
@@ -60,7 +61,8 @@ export type ResourceDefinition = {
 	hasPreview: boolean;
 	handles: NodeHandleConfig[];
 	configComponent: Component<{ form: unknown; nodeId: string }>;
-	configSchema: z.ZodObject<z.ZodRawShape>;
+	// Every resource is named, so anything holding a node can read config.name unguarded
+	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
 	instanceCount: (node: Node) => number;
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a server-ready that

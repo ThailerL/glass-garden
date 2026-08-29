@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
-import { GraphState } from './graph-state.svelte';
+import { GraphState, nodePorts } from './graph-state.svelte';
 import {
 	getResourceDefinition,
 	type Instance,
@@ -57,9 +57,22 @@ export class Orchestrator {
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
 	}
 
-	// Empty until the node has started once
+	// One port per configured instance, minted on first read rather than at spawn, so a
+	// dependent can be wired to a target the node has not started on yet. The reads a start
+	// pass makes are what put upstreams in a node's very first launch config
 	getReservedPorts(nodeId: string): readonly number[] {
-		return this.#controllers.get(nodeId)?.reservedPorts ?? [];
+		const node = this.#graphState.getNode(nodeId);
+		// A deleted node's ports go with it; its winding-down instances hold what they have
+		if (!node) return [];
+
+		const reserved = nodePorts(node);
+		const configured = this.getConfiguredCount(nodeId);
+		if (reserved.length >= configured) return reserved;
+
+		const topped = [...reserved];
+		while (topped.length < configured) topped.push(this.#mintPort());
+		this.#graphState.setNodePorts(node, topped);
+		return topped;
 	}
 
 	// Exposed so the config form can predict what a save would do to running instances
@@ -136,7 +149,7 @@ export class Orchestrator {
 		return {
 			getNode: () => this.#graphState.getNode(nodeId),
 			getContainer: () => this.#getContainer(),
-			allocatePort: () => this.#allocatePort(),
+			takePort: () => this.#takePort(nodeId),
 			getUpstreams: () => this.#upstreams(nodeId),
 			scheduleDependents: () => this.#scheduleDependents(nodeId),
 			unregister: () => {
@@ -160,16 +173,34 @@ export class Orchestrator {
 		return this.#containerPromise;
 	}
 
-	// Mints a port reserved by no node. A reservation outlives the instance that
-	// prompted it and is only released when its node is deleted and the controller
-	// unregisters, so a port is never handed to a second node while the first still
-	// exists. Every live port is in its own node's reservations, so this is strictly
-	// stronger than checking instances
-	#allocatePort(): number {
+	// Reservations are exclusive, so the only thing a new instance has to avoid is the
+	// node's own live ones
+	#takePort(nodeId: string): number {
+		const reserved = this.getReservedPorts(nodeId);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const reserved = new Set(
-			[...this.#controllers.values()].flatMap((controller) => controller.reservedPorts)
-		);
+		const used = new Set(this.getInstances(nodeId).map((instance) => instance.port));
+		const free = reserved.find((port) => !used.has(port));
+		if (free !== undefined) return free;
+
+		// Every reserved port is taken, because a stale instance could not be stopped. The
+		// extra joins the reservation rather than being handed back with the instance
+		const node = this.#graphState.getNode(nodeId);
+		const port = this.#mintPort();
+		if (node) this.#graphState.setNodePorts(node, [...reserved, port]);
+		return port;
+	}
+
+	// Mints a port held by no node. A reservation lives on its node, so it is released only
+	// when the node is deleted - never while a second node could still be using it. A
+	// deleted node's instances outlive the node itself, so their ports are excluded too
+	#mintPort(): number {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const reserved = new Set([
+			...this.#graphState.nodes.flatMap(nodePorts),
+			...[...this.#controllers.values()].flatMap((controller) =>
+				controller.instances.map((instance) => instance.port)
+			)
+		]);
 		let port: number;
 		do {
 			port = Math.floor(Math.random() * (MAX_PORT - MIN_PORT + 1)) + MIN_PORT;
@@ -183,7 +214,15 @@ export class Orchestrator {
 			.filter((edge) => edge.source === nodeId)
 			.flatMap((edge) => {
 				const node = this.#graphState.getNode(edge.target);
-				return node ? [{ node, instances: this.getInstances(edge.target) }] : [];
+				return node
+					? [
+							{
+								node,
+								instances: this.getInstances(edge.target),
+								reservedPorts: this.getReservedPorts(edge.target)
+							}
+						]
+					: [];
 			});
 	}
 

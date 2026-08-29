@@ -5,7 +5,7 @@
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
-	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 
 	const { params }: PageProps = $props();
@@ -23,7 +23,7 @@
 </script>
 
 <svelte:head>
-	<title>Editing {node?.data.name}</title>
+	<title>Editing {node && nodeConfig<{ name: string }>(node).name}</title>
 </svelte:head>
 
 <!-- The editor waits on the container; the inspector needs nothing from it, so it is

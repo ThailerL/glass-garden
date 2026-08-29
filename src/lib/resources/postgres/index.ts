@@ -8,6 +8,7 @@ import { connectionUrl } from './connection';
 import type { NodeHandleConfig, ResourceDefinition, Upstream } from '../types';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory, requestPersistentStorage } from '$lib/container';
+import { nodeConfig } from '$lib/graph-state.svelte';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Postgres'),
@@ -17,7 +18,7 @@ const configSchema = z.object({
 type Config = z.infer<typeof configSchema>;
 
 function launchConfig(node: Node) {
-	return { maxConnections: (node.data as Config).maxConnections };
+	return { maxConnections: nodeConfig<Config>(node).maxConnections };
 }
 
 type LaunchConfig = ReturnType<typeof launchConfig>;

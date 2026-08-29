@@ -6,7 +6,7 @@
 	import { toast } from 'svelte-sonner';
 	import { getResourceDefinition, type ResourceDefinition } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
-	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { stampOf } from '$lib/resource-controller.svelte';
 
@@ -20,7 +20,7 @@
 	const { node, initialData } = untrack(() => {
 		const found = graphState.getNode(nodeId);
 		if (!found) throw new Error(`Unknown node: ${nodeId}`);
-		return { node: found, initialData: $state.snapshot(found.data) };
+		return { node: found, initialData: $state.snapshot(nodeConfig(found)) };
 	});
 
 	const definition = getResourceDefinition(node.type);
@@ -46,7 +46,7 @@
 		if (!launchConfig || !liveNode || upCount === 0) return 0;
 
 		const upstreams = orchestrator.getUpstreams(nodeId);
-		const pending = { ...liveNode, data: $formData as Record<string, unknown> };
+		const pending = { ...liveNode, data: { ...liveNode.data, config: $formData } };
 		return stampOf(launchConfig(liveNode, upstreams)) === stampOf(launchConfig(pending, upstreams))
 			? 0
 			: upCount;
@@ -69,7 +69,7 @@
 			return;
 		}
 
-		graphState.updateNodeData(node.id, $formData);
+		graphState.updateNodeConfig(node.id, $formData);
 		// A running node reconciles toward the new config immediately
 		orchestrator.refresh(node.id);
 		toast.success('Successfully saved config');

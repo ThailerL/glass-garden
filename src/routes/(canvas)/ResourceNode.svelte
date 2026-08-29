@@ -3,8 +3,10 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { nodeConfig } from '$lib/graph-state.svelte';
 
 	const node: NodeProps = $props();
+	const name = $derived(nodeConfig<{ name: string }>(node).name);
 
 	const orchestrator = getOrchestrator();
 	const status = $derived(orchestrator.getStatus(node.id));
@@ -43,7 +45,7 @@
 	<StatusDot {status} />
 </div>
 <span class="block origin-center whitespace-nowrap" use:fitText>
-	{node.data.name}
+	{name}
 </span>
 <definition.icon class="h-full w-full" />
 {#each definition.handles as handle (handle.type)}

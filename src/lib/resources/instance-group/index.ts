@@ -8,6 +8,7 @@ import type { NodeHandleConfig, ResourceDefinition, Upstream } from '../types';
 import { getResourceDefinition } from '../index';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
+import { nodeConfig } from '$lib/graph-state.svelte';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
@@ -17,8 +18,9 @@ const configSchema = z.object({
 
 type Config = z.infer<typeof configSchema>;
 
+// Also called for upstream nodes of other types, so it reads only what every config has
 function nodeName(node: Node) {
-	return typeof node.data.name === 'string' ? node.data.name : '';
+	return nodeConfig<{ name: string }>(node).name;
 }
 
 // "Bob's Orders DB" -> BOBS_ORDERS_DB_URL. Apostrophes and accents are folded away
@@ -39,10 +41,11 @@ function variableName(node: Node) {
 // configStamp - never depends on edge insertion order
 function connectionEnv(upstreams: readonly Upstream[]): Record<string, string> {
 	const connections = upstreams
-		.flatMap(({ node, instances }) => {
+		.flatMap(({ node, reservedPorts }) => {
 			const { connectionUrl } = getResourceDefinition(node.type);
-			const instance = instances.find((instance) => instance.status === 'running');
-			return connectionUrl && instance ? [{ node, url: connectionUrl(node, instance.port) }] : [];
+			// Not a live instance's port, so the stamp survives the upstream restarting
+			const [port] = reservedPorts;
+			return connectionUrl && port !== undefined ? [{ node, url: connectionUrl(node, port) }] : [];
 		})
 		.sort(
 			(a, b) =>
@@ -63,7 +66,7 @@ function connectionEnv(upstreams: readonly Upstream[]): Record<string, string> {
 
 function launchConfig(node: Node, upstreams: readonly Upstream[]) {
 	return {
-		command: (node.data as Config).command,
+		command: nodeConfig<Config>(node).command,
 		env: connectionEnv(upstreams)
 	};
 }
@@ -82,7 +85,7 @@ export const instanceGroup = {
 	] satisfies NodeHandleConfig[],
 	configComponent: InstanceGroupConfig,
 	configSchema,
-	instanceCount: (node: Node) => (node.data as Config).instanceCount,
+	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,
 	launchConfig,
 	prepare: npmInstall,
 	start: async (

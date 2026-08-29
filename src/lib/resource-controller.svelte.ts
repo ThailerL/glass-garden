@@ -3,6 +3,7 @@ import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
+import { nodeConfig } from './graph-state.svelte';
 
 const MAX_EVENTS = 50;
 const MAX_FAILED_STARTS = 3;
@@ -21,7 +22,8 @@ export type ResourceEvent = {
 export type ControllerServices = {
 	getNode: () => Node | undefined;
 	getContainer: () => Promise<Vivari>;
-	allocatePort: () => number;
+	// A port for a new instance, free of whatever this node's live instances are on
+	takePort: () => number;
 	getUpstreams: () => readonly Upstream[];
 	scheduleDependents: () => void;
 	unregister: () => void;
@@ -47,10 +49,6 @@ export class ResourceController {
 	#converging = false;
 	// What dependents last saw, so they are only rescheduled on real change
 	#lastEndpoints: number[] = [];
-	// Ports reserved to this node for as long as it exists. This way,
-	// any dependents can rely on consistent port(s) as their target(s).
-	// Released when node is deleted.
-	#portPool = $state<number[]>([]);
 	// Consecutive crashes of instances that never became running; at the cap the
 	// reconciler stops respawning so a broken command doesn't loop forever
 	#failedStarts = 0;
@@ -72,10 +70,6 @@ export class ResourceController {
 			return 'unresponsive';
 		if (this.instances.some((instance) => instance.status === 'running')) return 'degraded';
 		return 'crashed';
-	}
-
-	get reservedPorts(): readonly number[] {
-		return this.#portPool;
 	}
 
 	// Start is only useful when it would change desired state: bringing the node up or
@@ -191,19 +185,6 @@ export class ResourceController {
 		this.#notifyDependents();
 	}
 
-	// Reservations are exclusive, so no other node can be on one of these and the only
-	// thing to avoid is this node's own live instances.
-	#takePort(): number {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const own = new Set(this.instances.map((instance) => instance.port));
-		const free = this.#portPool.find((port) => !own.has(port));
-		if (free !== undefined) return free;
-
-		const port = this.#services.allocatePort();
-		this.#portPool.push(port);
-		return port;
-	}
-
 	async #spawnDeficit(
 		node: Node,
 		desired: number,
@@ -215,7 +196,7 @@ export class ResourceController {
 		while (this.instances.length < desired) {
 			const index =
 				this.instances.push({
-					port: this.#takePort(),
+					port: this.#services.takePort(),
 					status: 'starting',
 					configStamp
 				}) - 1;
@@ -338,9 +319,10 @@ export class ResourceController {
 		this.#services.scheduleDependents();
 	}
 
+	// Falls back to the resource's own name once the node is gone from the graph
 	#nodeName() {
 		const node = this.#services.getNode();
-		return typeof node?.data.name === 'string' ? node.data.name : this.#definition.name;
+		return node ? nodeConfig<{ name: string }>(node).name : this.#definition.name;
 	}
 
 	#log(level: ResourceEvent['level'], message: string) {
