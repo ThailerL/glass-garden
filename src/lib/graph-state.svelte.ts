@@ -1,23 +1,19 @@
 import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
-import { FileStore } from './file-store.svelte';
 import { getResourceDefinition, type ResourceType } from './resources';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
-	#fileStore: FileStore;
 
-	constructor(fileStore: FileStore) {
+	constructor() {
 		this.nodes = Object.keys(localStorage)
 			.filter((key) => key.startsWith('node:'))
 			.map((key) => JSON.parse(localStorage[key]));
 		this.edges = Object.keys(localStorage)
 			.filter((key) => key.startsWith('edge:'))
 			.map((key) => JSON.parse(localStorage[key]));
-
-		this.#fileStore = fileStore;
 	}
 
 	addNode(type: ResourceType, position: { x: number; y: number }) {
@@ -67,9 +63,8 @@ export class GraphState {
 		localStorage.setItem(`edge:${edge.id}`, JSON.stringify({ ...edge, selected: false }));
 	}
 
-	async deleteNodeFromStorage(id: string) {
+	deleteNodeFromStorage(id: string) {
 		localStorage.removeItem(`node:${id}`);
-		this.#fileStore.deleteFiles(id);
 	}
 
 	deleteEdgeFromStorage(id: string) {
@@ -79,8 +74,8 @@ export class GraphState {
 
 const GRAPH_KEY = Symbol('GRAPH');
 
-export function setGraphState(fileStore: FileStore) {
-	return setContext(GRAPH_KEY, new GraphState(fileStore));
+export function setGraphState() {
+	return setContext(GRAPH_KEY, new GraphState());
 }
 
 export function getGraphState() {

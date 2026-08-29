@@ -9,7 +9,6 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
-	import { getFileStore } from '$lib/file-store.svelte';
 	import { setFileDraftState } from '$lib/file-draft-state.svelte';
 	import { setFileRefresh } from '$lib/file-refresh';
 	import { exportTree } from '$lib/file-tree';
@@ -20,8 +19,6 @@
 	const POLL_INTERVAL_MS = 1000;
 
 	const { nodeId, initialFiles }: { nodeId: string; initialFiles: FileSystemTree } = $props();
-
-	const fileStore = getFileStore();
 
 	// The node id keys persistence and the mount; rootPath is the same node addressed as an
 	// absolute path inside the container, which is what the fs and the shell want
@@ -34,7 +31,6 @@
 
 	async function readFiles() {
 		files = await exportTree(container, rootPath);
-		fileStore.setFiles(root, files);
 	}
 
 	function scheduleRefresh() {
@@ -54,8 +50,8 @@
 		root,
 		untrack(() => initialFiles)
 	);
-	// Read back rather than trusting initialFiles, because a running node may have
-	// changed the directory since it was persisted
+	// Read back rather than trusting initialFiles, which is only the template: the mount
+	// above is a no-op for a node whose directory already exists
 	files = await exportTree(container, rootPath);
 
 	const poll = setInterval(readFiles, POLL_INTERVAL_MS);

@@ -2,7 +2,6 @@
 	import { untrack } from 'svelte';
 	import type { PageProps } from './$types';
 	import Editor from './Editor.svelte';
-	import { getFileStore } from '$lib/file-store.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 
@@ -15,10 +14,9 @@
 	// Reachable by URL for any node, so resources whose files aren't editable are refused
 	// here rather than only hidden in the inspector
 	const definition = node ? getResourceDefinition(node.type) : undefined;
-	// Falls back to the template files for a node that has never been started or edited
-	const initialFiles = definition?.hasEditableFiles
-		? ((await getFileStore().loadFiles(nodeId)) ?? definition.files)
-		: undefined;
+	// Only used for a node whose directory doesn't exist yet; mountNodeFiles leaves an
+	// existing one alone
+	const initialFiles = definition?.hasEditableFiles ? definition.files : undefined;
 </script>
 
 <svelte:head>

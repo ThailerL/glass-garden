@@ -1,5 +1,8 @@
 import type { Vivari, FileSystemTree, DirectoryNode, FileNode } from '@vivari/core';
-import { EXCLUDED_FROM_PERSISTENCE } from './file-store.svelte';
+
+// Skipped when walking a node's directory: nothing here is worth editing, and it is
+// large enough that reading it would cost more than everything else combined
+const EXCLUDED_FROM_TREE = ['node_modules'];
 
 function unusedName(directory: FileSystemTree, base: string): string {
 	let i = 1;
@@ -58,7 +61,7 @@ export async function exportTree(container: Vivari, root: string): Promise<FileS
 	const entries = await container.fs.readdir(root, { withFileTypes: true });
 	const nodes = await Promise.all(
 		entries
-			.filter((entry) => !EXCLUDED_FROM_PERSISTENCE.includes(entry.name))
+			.filter((entry) => !EXCLUDED_FROM_TREE.includes(entry.name))
 			.map(async (entry): Promise<[string, DirectoryNode | FileNode] | undefined> => {
 				const entryPath = [root, entry.name].join('/');
 				if (entry.isDirectory()) {

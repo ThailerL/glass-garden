@@ -29,21 +29,23 @@ export function requestPersistentStorage() {
 const mounts = new Map<string, Promise<void>>();
 
 // The editor and the orchestrator both need a node's files on disk, but they share one
-// container, so whichever arrives first mounts and the other reuses it. Mounting twice
-// would overwrite whatever the editor has written since the last save
+// container, so whichever arrives first mounts and the other reuses it. The VFS outlives
+// the page and holds every edit since, so the template is only laid down for a new node
 export function mountNodeFiles(nodeId: string, files: FileSystemTree) {
-	let mount = mounts.get(nodeId);
-	if (!mount) {
-		mount = (async () => {
-			const container = await getContainer();
-			await container.fs.mkdir(nodeDirectory(nodeId), { recursive: true });
-			await container.mount(files, { mountPoint: nodeDirectory(nodeId) });
-		})().catch((error) => {
-			mounts.delete(nodeId);
-			throw error;
-		});
-		mounts.set(nodeId, mount);
-	}
+	const existing = mounts.get(nodeId);
+	if (existing) return existing;
+
+	const mount = (async () => {
+		const container = await getContainer();
+		const directory = nodeDirectory(nodeId);
+		if (await container.fs.exists(directory)) return;
+		await container.fs.mkdir(directory, { recursive: true });
+		await container.mount(files, { mountPoint: directory });
+	})().catch((error) => {
+		mounts.delete(nodeId);
+		throw error;
+	});
+	mounts.set(nodeId, mount);
 	return mount;
 }
 

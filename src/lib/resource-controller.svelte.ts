@@ -1,5 +1,5 @@
 import type { Node } from '@xyflow/svelte';
-import type { FileSystemTree, Vivari } from '@vivari/core';
+import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
@@ -21,7 +21,6 @@ export type ResourceEvent = {
 export type ControllerServices = {
 	getNode: () => Node | undefined;
 	getContainer: () => Promise<Vivari>;
-	loadFiles: () => Promise<FileSystemTree | undefined>;
 	allocatePort: () => number;
 	getUpstreams: () => readonly Upstream[];
 	scheduleDependents: () => void;
@@ -226,8 +225,7 @@ export class ResourceController {
 
 		try {
 			const container = await this.#services.getContainer();
-			const files = await this.#services.loadFiles();
-			await mountNodeFiles(this.nodeId, files ?? this.#definition.files);
+			await mountNodeFiles(this.nodeId, this.#definition.files);
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container);
 			await Promise.all(

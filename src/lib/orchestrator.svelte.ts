@@ -3,7 +3,6 @@ import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { GraphState } from './graph-state.svelte';
-import { FileStore } from './file-store.svelte';
 import {
 	getResourceDefinition,
 	type Instance,
@@ -25,13 +24,11 @@ const MAX_PORT = 49151;
 // controllers share: the container, port uniqueness and dependent wiring
 export class Orchestrator {
 	#graphState: GraphState;
-	#fileStore: FileStore;
 	#controllers = new SvelteMap<string, ResourceController>();
 	#containerPromise: Promise<Vivari> | undefined;
 
-	constructor(graphState: GraphState, fileStore: FileStore) {
+	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
-		this.#fileStore = fileStore;
 	}
 
 	getStatus(nodeId: string): ResourceStatus {
@@ -130,7 +127,6 @@ export class Orchestrator {
 		return {
 			getNode: () => this.#graphState.getNode(nodeId),
 			getContainer: () => this.#getContainer(),
-			loadFiles: () => this.#fileStore.loadFiles(nodeId),
 			allocatePort: () => this.#allocatePort(),
 			getUpstreams: () => this.#upstreams(nodeId),
 			scheduleDependents: () => this.#scheduleDependents(nodeId),
@@ -190,8 +186,8 @@ export class Orchestrator {
 
 const ORCHESTRATOR_KEY = Symbol('ORCHESTRATOR');
 
-export function setOrchestrator(graphState: GraphState, fileStore: FileStore) {
-	return setContext(ORCHESTRATOR_KEY, new Orchestrator(graphState, fileStore));
+export function setOrchestrator(graphState: GraphState) {
+	return setContext(ORCHESTRATOR_KEY, new Orchestrator(graphState));
 }
 
 export function getOrchestrator() {
