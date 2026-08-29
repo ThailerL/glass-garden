@@ -1,11 +1,14 @@
 import type { Node } from '@xyflow/svelte';
 import type { FileSystemTree, Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
-import type { UpstreamContext, Instance, ResourceDefinition, ResourceStatus } from './resources';
+import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
 
 const MAX_EVENTS = 50;
 const MAX_FAILED_STARTS = 3;
+
+// Instances carry the stamp rather than the config itself, so staleness is one comparison
+export const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
 
 export type ResourceEvent = {
 	time: number;
@@ -20,7 +23,7 @@ export type ControllerServices = {
 	getContainer: () => Promise<Vivari>;
 	loadFiles: () => Promise<FileSystemTree | undefined>;
 	allocatePort: () => number;
-	getUpstreamContext: () => UpstreamContext;
+	getUpstreams: () => readonly Upstream[];
 	scheduleDependents: () => void;
 	unregister: () => void;
 };
@@ -48,7 +51,7 @@ export class ResourceController {
 	// Ports reserved to this node for as long as it exists. This way,
 	// any dependents can rely on consistent port(s) as their target(s).
 	// Released when node is deleted.
-	#portPool: number[] = [];
+	#portPool = $state<number[]>([]);
 	// Consecutive crashes of instances that never became running; at the cap the
 	// reconciler stops respawning so a broken command doesn't loop forever
 	#failedStarts = 0;
@@ -143,9 +146,11 @@ export class ResourceController {
 		// Read fresh from the graph every pass so a config edit can't go stale in a copy
 		const node = this.#services.getNode();
 		const desired = this.wantsRunning && node ? this.#definition.instanceCount(node) : 0;
-		const configStamp = node
-			? JSON.stringify(this.#definition.launchConfig?.(node) ?? null)
-			: 'null';
+		// Built once and handed to start, so an instance launches with exactly what it is
+		// stamped with
+		const upstreams = this.#services.getUpstreams();
+		const launchConfig = node ? this.#definition.launchConfig?.(node, upstreams) : undefined;
+		const configStamp = stampOf(launchConfig);
 
 		// Auto-restart: free the slots of crashed instances so the deficit step below
 		// respawns them. Skipped at the failed-start cap, leaving the pool visibly
@@ -166,15 +171,17 @@ export class ResourceController {
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
 
 		if (node && this.instances.length < desired) {
-			await this.#spawnDeficit(node, desired, configStamp);
+			await this.#spawnDeficit(node, desired, upstreams, launchConfig);
 		}
 
 		if (node && this.wantsRunning && this.#definition.update) {
 			try {
+				// Read fresh rather than reusing the pass's upstreams: spawning may have taken a
+				// while, and update exists to reflect current topology
 				await this.#definition.update(
 					node,
 					await this.#services.getContainer(),
-					this.#services.getUpstreamContext()
+					this.#services.getUpstreams()
 				);
 			} catch (e) {
 				// A resource that can't be reconfigured keeps its old config
@@ -198,8 +205,14 @@ export class ResourceController {
 		return port;
 	}
 
-	async #spawnDeficit(node: Node, desired: number, configStamp: string) {
+	async #spawnDeficit(
+		node: Node,
+		desired: number,
+		upstreams: readonly Upstream[],
+		launchConfig: unknown
+	) {
 		const pending: Instance[] = [];
+		const configStamp = stampOf(launchConfig);
 		while (this.instances.length < desired) {
 			const index =
 				this.instances.push({
@@ -217,9 +230,10 @@ export class ResourceController {
 			await mountNodeFiles(this.nodeId, files ?? this.#definition.files);
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container);
-			const upstreamContext = this.#services.getUpstreamContext();
 			await Promise.all(
-				pending.map((instance) => this.#spawnInstance(node, container, upstreamContext, instance))
+				pending.map((instance) =>
+					this.#spawnInstance(node, container, upstreams, launchConfig, instance)
+				)
 			);
 		} catch (e) {
 			// Only group-wide failures land here (boot, mount, npm install) - per-instance
@@ -233,11 +247,18 @@ export class ResourceController {
 	async #spawnInstance(
 		node: Node,
 		container: Vivari,
-		upstreamContext: UpstreamContext,
+		upstreams: readonly Upstream[],
+		launchConfig: unknown,
 		instance: Instance
 	) {
 		try {
-			const handle = await this.#definition.start(node, container, instance.port, upstreamContext);
+			const handle = await this.#definition.start(
+				node,
+				container,
+				instance.port,
+				upstreams,
+				launchConfig
+			);
 			instance.handle = handle;
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';

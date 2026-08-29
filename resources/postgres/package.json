@@ -1,0 +1,11 @@
+{
+  "name": "postgres",
+  "type": "module",
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite-socket": "^0.2.11"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

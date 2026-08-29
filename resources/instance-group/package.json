@@ -1,8 +1,9 @@
 {
-  "name": "hello-world",
+  "name": "instance-group",
   "type": "module",
   "dependencies": {
-    "express": "latest"
+    "express": "latest",
+    "pg": "^8.13.0"
   },
   "scripts": {
     "start": "node server.js"

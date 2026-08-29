@@ -29,7 +29,8 @@
 	const configured = $derived(orchestrator.getConfiguredCount(nodeId));
 	const restarts = $derived(orchestrator.getRestarts(nodeId));
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
-	const editable = $derived(!!node && getResourceDefinition(node.type).hasEditableFiles);
+	const definition = $derived(node && getResourceDefinition(node.type));
+	const editable = $derived(!!definition && definition.hasEditableFiles);
 </script>
 
 <Sidebar.Root side="right" collapsible="none" class="w-full!">
@@ -39,15 +40,19 @@
 				<UnderlineTabs.Root value="config" class="h-full">
 					<UnderlineTabs.List>
 						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
-						<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
+						{#if definition?.hasPreview}
+							<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
+						{/if}
 						<UnderlineTabs.Trigger value="events">Events</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
 					<UnderlineTabs.Content value="config" class="flex flex-col">
 						<ConfigTab {nodeId} />
 					</UnderlineTabs.Content>
-					<UnderlineTabs.Content value="preview">
-						<PreviewTab {nodeId} />
-					</UnderlineTabs.Content>
+					{#if definition?.hasPreview}
+						<UnderlineTabs.Content value="preview">
+							<PreviewTab {nodeId} />
+						</UnderlineTabs.Content>
+					{/if}
 					<UnderlineTabs.Content value="events" class="overflow-y-auto">
 						<EventsTab {nodeId} />
 					</UnderlineTabs.Content>

@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { FileStore } from './file-store.svelte';
-import { type ResourceType } from './resources';
+import { getResourceDefinition, type ResourceType } from './resources';
 
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
@@ -20,12 +20,13 @@ export class GraphState {
 		this.#fileStore = fileStore;
 	}
 
-	addNode(type: ResourceType, position: { x: number; y: number }, config: Record<string, unknown>) {
+	addNode(type: ResourceType, position: { x: number; y: number }) {
 		const node: Node = {
 			id: nanoid(8),
 			type,
 			position,
-			data: config,
+			// Parsing an empty object yields the schema's defaults
+			data: getResourceDefinition(type).configSchema.parse({}),
 			origin: [0.5, 0.5]
 		};
 		this.nodes = [...this.nodes, node];

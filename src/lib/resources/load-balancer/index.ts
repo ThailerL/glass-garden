@@ -4,15 +4,15 @@ import { Vivari } from '@vivari/core';
 import NetworkIcon from '@lucide/svelte/icons/network';
 import * as resourceFiles from 'virtual:resource-files';
 import LoadBalancerConfig from './LoadBalancerConfig.svelte';
-import type { UpstreamContext, NodeHandleConfig, ResourceDefinition } from '../types';
+import type { Upstream, NodeHandleConfig, ResourceDefinition } from '../types';
 import { processHandle } from '../shared';
-import { nodeDirectory } from '../../container';
+import { nodeDirectory } from '$lib/container';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Load Balancer')
 });
 
-async function updateTargets(node: Node, container: Vivari, { upstreams }: UpstreamContext) {
+async function updateTargets(node: Node, container: Vivari, upstreams: readonly Upstream[]) {
 	const upstreamPorts = upstreams.flatMap(({ instances }) =>
 		instances.filter((instance) => instance.status === 'running').map((instance) => instance.port)
 	);
@@ -29,6 +29,7 @@ export const loadBalancer = {
 	icon: NetworkIcon,
 	files: resourceFiles.loadBalancer,
 	hasEditableFiles: false,
+	hasPreview: true,
 	handles: [
 		{ type: 'target', position: Position.Left },
 		{ type: 'source', position: Position.Right }
@@ -36,9 +37,9 @@ export const loadBalancer = {
 	configComponent: LoadBalancerConfig,
 	configSchema,
 	instanceCount: () => 1,
-	start: async (node: Node, container: Vivari, port: number, context: UpstreamContext) => {
+	start: async (node: Node, container: Vivari, port: number, upstreams: readonly Upstream[]) => {
 		// Written before the process spawns so its first request already has the right targets
-		await updateTargets(node, container, context);
+		await updateTargets(node, container, upstreams);
 		const process = await container.spawn('node', ['server.js'], {
 			cwd: nodeDirectory(node.id),
 			env: { PORT: String(port) }

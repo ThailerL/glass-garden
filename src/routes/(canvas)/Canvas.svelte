@@ -26,22 +26,12 @@
 	const orchestrator = getOrchestrator();
 	const { screenToFlowPosition } = useSvelteFlow();
 
-	function createNodeConfig(type: ResourceType) {
-		return resourceDefinitions[type].configSchema.parse({});
-	}
-
 	if (graphState.nodes.length === 0) {
-		const loadBalancer = graphState.addNode(
-			'loadBalancer',
-			{ x: -100, y: 0 },
-			createNodeConfig('loadBalancer')
-		);
-		const instanceGroup = graphState.addNode(
-			'instanceGroup',
-			{ x: 100, y: 0 },
-			createNodeConfig('instanceGroup')
-		);
+		const loadBalancer = graphState.addNode('loadBalancer', { x: -200, y: 0 });
+		const instanceGroup = graphState.addNode('instanceGroup', { x: 0, y: 0 });
+		const postgres = graphState.addNode('postgres', { x: 200, y: 0 });
 		graphState.addEdge(loadBalancer.id, instanceGroup.id);
+		graphState.addEdge(instanceGroup.id, postgres.id);
 	}
 
 	// Every resource type renders through the same component, which reads its icon and
@@ -82,7 +72,7 @@
 			y: pointerPosition.y
 		});
 
-		graphState.addNode(draggedItem, position, createNodeConfig(draggedItem));
+		graphState.addNode(draggedItem, position);
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({

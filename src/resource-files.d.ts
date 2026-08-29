@@ -3,4 +3,5 @@ declare module 'virtual:resource-files' {
 	import type { FileSystemTree } from '@vivari/core';
 	export const instanceGroup: FileSystemTree;
 	export const loadBalancer: FileSystemTree;
+	export const postgres: FileSystemTree;
 }

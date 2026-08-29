@@ -13,6 +13,19 @@ export function nodeDirectory(nodeId: string) {
 	return `/${nodeId}`;
 }
 
+let persistence: Promise<boolean> | undefined;
+
+// The VFS is best-effort storage by default, which WebKit clears after a week without a
+// visit. Asked for by resources that own durable data rather than at boot, because
+// Firefox prompts for it
+export function requestPersistentStorage() {
+	persistence ??= (async () => {
+		if (!navigator.storage?.persist) return false;
+		return (await navigator.storage.persisted()) || navigator.storage.persist();
+	})().catch(() => false);
+	return persistence;
+}
+
 const mounts = new Map<string, Promise<void>>();
 
 // The editor and the orchestrator both need a node's files on disk, but they share one
@@ -32,4 +45,14 @@ export function mountNodeFiles(nodeId: string, files: FileSystemTree) {
 		mounts.set(nodeId, mount);
 	}
 	return mount;
+}
+
+// A deleted node's directory is the last thing holding its node_modules and whatever data
+// the resource wrote, and the VFS outlives the page. Skipped when the container was never
+// booted, so deleting a node cannot be what pays to start it
+export async function removeNodeFiles(nodeId: string) {
+	mounts.delete(nodeId);
+	if (!containerPromise) return;
+	const container = await containerPromise;
+	await container.fs.rm(nodeDirectory(nodeId), { recursive: true, force: true });
 }

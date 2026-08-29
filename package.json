@@ -9,7 +9,7 @@
 	"scripts": {
 		"vendor": "node scripts/vendor-assets.mjs",
 		"predev": "npm run vendor",
-		"dev": "vite dev --host --port 3000",
+		"dev": "vite dev --port 3000",
 		"prebuild": "npm run vendor",
 		"build": "vite build",
 		"preview": "vite preview --host --port 3000",

@@ -12,9 +12,12 @@
 	// Undefined when the id in the URL isn't a real node
 	const node = getGraphState().getNode(nodeId);
 
+	// Reachable by URL for any node, so resources whose files aren't editable are refused
+	// here rather than only hidden in the inspector
+	const definition = node ? getResourceDefinition(node.type) : undefined;
 	// Falls back to the template files for a node that has never been started or edited
-	const initialFiles = node
-		? ((await getFileStore().loadFiles(nodeId)) ?? getResourceDefinition(node.type).files)
+	const initialFiles = definition?.hasEditableFiles
+		? ((await getFileStore().loadFiles(nodeId)) ?? definition.files)
 		: undefined;
 </script>
 

@@ -1,7 +1,11 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT);
+if (!port) {
+  throw new Error('PORT is not set');
+}
+
 let cursor = 0;
 
 // Written by the orchestrator whenever the set of targets changes

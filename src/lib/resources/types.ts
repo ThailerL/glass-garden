@@ -42,17 +42,11 @@ export type Instance = {
 	configStamp: string;
 };
 
-// Read-only snapshot of the graph around a node, rebuilt per call so a resource
-// always reads current topology without reaching into the orchestrator
-export type UpstreamContext = {
-	// Each outgoing edge's target with its current instances. These are another
-	// controller's live instances passed by reference rather than copied, so the type is
-	// read-only down to the instance itself — mutating one here would corrupt the node
-	// that owns it
-	readonly upstreams: readonly {
-		readonly nodeId: string;
-		readonly instances: readonly Readonly<Instance>[];
-	}[];
+// An outgoing edge's target with its current instances. The instances belong to another
+// controller and are passed by reference, so they are read-only here
+export type Upstream = {
+	readonly node: Node;
+	readonly instances: readonly Readonly<Instance>[];
 };
 
 export type ResourceDefinition = {
@@ -61,25 +55,33 @@ export type ResourceDefinition = {
 	// Mounted for every resource. hasEditableFiles only decides whether the editor exposes them
 	files: FileSystemTree;
 	hasEditableFiles: boolean;
+	// Whether instances serve something a browser can render. A resource speaking a
+	// client protocol still gets a preview URL from server-ready, but nothing answers on it
+	hasPreview: boolean;
 	handles: NodeHandleConfig[];
-	configComponent: Component<{ form: unknown }>;
+	configComponent: Component<{ form: unknown; nodeId: string }>;
 	configSchema: z.ZodObject<z.ZodRawShape>;
 	instanceCount: (node: Node) => number;
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a server-ready that
 	// never comes
 	readyOnStart?: boolean;
-	// The subset of config whose change requires relaunching instances. Omitted when
-	// nothing does; name-only changes never bounce anything
-	launchConfig?: (node: Node) => unknown;
+	// Everything an instance is launched with that requires relaunching it when it changes:
+	// the node's own config, plus what upstreams hand down. Omitted when nothing does
+	launchConfig?: (node: Node, upstreams: readonly Upstream[]) => unknown;
+	// How a dependent reaches one of this resource's instances, so nothing downstream has
+	// to know which engine is behind the port
+	connectionUrl?: (node: Node, port: number) => string;
 	prepare?: (node: Node, container: Vivari) => Promise<void>;
 	start: (
 		node: Node,
 		container: Vivari,
 		port: number,
-		context: UpstreamContext
+		upstreams: readonly Upstream[],
+		// What launchConfig returned, so an instance is guaranteed to run the config it is stamped with
+		launchConfig: unknown
 	) => Promise<InstanceHandle>;
 	// Called when something this resource points at changes, so it can rewrite whatever
 	// config its running process reads
-	update?: (node: Node, container: Vivari, context: UpstreamContext) => Promise<void>;
+	update?: (node: Node, container: Vivari, upstreams: readonly Upstream[]) => Promise<void>;
 };

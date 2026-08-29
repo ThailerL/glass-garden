@@ -1,12 +1,14 @@
 import type { ResourceDefinition } from './types';
 import { instanceGroup } from './instance-group';
 import { loadBalancer } from './load-balancer';
+import { postgres } from './postgres';
 
 export * from './types';
 
 export const resourceDefinitions = {
 	instanceGroup,
-	loadBalancer
+	loadBalancer,
+	postgres
 } satisfies Record<string, ResourceDefinition>;
 
 export type ResourceType = keyof typeof resourceDefinitions;

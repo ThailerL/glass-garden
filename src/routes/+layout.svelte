@@ -3,6 +3,7 @@
 	import './layout.css';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
+	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import favicon from '$lib/assets/favicon.svg';
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { setFileStore } from '$lib/file-store.svelte';
@@ -20,6 +21,8 @@
 </script>
 
 <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
+<!-- One instance for the whole app; confirmDelete() drives it from anywhere -->
+<ConfirmDeleteDialog />
 <ModeWatcher />
 
 <Sidebar.Provider>

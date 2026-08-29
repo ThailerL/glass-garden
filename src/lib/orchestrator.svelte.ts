@@ -8,14 +8,14 @@ import {
 	getResourceDefinition,
 	type Instance,
 	type ResourceStatus,
-	type UpstreamContext
+	type Upstream
 } from './resources';
 import {
 	ResourceController,
 	type ControllerServices,
 	type ResourceEvent
 } from './resource-controller.svelte';
-import { getContainer } from './container';
+import { getContainer, removeNodeFiles } from './container';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -49,6 +49,16 @@ export class Orchestrator {
 	getConfiguredCount(nodeId: string): number {
 		const node = this.#graphState.getNode(nodeId);
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
+	}
+
+	// Empty until the node has started once
+	getReservedPorts(nodeId: string): readonly number[] {
+		return this.#controllers.get(nodeId)?.reservedPorts ?? [];
+	}
+
+	// Exposed so the config form can predict what a save would do to running instances
+	getUpstreams(nodeId: string): readonly Upstream[] {
+		return this.#upstreams(nodeId);
 	}
 
 	getEvents(nodeId: string): ResourceEvent[] {
@@ -89,9 +99,12 @@ export class Orchestrator {
 	}
 
 	// Called once a node is gone from the graph. The controller works off its own
-	// state, so the deleted node's processes are still given back
+	// state, so the deleted node's processes are still given back. Its files go with the
+	// controller when it unregisters; a node that never ran has none to wait for
 	remove(nodeId: string) {
-		this.#controllers.get(nodeId)?.forget();
+		const controller = this.#controllers.get(nodeId);
+		if (controller) controller.forget();
+		else void removeNodeFiles(nodeId);
 	}
 
 	// Nudges a node's reconciler after something it reads changed: its config, or the
@@ -119,9 +132,13 @@ export class Orchestrator {
 			getContainer: () => this.#getContainer(),
 			loadFiles: () => this.#fileStore.loadFiles(nodeId),
 			allocatePort: () => this.#allocatePort(),
-			getUpstreamContext: () => this.#upstreamContext(nodeId),
+			getUpstreams: () => this.#upstreams(nodeId),
 			scheduleDependents: () => this.#scheduleDependents(nodeId),
-			unregister: () => void this.#controllers.delete(nodeId)
+			unregister: () => {
+				this.#controllers.delete(nodeId);
+				// Only reached after the node is deleted and its last instance is gone
+				void removeNodeFiles(nodeId);
+			}
 		};
 	}
 
@@ -155,12 +172,13 @@ export class Orchestrator {
 	}
 
 	// Rebuilt per call rather than cached, so a definition always reads current edges
-	#upstreamContext(nodeId: string): UpstreamContext {
-		return {
-			upstreams: this.#graphState.edges
-				.filter((edge) => edge.source === nodeId)
-				.map((edge) => ({ nodeId: edge.target, instances: this.getInstances(edge.target) }))
-		};
+	#upstreams(nodeId: string): Upstream[] {
+		return this.#graphState.edges
+			.filter((edge) => edge.source === nodeId)
+			.flatMap((edge) => {
+				const node = this.#graphState.getNode(edge.target);
+				return node ? [{ node, instances: this.getInstances(edge.target) }] : [];
+			});
 	}
 
 	#scheduleDependents(nodeId: string) {
