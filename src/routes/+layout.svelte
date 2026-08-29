@@ -14,7 +14,9 @@
 	const graphState = setGraphState();
 	// Set here rather than on the canvas so the editor route shares one orchestrator,
 	// and with it one container and one set of running instances
-	setOrchestrator(graphState);
+	const orchestrator = setOrchestrator(graphState);
+
+	orchestrator.warmUp();
 </script>
 
 <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />

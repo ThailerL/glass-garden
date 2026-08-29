@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import type { FileSystemTree } from '@vivari/core';
 	import { getContainer, mountNodeFiles, nodeDirectory } from '$lib/container';
 	import * as Resizable from '$lib/components/ui/resizable';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import Terminal from '$lib/components/Terminal.svelte';
-	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
@@ -18,7 +17,13 @@
 	const REFRESH_DEBOUNCE_MS = 100;
 	const POLL_INTERVAL_MS = 1000;
 
-	const { nodeId, initialFiles }: { nodeId: string; initialFiles: FileSystemTree } = $props();
+	// rightSidebar is rendered by the parent, which keeps it mounted while these panes
+	// are still waiting on the container
+	const {
+		nodeId,
+		initialFiles,
+		rightSidebar
+	}: { nodeId: string; initialFiles: FileSystemTree; rightSidebar: Snippet } = $props();
 
 	// The node id keys persistence and the mount; rootPath is the same node addressed as an
 	// absolute path inside the container, which is what the fs and the shell want
@@ -87,10 +92,6 @@
 			<Terminal {container} cwd={rootPath} />
 		</Resizable.Pane>
 	</Resizable.PaneGroup>
-{/snippet}
-
-{#snippet rightSidebar()}
-	<InspectorSidebar nodeId={root} />
 {/snippet}
 
 <Workspace {leftSidebar} {mainContent} {rightSidebar} />

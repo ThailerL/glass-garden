@@ -26,9 +26,18 @@ export class Orchestrator {
 	#graphState: GraphState;
 	#controllers = new SvelteMap<string, ResourceController>();
 	#containerPromise: Promise<Vivari> | undefined;
+	#containerReady = $state(false);
 
 	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
+	}
+
+	get containerReady(): boolean {
+		return this.#containerReady;
+	}
+
+	warmUp() {
+		void this.#getContainer().catch((error) => console.error('Container failed to boot', error));
 	}
 
 	getStatus(nodeId: string): ResourceStatus {
@@ -145,6 +154,7 @@ export class Orchestrator {
 					if (controller.onServerReady(port, url)) return;
 				}
 			});
+			this.#containerReady = true;
 			return container;
 		});
 		return this.#containerPromise;

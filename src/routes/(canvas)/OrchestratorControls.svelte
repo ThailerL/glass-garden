@@ -8,6 +8,7 @@
 	import type { ResourceStatus } from '$lib/resources';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
@@ -36,9 +37,15 @@
 	class="fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3
          rounded-full border bg-background px-3 py-1.5 shadow-lg backdrop-blur"
 >
+	<!-- Start is not blocked while this shows: a start queues on the same boot -->
 	<div class="flex items-center gap-1.5">
-		<StatusDot {status} />
-		<span class="capitalize">{status}</span>
+		{#if orchestrator.containerReady}
+			<StatusDot {status} />
+			<span class="capitalize">{status}</span>
+		{:else}
+			<Spinner class="size-3 text-muted-foreground" />
+			<span class="text-muted-foreground">Booting</span>
+		{/if}
 	</div>
 
 	<ButtonGroup.Root>
