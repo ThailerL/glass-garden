@@ -1,10 +1,12 @@
 <script lang="ts">
-	import type { Vivari, DirEnt } from '@vivari/core';
+	import { untrack } from 'svelte';
+	import type { Vivari } from '@vivari/core';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { cn } from '$lib/utils.js';
-	import { listDirectory, createFile, createFolder } from '$lib/file-tree';
+	import { createFile, createFolder, directoryListing } from '$lib/file-tree.svelte';
+	import { setFileTreeContext } from '$lib/file-tree-context.svelte';
 	import FileTree from './FileTree.svelte';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
 
@@ -18,24 +20,9 @@
 		container: Vivari;
 	} = $props();
 
-	let anyItemBeingRenamed = $state(false);
-
 	const refresh = getFileRefresh();
-
-	let entries = $state<DirEnt[]>([]);
-	// The revision the listing was read at, so a slow read can't land on top of a newer one
-	let listedRevision = -1;
-
-	$effect(() => {
-		const revision = refresh.revision;
-		listDirectory(container, root).then((result) => {
-			if (revision < listedRevision) return;
-			listedRevision = revision;
-			entries = result;
-		});
-	});
-
-	const entryNames = $derived(entries.map((entry) => entry.name));
+	// Both are fixed for the life of the editor, so they are read once rather than tracked
+	const listing = untrack(() => directoryListing(container, root));
 
 	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
 		// directories can't be dragged into itself or a child directory of itself
@@ -65,12 +52,14 @@
 		}
 	}
 
+	untrack(() => setFileTreeContext(container, root, handleDrop));
+
 	function newFile() {
-		createFile(container, entryNames, root).then(() => refresh.bump());
+		createFile(container, listing.names, root).then(() => refresh.bump());
 	}
 
 	function newFolder() {
-		createFolder(container, entryNames, root).then(() => refresh.bump());
+		createFolder(container, listing.names, root).then(() => refresh.bump());
 	}
 </script>
 
@@ -83,17 +72,8 @@
 				use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}
 			>
 				<TreeView.Root>
-					{#each entries as entry (entry.name)}
-						<FileTree
-							bind:selectedFilePath
-							bind:anyItemBeingRenamed
-							{entry}
-							siblingNames={entryNames}
-							parentPath={[]}
-							{root}
-							{container}
-							{handleDrop}
-						/>
+					{#each listing.entries as entry (entry.name)}
+						<FileTree bind:selectedFilePath {entry} siblingNames={listing.names} parentPath={[]} />
 					{/each}
 				</TreeView.Root>
 			</div>

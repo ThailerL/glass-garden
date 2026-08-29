@@ -4,12 +4,7 @@
 	import { superForm, defaults } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
-	import {
-		getResourceDefinition,
-		resourceDefinitions,
-		type ResourceDefinition,
-		type ResourceType
-	} from '$lib/resources';
+	import { getResourceDefinition, type ResourceDefinition } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
@@ -19,38 +14,33 @@
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
 
-	// Read once because the graph replaces the node object on every drag, and
-	// re-reading it would rebuild the form and discard whatever is being typed
-	const node = untrack(() => {
+	// Read once, during init, because the graph replaces the node object on every drag and a
+	// later read would rebuild the form and discard whatever is being typed. The snapshot
+	// detaches the seed data from the graph, so this holds however `nodes` is declared
+	const { node, initialData } = untrack(() => {
 		const found = graphState.getNode(nodeId);
 		if (!found) throw new Error(`Unknown node: ${nodeId}`);
-		return found;
+		return { node: found, initialData: $state.snapshot(found.data) };
 	});
 
+	const definition = getResourceDefinition(node.type);
 	// Typed as the interface rather than the concrete component, so every config
 	// component is passed the same props whether or not it declares them
-	const ConfigComponent: ResourceDefinition['configComponent'] = untrack(
-		() => resourceDefinitions[node.type as ResourceType].configComponent
-	);
-	const schema: z.ZodObject<z.ZodRawShape> = untrack(
-		() => resourceDefinitions[node.type as ResourceType].configSchema
-	);
-	const form = $derived.by(() => {
-		const form = superForm(defaults(zod4(schema), { id: node.id }), {
-			SPA: true,
-			validators: zod4(schema),
-			dataType: 'json',
-			resetForm: false
-		});
-		form.reset({ data: node.data });
-		return form;
-	});
-	const { form: formData, validateForm, errors } = $derived(form);
+	const ConfigComponent: ResourceDefinition['configComponent'] = definition.configComponent;
+	const schema: z.ZodObject<z.ZodRawShape> = definition.configSchema;
 
-	// Re-read live, unlike the node the form was built from, so the count settles after a
+	const form = superForm(defaults(initialData, zod4(schema), { id: node.id }), {
+		SPA: true,
+		validators: zod4(schema),
+		dataType: 'json',
+		resetForm: false
+	});
+	const { form: formData, validateForm, errors } = form;
+
+	// Re-read live, unlike the node the form was seeded from, so the count settles after a
 	// save. The same comparison #reconcilePass makes, so it cannot disagree with what happens
 	const bouncedInstances = $derived.by(() => {
-		const { launchConfig } = getResourceDefinition(node.type);
+		const { launchConfig } = definition;
 		const liveNode = graphState.getNode(nodeId);
 		const upCount = orchestrator.getUpCount(nodeId);
 		if (!launchConfig || !liveNode || upCount === 0) return 0;
