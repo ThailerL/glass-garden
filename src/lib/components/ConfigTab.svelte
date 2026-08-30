@@ -8,7 +8,7 @@
 	import * as Form from '$lib/components/ui/form';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { stampOf } from '$lib/resource-controller.svelte';
+	import { launchPlan } from '$lib/resource-controller.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const graphState = getGraphState();
@@ -40,14 +40,14 @@
 	// Re-read live, unlike the node the form was seeded from, so the count settles after a
 	// save. The same comparison #reconcilePass makes, so it cannot disagree with what happens
 	const bouncedInstances = $derived.by(() => {
-		const { launchConfig } = definition;
 		const liveNode = graphState.getNode(nodeId);
 		const upCount = orchestrator.getUpCount(nodeId);
-		if (!launchConfig || !liveNode || upCount === 0) return 0;
+		if (!liveNode || upCount === 0) return 0;
 
 		const upstreams = orchestrator.getUpstreams(nodeId);
 		const pending = { ...liveNode, data: { ...liveNode.data, config: $formData } };
-		return stampOf(launchConfig(liveNode, upstreams)) === stampOf(launchConfig(pending, upstreams))
+		return launchPlan(definition, liveNode, upstreams).stamp ===
+			launchPlan(definition, pending, upstreams).stamp
 			? 0
 			: upCount;
 	});

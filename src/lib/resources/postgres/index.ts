@@ -5,7 +5,7 @@ import DatabaseIcon from '@lucide/svelte/icons/database';
 import * as resourceFiles from 'virtual:resource-files';
 import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
-import type { NodeHandleConfig, ResourceDefinition, Upstream } from '../types';
+import type { Capture, NodeHandleConfig, ResourceDefinition, Upstream } from '../types';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory, requestPersistentStorage } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -36,10 +36,10 @@ export const postgres = {
 	instanceCount: () => 1,
 	connectionUrl: (_node: Node, port: number) => connectionUrl(port),
 	launchConfig,
-	prepare: async (node: Node, container: Vivari) => {
+	prepare: async (node: Node, container: Vivari, capture: Capture) => {
 		// Not awaited: on Firefox this prompts, and the install shouldn't wait on an answer
 		void requestPersistentStorage();
-		await npmInstall(node, container);
+		await npmInstall(node, container, capture);
 	},
 	start: async (
 		node: Node,

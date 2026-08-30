@@ -1,3 +1,10 @@
+<script lang="ts" module>
+	// Which tab is open is about the reader rather than the node, and the inspector is
+	// rebuilt from scratch on every selection, so this is shared by all instances of it and
+	// survives switching between nodes
+	let tab = $state('config');
+</script>
+
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
@@ -16,7 +23,7 @@
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
-	import EventsTab from './EventsTab.svelte';
+	import LogsTab from './LogsTab.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
@@ -31,19 +38,25 @@
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
 	const definition = $derived(node && getResourceDefinition(node.type));
 	const editable = $derived(!!definition && definition.hasEditableFiles);
+
+	// Preview is the one tab a node can lack, so a resource without one falls back rather
+	// than showing an empty panel for a tab it never rendered
+	$effect(() => {
+		if (tab === 'preview' && !definition?.hasPreview) tab = 'config';
+	});
 </script>
 
 <Sidebar.Root side="right" collapsible="none" class="w-full!">
 	<Sidebar.Content>
 		<Sidebar.Group class="h-full">
 			<Sidebar.GroupContent class="h-full">
-				<UnderlineTabs.Root value="config" class="h-full">
+				<UnderlineTabs.Root bind:value={tab} class="h-full">
 					<UnderlineTabs.List>
 						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
 						{#if definition?.hasPreview}
 							<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
 						{/if}
-						<UnderlineTabs.Trigger value="events">Events</UnderlineTabs.Trigger>
+						<UnderlineTabs.Trigger value="logs">Logs</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
 					<UnderlineTabs.Content value="config" class="flex flex-col">
 						<ConfigTab {nodeId} />
@@ -53,8 +66,8 @@
 							<PreviewTab {nodeId} />
 						</UnderlineTabs.Content>
 					{/if}
-					<UnderlineTabs.Content value="events" class="overflow-y-auto">
-						<EventsTab {nodeId} />
+					<UnderlineTabs.Content value="logs" class="min-h-0 flex-1">
+						<LogsTab {nodeId} />
 					</UnderlineTabs.Content>
 				</UnderlineTabs.Root>
 			</Sidebar.GroupContent>

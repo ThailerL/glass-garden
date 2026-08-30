@@ -94,9 +94,10 @@
 				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
 					<TreeView.Folder
 						bind:open
-						class="handle-{itemPath.join(
-							'-'
-						)} w-full cursor-pointer hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+						class={[
+							`handle-${itemPath.join('-')}`,
+							'w-full cursor-pointer hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+						]}
 					>
 						{#snippet label()}
 							<Rename.Root
@@ -156,12 +157,12 @@
 		<Rename.Provider>
 			<ContextMenu.Root>
 				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
-					{@const highlightSelected =
-						selectedFilePath.join('/') === itemKey
-							? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-							: ''}
 					<TreeView.File
-						class="w-full cursor-pointer {highlightSelected}"
+						class={[
+							'w-full cursor-pointer',
+							selectedFilePath.join('/') === itemKey &&
+								'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+						]}
 						name={itemName}
 						editing={itemRenameMode === 'edit'}
 						onclick={() => {

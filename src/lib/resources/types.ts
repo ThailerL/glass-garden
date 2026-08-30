@@ -13,7 +13,12 @@ export type InstanceHandle = {
 	// Resolves when the underlying process exits, however it exits
 	exited: Promise<void>;
 	stop: () => Promise<void>;
+	output?: ReadableStream<string>;
 };
+
+// Hands a stream of output to the node's log, for work that belongs to the node rather
+// than to one of its instances
+export type Capture = (output: ReadableStream<string>) => void;
 
 // No 'stopped': a stopped instance is dropped from its pool
 export type InstanceStatus =
@@ -77,7 +82,7 @@ export type ResourceDefinition = {
 	// How a dependent reaches one of this resource's instances, so nothing downstream has
 	// to know which engine is behind the port
 	connectionUrl?: (node: Node, port: number) => string;
-	prepare?: (node: Node, container: Vivari) => Promise<void>;
+	prepare?: (node: Node, container: Vivari, capture: Capture) => Promise<void>;
 	start: (
 		node: Node,
 		container: Vivari,

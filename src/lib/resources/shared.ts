@@ -1,14 +1,17 @@
 import type { Node } from '@xyflow/svelte';
 import type { Vivari, VivariProcess } from '@vivari/core';
-import type { InstanceHandle } from './types';
+import type { Capture, InstanceHandle } from './types';
 import { nodeDirectory } from '../container';
 
-export async function npmInstall(node: Node, container: Vivari) {
+export async function npmInstall(node: Node, container: Vivari, capture?: Capture) {
 	const installProcess = await container.spawn('npm', ['install'], {
 		cwd: nodeDirectory(node.id)
 	});
-	if ((await installProcess.exit) !== 0) {
-		throw new Error('Unable to run npm install');
+	capture?.(installProcess.output);
+	const code = await installProcess.exit;
+	// The code separates npm running and rejecting the install from npm never running
+	if (code !== 0) {
+		throw new Error(`npm install exited ${code}`);
 	}
 }
 
@@ -20,6 +23,7 @@ export function processHandle(process: VivariProcess): InstanceHandle {
 		stop: async () => {
 			process.kill();
 			await process.exit;
-		}
+		},
+		output: process.output
 	};
 }

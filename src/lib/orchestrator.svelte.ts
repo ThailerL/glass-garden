@@ -12,6 +12,7 @@ import {
 import {
 	ResourceController,
 	type ControllerServices,
+	type OutputLine,
 	type ResourceEvent
 } from './resource-controller.svelte';
 import { getContainer, removeNodeFiles } from './container';
@@ -48,6 +49,14 @@ export class Orchestrator {
 		return this.#controllers.get(nodeId)?.instances ?? [];
 	}
 
+	// A port is reserved before anything runs on it, and keeps its reservation while whatever
+	// was there is down, so a port with no instance behind it is stopped rather than missing
+	getInstanceStatus(nodeId: string, port: number): ResourceStatus {
+		return (
+			this.getInstances(nodeId).find((instance) => instance.port === port)?.status ?? 'stopped'
+		);
+	}
+
 	getUpCount(nodeId: string): number {
 		return this.#controllers.get(nodeId)?.upCount ?? 0;
 	}
@@ -82,6 +91,10 @@ export class Orchestrator {
 
 	getEvents(nodeId: string): ResourceEvent[] {
 		return this.#controllers.get(nodeId)?.events ?? [];
+	}
+
+	getOutput(nodeId: string): OutputLine[] {
+		return this.#controllers.get(nodeId)?.output ?? [];
 	}
 
 	getRestarts(nodeId: string): number {

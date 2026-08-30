@@ -6,18 +6,49 @@ import { mountNodeFiles } from './container';
 import { nodeConfig } from './graph-state.svelte';
 
 const MAX_EVENTS = 50;
+const MAX_OUTPUT_LINES = 500;
 const MAX_FAILED_DEPLOYMENTS = 3;
 // Before a crashed instance is respawned
 const RESTART_DELAY_MS = 2000;
 
 // Instances carry the stamp rather than the config itself, so staleness is one comparison
-export const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
+const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
 
-export type ResourceEvent = {
+// What an instance of this node would be launched with, and the stamp it would carry. The
+// only definition of both, so the config form's prediction of a bounce cannot drift from
+// the comparison the reconciler actually makes
+export function launchPlan(
+	definition: ResourceDefinition,
+	node: Node | undefined,
+	upstreams: readonly Upstream[]
+): LaunchPlan {
+	const config = node ? definition.launchConfig?.(node, upstreams) : undefined;
+	return { config, stamp: stampOf(config) };
+}
+
+type LaunchPlan = { config: unknown; stamp: string };
+
+// What produced an entry: an instance, named by its port, or 'resource' for work the node
+// did around them, such as installing dependencies
+export type LogSource = number | 'resource';
+
+// Everything a node has to say, whoever said it. Shared rather than repeated, because it
+// is these three fields meaning the same thing in both that lets the two be sorted into
+// one stream and filtered by one source
+type LogEntry = {
 	time: number;
-	level: 'info' | 'warning' | 'error';
-	message: string;
+	source: LogSource;
+	text: string;
 };
+
+// Both tagged rather than told apart by which fields they carry, which breaks as soon as
+// the two are given one in common
+
+// A line a process printed
+export type OutputLine = LogEntry & { kind: 'output' };
+
+// Something the orchestrator did, which carries a severity printed output cannot
+export type ResourceEvent = LogEntry & { kind: 'event'; level: 'info' | 'warning' | 'error' };
 
 // The cross-node concerns a controller can't own itself: the graph, the shared
 // container, global port uniqueness and reaching other controllers
@@ -43,8 +74,9 @@ export class ResourceController {
 	instances = $state<Instance[]>([]);
 	// Auto-restarts since the last explicit start
 	restarts = $state(0);
-	// Newest first
+	// Both oldest first, the order they happened in
 	events = $state<ResourceEvent[]>([]);
+	output = $state<OutputLine[]>([]);
 
 	#services: ControllerServices;
 	#dirty = false;
@@ -154,8 +186,7 @@ export class ResourceController {
 		// Built once and handed to start, so an instance launches with exactly what it is
 		// stamped with
 		const upstreams = this.#services.getUpstreams();
-		const launchConfig = node ? this.#definition.launchConfig?.(node, upstreams) : undefined;
-		const configStamp = stampOf(launchConfig);
+		const launch = launchPlan(this.#definition, node, upstreams);
 
 		// Auto-restart: free the slots of crashed instances so the deficit step below
 		// respawns them. Skipped at the failed-deployment cap, leaving the pool visibly
@@ -178,12 +209,12 @@ export class ResourceController {
 		// Surplus from a scale-down, plus stale instances that must be bounced to pick
 		// up new launch config
 		const doomed = this.instances.filter(
-			(instance, index) => index >= desired || instance.configStamp !== configStamp
+			(instance, index) => index >= desired || instance.configStamp !== launch.stamp
 		);
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
 
 		if (node && this.instances.length < desired) {
-			await this.#spawnDeficit(node, desired, upstreams, launchConfig);
+			await this.#spawnDeficit(node, desired, upstreams, launch);
 		}
 
 		if (node && this.wantsRunning && this.#definition.update) {
@@ -208,10 +239,9 @@ export class ResourceController {
 		node: Node,
 		desired: number,
 		upstreams: readonly Upstream[],
-		launchConfig: unknown
+		launch: LaunchPlan
 	) {
 		const pending: Instance[] = [];
-		const configStamp = stampOf(launchConfig);
 		// Everything this pass puts up is one deployment, however many instances that is
 		const deployment = ++this.#deployments;
 		while (this.instances.length < desired) {
@@ -219,7 +249,7 @@ export class ResourceController {
 				this.instances.push({
 					port: this.#services.takePort(),
 					status: 'starting',
-					configStamp,
+					configStamp: launch.stamp,
 					deployment
 				}) - 1;
 			// Read back so we hold the reactive proxy rather than the object we pushed
@@ -230,10 +260,12 @@ export class ResourceController {
 			const container = await this.#services.getContainer();
 			await mountNodeFiles(this.nodeId, this.#definition.files);
 			// Runs once per pass rather than once per instance, so instances don't race each other
-			await this.#definition.prepare?.(node, container);
+			await this.#definition.prepare?.(node, container, (output) =>
+				this.#capture('resource', output)
+			);
 			await Promise.all(
 				pending.map((instance) =>
-					this.#spawnInstance(node, container, upstreams, launchConfig, instance)
+					this.#spawnInstance(node, container, upstreams, launch.config, instance)
 				)
 			);
 		} catch (e) {
@@ -241,7 +273,11 @@ export class ResourceController {
 			// failures are recorded inside #spawnInstance
 			console.error(e);
 			for (const instance of pending) instance.status = 'crashed';
-			this.#log('error', `Failed to prepare: ${e instanceof Error ? e.message : e}`);
+			this.#logEvent(
+				'resource',
+				'error',
+				`Failed to prepare: ${e instanceof Error ? e.message : e}`
+			);
 		}
 	}
 
@@ -261,14 +297,15 @@ export class ResourceController {
 				launchConfig
 			);
 			instance.handle = handle;
+			if (handle.output) this.#capture(instance.port, handle.output);
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
-			this.#log('info', `Instance on port ${instance.port} started`);
+			this.#logEvent(instance.port, 'info', 'Instance started');
 			handle.exited.then(() => this.#onExit(instance));
 		} catch (e) {
 			console.error(e);
 			instance.status = 'crashed';
-			this.#log('error', `Instance on port ${instance.port} failed to start`);
+			this.#logEvent(instance.port, 'error', 'Instance failed to start');
 		}
 	}
 
@@ -281,7 +318,7 @@ export class ResourceController {
 		const neverRan = instance.status === 'starting';
 		instance.status = 'crashed';
 		this.#lastCrashAt = Date.now();
-		this.#log('warning', `Instance on port ${instance.port} crashed`);
+		this.#logEvent(instance.port, 'warning', 'Instance crashed');
 
 		// The rest of a deployment crashing tells us nothing new, so only its first
 		// casualty spends from the budget
@@ -293,7 +330,11 @@ export class ResourceController {
 
 		const capped = this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
 		if (firstOfDeployment && capped) {
-			this.#log('error', 'Deployments keep crashing before coming up — restarts paused');
+			this.#logEvent(
+				'resource',
+				'error',
+				'Deployments keep crashing before coming up — restarts paused'
+			);
 			if (this.wantsRunning) {
 				toast.error(`${this.#nodeName()} is crash-looping — restarts paused`);
 			}
@@ -330,13 +371,13 @@ export class ResourceController {
 			} catch (e) {
 				console.error(e);
 				instance.status = 'unresponsive';
-				this.#log('error', `Instance on port ${instance.port} failed to stop`);
+				this.#logEvent(instance.port, 'error', 'Instance failed to stop');
 				return;
 			}
 		}
 		const index = this.instances.indexOf(instance);
 		if (index !== -1) this.instances.splice(index, 1);
-		if (handle) this.#log('info', `Instance on port ${instance.port} stopped`);
+		if (handle) this.#logEvent(instance.port, 'info', 'Instance stopped');
 	}
 
 	// A spawned process is not a listening server, so this is the first point at which
@@ -349,7 +390,7 @@ export class ResourceController {
 			instance.status = 'running';
 			// An instance coming fully up is proof the config can run
 			this.#failedDeployments = 0;
-			this.#log('info', `Instance on port ${port} running`);
+			this.#logEvent(port, 'info', 'Instance running');
 			this.schedule();
 		}
 		return true;
@@ -371,8 +412,33 @@ export class ResourceController {
 		return node ? nodeConfig<{ name: string }>(node).name : this.#definition.name;
 	}
 
-	#log(level: ResourceEvent['level'], message: string) {
-		this.events.unshift({ time: Date.now(), level, message });
-		if (this.events.length > MAX_EVENTS) this.events.length = MAX_EVENTS;
+	// Chunks arrive at whatever size the stream hands over, so a partial line is carried
+	// until the rest of it turns up. Errors when the process is killed, which is not news
+	#capture(source: LogSource, output: ReadableStream<string>) {
+		let carry = '';
+		void output
+			.pipeTo(
+				new WritableStream({
+					write: (chunk) => {
+						const lines = (carry + chunk).split('\n');
+						carry = lines.pop() ?? '';
+						for (const line of lines) this.#logOutput(source, line.replace(/\r$/, ''));
+					},
+					close: () => {
+						if (carry) this.#logOutput(source, carry);
+					}
+				})
+			)
+			.catch(() => {});
+	}
+
+	#logOutput(source: LogSource, text: string) {
+		this.output.push({ kind: 'output', time: Date.now(), source, text });
+		if (this.output.length > MAX_OUTPUT_LINES) this.output.shift();
+	}
+
+	#logEvent(source: LogSource, level: ResourceEvent['level'], text: string) {
+		this.events.push({ kind: 'event', time: Date.now(), source, level, text });
+		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 }

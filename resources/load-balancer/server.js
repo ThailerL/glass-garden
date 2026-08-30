@@ -10,11 +10,25 @@ let cursor = 0;
 
 // Written by the orchestrator whenever the set of targets changes
 async function readTargets() {
+  let contents;
   try {
-    return JSON.parse(await readFile('targets.json', 'utf8'));
-  } catch {
-    return [];
+    contents = await readFile('targets.json', 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw new Error(`Cannot read targets.json: ${error.message}`);
   }
+
+  let targets;
+  try {
+    targets = JSON.parse(contents);
+  } catch (error) {
+    throw new Error(`targets.json is not valid JSON (${error.message}): ${contents}`);
+  }
+
+  if (!Array.isArray(targets) || targets.some((target) => !Number.isInteger(target))) {
+    throw new Error(`targets.json is not a list of ports: ${contents}`);
+  }
+  return targets;
 }
 
 function forward(target, req, body) {
@@ -40,26 +54,40 @@ const server = http.createServer(async (req, res) => {
   const body = Buffer.concat(chunks);
 
   // Read per request so a rewrite takes effect without restarting the process
-  const targets = await readTargets();
+  let targets;
+  try {
+    targets = await readTargets();
+  } catch (error) {
+    console.error(error.message);
+    res.writeHead(500, { 'content-type': 'text/plain' }).end(`${error.message}\n`);
+    return;
+  }
+
   if (targets.length === 0) {
-    res.writeHead(503).end('No targets');
+    res
+      .writeHead(503, { 'content-type': 'text/plain' })
+      .end('No targets: nothing running is wired to this load balancer\n');
     return;
   }
 
   // A target can die between rewrites, so a refused connection falls through to the next
+  const failures = [];
   for (let attempt = 0; attempt < targets.length; attempt++) {
     cursor = (cursor + 1) % targets.length;
+    const target = targets[cursor];
     try {
-      const upstream = await forward(targets[cursor], req, body);
+      const upstream = await forward(target, req, body);
       res.writeHead(upstream.statusCode, upstream.headers);
       upstream.pipe(res);
       return;
-    } catch {
-      continue;
+    } catch (error) {
+      failures.push(`:${target} ${error.message}`);
     }
   }
 
-  res.writeHead(502).end('No upstream reachable');
+  const detail = failures.join('\n');
+  console.error(`No upstream reachable:\n${detail}`);
+  res.writeHead(502, { 'content-type': 'text/plain' }).end(`No upstream reachable\n\n${detail}\n`);
 });
 
 server.listen(port, () => {

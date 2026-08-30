@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import type { ClassValue } from 'clsx';
 	import type { Vivari } from '@vivari/core';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import * as TreeView from '$lib/components/ui/tree-view';
@@ -66,9 +67,11 @@
 <ContextMenu.Root>
 	<ContextMenu.Trigger>
 		{#snippet child({ props })}
+			<!-- bits-ui types the child snippet's props as unknown, so class is cast to what cn
+			accepts rather than to the one shape a caller happens to pass -->
 			<div
 				{...props}
-				class={cn(props.class as string, 'min-h-full')}
+				class={cn(props.class as ClassValue, 'min-h-full')}
 				use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}
 			>
 				<TreeView.Root>
