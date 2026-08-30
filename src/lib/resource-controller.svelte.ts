@@ -258,7 +258,7 @@ export class ResourceController {
 
 		try {
 			const container = await this.#services.getContainer();
-			await mountNodeFiles(this.nodeId, this.#definition.files);
+			await mountNodeFiles(this.nodeId, this.#definition.files, !this.#definition.hasEditableFiles);
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container, (output) =>
 				this.#capture('resource', output)

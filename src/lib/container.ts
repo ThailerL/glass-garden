@@ -28,17 +28,17 @@ export function requestPersistentStorage() {
 
 const mounts = new Map<string, Promise<void>>();
 
-// The editor and the orchestrator both need a node's files on disk, but they share one
-// container, so whichever arrives first mounts and the other reuses it. The VFS outlives
-// the page and holds every edit since, so the template is only laid down for a new node
-export function mountNodeFiles(nodeId: string, files: FileSystemTree) {
+// The editor and the orchestrator share one container, so whichever wants a node's files
+// first mounts them. The VFS keeps every edit since, so a template is laid down once;
+// `overwrite` re-lays ours for node's that we manage and can't be edited by the user
+export function mountNodeFiles(nodeId: string, files: FileSystemTree, overwrite = false) {
 	const existing = mounts.get(nodeId);
 	if (existing) return existing;
 
 	const mount = (async () => {
 		const container = await getContainer();
 		const directory = nodeDirectory(nodeId);
-		if (await container.fs.exists(directory)) return;
+		if (!overwrite && (await container.fs.exists(directory))) return;
 		await container.fs.mkdir(directory, { recursive: true });
 		await container.mount(files, { mountPoint: directory });
 	})().catch((error) => {

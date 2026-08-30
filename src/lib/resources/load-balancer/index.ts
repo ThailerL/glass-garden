@@ -40,7 +40,7 @@ export const loadBalancer = {
 	start: async (node: Node, container: Vivari, port: number, upstreams: readonly Upstream[]) => {
 		// Written before the process spawns so its first request already has the right targets
 		await updateTargets(node, container, upstreams);
-		const process = await container.spawn('resource', ['server.js'], {
+		const process = await container.spawn('node', ['server.js'], {
 			cwd: nodeDirectory(node.id),
 			env: { PORT: String(port) }
 		});

@@ -15,11 +15,10 @@ export async function npmInstall(node: Node, container: Vivari, capture?: Captur
 	}
 }
 
-// Wraps the common case of an instance that is exactly one process. The exit code is
-// dropped because the orchestrator only cares that the process exited, not how
+// Wraps the common case of an instance that is exactly one process
 export function processHandle(process: VivariProcess): InstanceHandle {
 	return {
-		exited: process.exit.then(() => undefined),
+		exited: process.exit,
 		stop: async () => {
 			process.kill();
 			await process.exit;

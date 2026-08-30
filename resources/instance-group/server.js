@@ -6,7 +6,9 @@ if (!url) {
   throw new Error('DATABASE_URL is not set. Connect this instance group to one database node.');
 }
 
-// PORT is set by Glass Garden's orchestrator
+// Every instance of this server runs on the same machine, so each one needs a port of its
+// own. In a real deployment they would sit on separate machines and could share one.
+// Glass Garden sets PORT, which is unique across instances
 const port = Number(process.env.PORT);
 if (!port) {
   throw new Error('PORT is not set');
@@ -14,35 +16,41 @@ if (!port) {
 
 const pool = new pg.Pool({ connectionString: url });
 
-// Without this, an idle connection dropped by a restarting database takes the process
-// down with it instead of being replaced
+// The database can restart while this server keeps running, which breaks any connection
+// sitting idle. Without this handler, that would take the whole server down with it
 pool.on('error', (error) => console.error('idle client error:', error.message));
-
-// Keyed by port: ports are reserved per instance, so a restart keeps the same row
-await pool.query(`CREATE TABLE IF NOT EXISTS views (
-  port INTEGER PRIMARY KEY,
-  hits INTEGER NOT NULL DEFAULT 0
-)`);
 
 const app = express();
 
 app.get('/', async (req, res) => {
   try {
-    // Every instance counts into the same table, so the total is shared however the load
-    // balancer routes this request
+    // Done here so the server can start without a running database. 
+    // Instances are identified by their assigned port
+    await pool.query(`CREATE TABLE IF NOT EXISTS views (
+      instance INTEGER PRIMARY KEY,
+      hits INTEGER NOT NULL DEFAULT 0
+    )`);
+
+    // Every instance writes to the same database, so the total below is the whole group's
+    // however the load balancer spread the requests
     await pool.query(
-      `INSERT INTO views (port, hits) VALUES ($1, 1)
-       ON CONFLICT (port) DO UPDATE SET hits = views.hits + 1`,
+      `INSERT INTO views (instance, hits) VALUES ($1, 1)
+       ON CONFLICT (instance) DO UPDATE SET hits = views.hits + 1`,
       [port]
     );
-    const { rows } = await pool.query('SELECT port, hits FROM views ORDER BY port');
+    const { rows } = await pool.query('SELECT instance, hits FROM views ORDER BY instance');
 
     const total = rows.reduce((sum, row) => sum + row.hits, 0);
-    const perInstance = rows.map((row) => `:${row.port}  ${row.hits}`).join('\n');
+    const perInstance = rows.map((row) => `:${row.instance}  ${row.hits}`).join('\n');
 
-    res.type('text/plain').send(`Page views: ${total}\nserved by :${port}\n\n${perInstance}\n`);
+    res
+      .type('text/plain')
+      .send(`Page views: ${total}\nserved by instance on :${port}\n\n${perInstance}\n`);
   } catch (error) {
-    res.status(500).type('text/plain').send(error.message);
+    // This server is fine, the database is not, so it answers with an error rather than
+    // stopping. Printing it too means the problem shows up in the Logs tab
+    console.error('database unavailable:', error.message);
+    res.status(503).type('text/plain').send(`Database unavailable: ${error.message}\n`);
   }
 });
 

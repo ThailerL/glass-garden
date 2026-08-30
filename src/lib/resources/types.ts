@@ -10,8 +10,9 @@ export type NodeHandleConfig = { type: 'source' | 'target'; position: Position }
 // Returned by a definition's start so the orchestrator can manage an instance's
 // lifecycle without touching whatever the definition actually launched
 export type InstanceHandle = {
-	// Resolves when the underlying process exits, however it exits
-	exited: Promise<void>;
+	// Resolves with the exit code when the underlying process exits, however it exits.
+	// A crash on startup often says nothing else, so the code is the whole diagnosis
+	exited: Promise<number>;
 	stop: () => Promise<void>;
 	output?: ReadableStream<string>;
 };
