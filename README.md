@@ -1,6 +1,12 @@
 # Glass Garden
 
-A sandbox for experimenting with cloud infrastructure like load balancers, compute instances, and databases. Everything on your canvas is running real code: your instances are real Node processes, and your database is a real Postgres server speaking the wire protocol. Pop open an instance group and you get a full code editor, so you can edit the actual app your instances are running. Press play and watch it run, right in your browser. It's all inside a WebAssembly VM in the tab, so there's nothing to install and nothing to sign up for. All your data stays on your device, and the whole thing is easily self-hostable.
+[Try it live](https://glass.garden/)
+
+A sandbox for experimenting with cloud infrastructure like load balancers, compute instances, and databases. Press play and watch it run, right in your browser.
+
+Everything on your canvas is running real code: your instances are real Node processes, your database is a real Postgres server speaking the wire protocol, and instance groups come with a full code editor so you can edit the actual app they're running.
+
+It's all inside a WebAssembly VM in the tab, so there's nothing to install and nothing to sign up for. All your data stays on your device, and the whole thing is easily self-hostable.
 
 ## Setup
 
