@@ -1,5 +1,7 @@
 # Glass Garden
 
+A sandbox for experimenting with cloud infrastructure like load balancers, compute instances, and databases. Everything on your canvas is running real code: your instances are real Node processes, and your database is a real Postgres server speaking the wire protocol. Pop open an instance group and you get a full code editor, so you can edit the actual app your instances are running. Press play and watch it run, right in your browser. It's all inside a WebAssembly VM in the tab, so there's nothing to install and nothing to sign up for. All your data stays on your device, and the whole thing is easily self-hostable.
+
 ## Setup
 
 To self-host with Docker, use this `compose.yaml`
@@ -20,7 +22,7 @@ or run
 docker run -p 3000:3000  ghcr.io/thailerl/glass-garden:latest
 ```
 
-Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (i.e. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS container functionality requires a secure context to work.
+Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (i.e. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS as the app requires a secure context to work.
 
 ## Developing
 
