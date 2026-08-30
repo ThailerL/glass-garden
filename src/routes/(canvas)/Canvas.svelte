@@ -35,11 +35,9 @@
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	if (graphState.nodes.length === 0) {
-		const httpLoadBalancer = graphState.addNode('httpLoadBalancer', { x: -200, y: 0 });
-		const instanceGroup = graphState.addNode('instanceGroup', { x: 0, y: 0 });
-		const postgres = graphState.addNode('postgres', { x: 200, y: 0 });
+		const httpLoadBalancer = graphState.addNode('httpLoadBalancer', { x: -100, y: 0 });
+		const instanceGroup = graphState.addNode('instanceGroup', { x: 100, y: 0 });
 		graphState.addEdge(httpLoadBalancer.id, instanceGroup.id);
-		graphState.addEdge(instanceGroup.id, postgres.id);
 	}
 
 	// Every resource type renders through the same component, which reads its icon and

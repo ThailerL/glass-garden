@@ -7,6 +7,7 @@
 	import { dracula } from '@uiw/codemirror-theme-dracula';
 	import { mode } from 'mode-watcher';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
+	import { requestPersistentStorage } from '$lib/container';
 
 	const {
 		container,
@@ -59,6 +60,8 @@
 			if (nothingSelected) return;
 			const saved = currentDraft;
 			await container.fs.writeFile([root, ...selectedFilePath].join('/'), saved);
+			// Not awaited: on Firefox this prompts, and saving shouldn't wait on an answer
+			void requestPersistentStorage();
 			// The file holds the draft now, so the marker clears without reading it back
 			fileDraftState.setBaseline(selectedFilePath, saved);
 			refresh.bump();

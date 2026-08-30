@@ -7,7 +7,7 @@ import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
 import type { Capture, ResourceDefinition, Upstream } from '../types';
 import { npmInstall, processHandle } from '../shared';
-import { nodeDirectory, requestPersistentStorage } from '$lib/container';
+import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
 
 const configSchema = z.object({
@@ -39,8 +39,6 @@ export const postgres = {
 	connectionUrl: (_node: Node, port: number) => connectionUrl(port),
 	launchConfig,
 	prepare: async (node: Node, container: Vivari, capture: Capture) => {
-		// Not awaited: on Firefox this prompts, and the install shouldn't wait on an answer
-		void requestPersistentStorage();
 		await npmInstall(node, container, capture);
 	},
 	start: async (

@@ -2,6 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
+import { requestPersistentStorage } from './container';
 
 export type NodeData = {
 	config: Record<string, unknown>;
@@ -66,9 +67,12 @@ export class GraphState {
 	}
 
 	addNode(type: ResourceType, position: { x: number; y: number }) {
+		const definition = getResourceDefinition(type);
+		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
+		if (definition.ownsStoredData) void requestPersistentStorage();
 		const data: NodeData = {
 			// Parsing an empty object yields the schema's defaults
-			config: getResourceDefinition(type).configSchema.parse({}),
+			config: definition.configSchema.parse({}),
 			ports: []
 		};
 		const node: Node = {
