@@ -4,6 +4,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import type { ResourceStatus } from '$lib/resources';
 	import { getGraphState } from '$lib/graph-state.svelte';
@@ -39,7 +40,10 @@
 >
 	<!-- Start is not blocked while this shows: a start queues on the same boot -->
 	<div class="flex items-center gap-1.5">
-		{#if orchestrator.containerReady}
+		{#if orchestrator.containerError}
+			<TriangleAlertIcon class="size-3.5 text-red-500" />
+			<span class="text-muted-foreground" title={orchestrator.containerError}>Boot failed</span>
+		{:else if orchestrator.containerReady}
 			<StatusDot {status} />
 			<span class="capitalize">{status}</span>
 		{:else}

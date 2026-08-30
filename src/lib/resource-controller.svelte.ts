@@ -14,6 +14,10 @@ const RESTART_DELAY_MS = 2000;
 // Instances carry the stamp rather than the config itself, so staleness is one comparison
 const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
 
+// Everything thrown at this layer ends up in the node's log, where the reason is the
+// whole point of the entry
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 // What an instance of this node would be launched with, and the stamp it would carry. The
 // only definition of both, so the config form's prediction of a bounce cannot drift from
 // the comparison the reconciler actually makes
@@ -165,7 +169,10 @@ export class ResourceController {
 		if (this.#converging) return;
 		this.#converging = true;
 		this.#converge()
-			.catch((e) => console.error(e))
+			// The pass is abandoned where it stopped, so nothing moves until the next trigger
+			.catch((e) =>
+				this.#logEvent('resource', 'error', `Failed to reconcile, left as is: ${messageOf(e)}`)
+			)
 			.finally(() => (this.#converging = false));
 	}
 
@@ -211,6 +218,17 @@ export class ResourceController {
 		const doomed = this.instances.filter(
 			(instance, index) => index >= desired || instance.configStamp !== launch.stamp
 		);
+		if (doomed.length > 0) {
+			// Otherwise the stops and starts that follow read exactly like a crash and restart
+			const stale = doomed.filter((instance) => instance.configStamp !== launch.stamp).length;
+			this.#logEvent(
+				'resource',
+				'info',
+				stale > 0
+					? `Config changed, replacing ${stale} instance${stale === 1 ? '' : 's'}`
+					: `Scaling down to ${desired} instance${desired === 1 ? '' : 's'}`
+			);
+		}
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
 
 		if (node && this.instances.length < desired) {
@@ -228,7 +246,7 @@ export class ResourceController {
 				);
 			} catch (e) {
 				// A resource that can't be reconfigured keeps its old config
-				console.error(e);
+				this.#logEvent('resource', 'error', `Failed to update: ${messageOf(e)}`);
 			}
 		}
 
@@ -271,13 +289,8 @@ export class ResourceController {
 		} catch (e) {
 			// Only group-wide failures land here (boot, mount, npm install) - per-instance
 			// failures are recorded inside #spawnInstance
-			console.error(e);
 			for (const instance of pending) instance.status = 'crashed';
-			this.#logEvent(
-				'resource',
-				'error',
-				`Failed to prepare: ${e instanceof Error ? e.message : e}`
-			);
+			this.#logEvent('resource', 'error', `Failed to prepare: ${messageOf(e)}`);
 		}
 	}
 
@@ -301,15 +314,25 @@ export class ResourceController {
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
 			this.#logEvent(instance.port, 'info', 'Instance started');
-			handle.exited.then(() => this.#onExit(instance));
+			// A rejection means nothing will ever say whether the process is still alive, which
+			// is what 'unresponsive' is for: the slot and its port stay held rather than being
+			// respawned over something that may still be running
+			handle.exited.then(
+				(code) => this.#onExit(instance, code),
+				(e) => {
+					// A stop is waiting on the same rejection and reports it as a failed kill
+					if (instance.status === 'stopping') return;
+					instance.status = 'unresponsive';
+					this.#logEvent(instance.port, 'error', `Lost track of instance: ${messageOf(e)}`);
+				}
+			);
 		} catch (e) {
-			console.error(e);
 			instance.status = 'crashed';
-			this.#logEvent(instance.port, 'error', 'Instance failed to start');
+			this.#logEvent(instance.port, 'error', `Instance failed to start: ${messageOf(e)}`);
 		}
 	}
 
-	#onExit(instance: Instance) {
+	#onExit(instance: Instance, code: number) {
 		instance.previewUrl = undefined;
 		instance.handle = undefined;
 		// A deliberate stop sets 'stopping' first, so a live status here means it
@@ -318,7 +341,7 @@ export class ResourceController {
 		const neverRan = instance.status === 'starting';
 		instance.status = 'crashed';
 		this.#lastCrashAt = Date.now();
-		this.#logEvent(instance.port, 'warning', 'Instance crashed');
+		this.#logEvent(instance.port, 'warning', `Instance crashed (exit ${code})`);
 
 		// The rest of a deployment crashing tells us nothing new, so only its first
 		// casualty spends from the budget
@@ -369,9 +392,8 @@ export class ResourceController {
 			try {
 				await handle.stop();
 			} catch (e) {
-				console.error(e);
 				instance.status = 'unresponsive';
-				this.#logEvent(instance.port, 'error', 'Instance failed to stop');
+				this.#logEvent(instance.port, 'error', `Instance failed to stop: ${messageOf(e)}`);
 				return;
 			}
 		}

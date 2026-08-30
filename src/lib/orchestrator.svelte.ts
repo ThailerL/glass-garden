@@ -2,6 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
+import { toast } from 'svelte-sonner';
 import { GraphState, nodePorts } from './graph-state.svelte';
 import {
 	getResourceDefinition,
@@ -28,6 +29,9 @@ export class Orchestrator {
 	#controllers = new SvelteMap<string, ResourceController>();
 	#containerPromise: Promise<Vivari> | undefined;
 	#containerReady = $state(false);
+	// Why the boot failed, if it did. A failed boot never becomes ready, so without this the
+	// UI has nothing to move on from
+	#containerError = $state<string | undefined>();
 
 	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
@@ -37,8 +41,14 @@ export class Orchestrator {
 		return this.#containerReady;
 	}
 
+	get containerError(): string | undefined {
+		return this.#containerError;
+	}
+
 	warmUp() {
-		void this.#getContainer().catch((error) => console.error('Container failed to boot', error));
+		// No node owns this failure, and nothing can run without it, so it is said once here
+		// rather than waiting for the first start to report it as a failed prepare
+		void this.#getContainer().catch(() => toast.error('Container failed to boot'));
 	}
 
 	getStatus(nodeId: string): ResourceStatus {
@@ -174,15 +184,23 @@ export class Orchestrator {
 	}
 
 	#getContainer() {
-		this.#containerPromise ??= getContainer().then((container) => {
-			container.on('server-ready', (port, url) => {
-				for (const controller of this.#controllers.values()) {
-					if (controller.onServerReady(port, url)) return;
-				}
-			});
-			this.#containerReady = true;
-			return container;
-		});
+		this.#containerPromise ??= getContainer().then(
+			(container) => {
+				container.on('server-ready', (port, url) => {
+					for (const controller of this.#controllers.values()) {
+						if (controller.onServerReady(port, url)) return;
+					}
+				});
+				this.#containerReady = true;
+				return container;
+			},
+			(error) => {
+				// Recorded wherever the boot was triggered from, then rethrown so whoever asked
+				// still fails and logs it against their own node
+				this.#containerError = error instanceof Error ? error.message : String(error);
+				throw error;
+			}
+		);
 		return this.#containerPromise;
 	}
 
