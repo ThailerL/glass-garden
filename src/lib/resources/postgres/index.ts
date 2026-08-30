@@ -15,7 +15,7 @@ const configSchema = z.object({
 	maxConnections: z.number().int().positive().default(100)
 });
 
-type Config = z.infer<typeof configSchema>;
+export type Config = z.infer<typeof configSchema>;
 
 function launchConfig(node: Node) {
 	return { maxConnections: nodeConfig<Config>(node).maxConnections };

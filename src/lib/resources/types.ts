@@ -73,7 +73,10 @@ export type ResourceDefinition = {
 	// capability: a non-empty provides earns the target handle, a non-empty consumes the source
 	provides: Capability[];
 	consumes: Capability[];
-	configComponent: Component<{ form: unknown; nodeId: string }>;
+	// Each component is written against the config its own schema produces, which the
+	// registry cannot name. never is assignable to all of them, so the concrete type is
+	// restored where a component is actually rendered
+	configComponent: Component<{ form: never; nodeId: string }>;
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
 	instanceCount: (node: Node) => number;

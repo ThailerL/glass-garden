@@ -16,7 +16,7 @@ const configSchema = z.object({
 	command: z.string().min(1).default('npm run start')
 });
 
-type Config = z.infer<typeof configSchema>;
+export type Config = z.infer<typeof configSchema>;
 
 // Also called for upstream nodes of other types, so it reads only what every config has
 function nodeName(node: Node) {

@@ -1,8 +1,10 @@
 <script lang="ts">
+	import type { SuperForm } from 'sveltekit-superforms';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
+	import type { Config } from './index';
 
-	const { form } = $props();
+	const { form }: { form: SuperForm<Config> } = $props();
 	const { form: formData } = $derived(form);
 </script>
 

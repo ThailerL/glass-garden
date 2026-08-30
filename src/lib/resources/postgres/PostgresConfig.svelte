@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
+	import type { SuperForm } from 'sveltekit-superforms';
 	import * as Form from '$lib/components/ui/form';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { Input } from '$lib/components/ui/input';
@@ -9,8 +10,9 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getContainer, nodeDirectory } from '$lib/container';
 	import { connectionUrl } from './connection';
+	import type { Config } from './index';
 
-	const { form, nodeId } = $props();
+	const { form, nodeId }: { form: SuperForm<Config>; nodeId: string } = $props();
 	const { form: formData } = $derived(form);
 
 	const orchestrator = getOrchestrator();

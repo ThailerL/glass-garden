@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Component } from 'svelte';
 	import { z } from 'zod';
 	import { superForm, defaults } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toast } from 'svelte-sonner';
-	import { getResourceDefinition, type ResourceDefinition } from '$lib/resources';
+	import { getResourceDefinition } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
@@ -24,9 +24,6 @@
 	});
 
 	const definition = getResourceDefinition(node.type);
-	// Typed as the interface rather than the concrete component, so every config
-	// component is passed the same props whether or not it declares them
-	const ConfigComponent: ResourceDefinition['configComponent'] = definition.configComponent;
 	const schema: z.ZodObject<z.ZodRawShape> = definition.configSchema;
 
 	const form = superForm(defaults(initialData, zod4(schema), { id: node.id }), {
@@ -35,6 +32,11 @@
 		dataType: 'json',
 		resetForm: false
 	});
+
+	const ConfigComponent = definition.configComponent as Component<{
+		form: typeof form;
+		nodeId: string;
+	}>;
 	const { form: formData, validateForm, errors } = form;
 
 	// Re-read live, unlike the node the form was seeded from, so the count settles after a

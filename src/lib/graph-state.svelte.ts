@@ -25,10 +25,19 @@ export class GraphState {
 	constructor() {
 		this.nodes = Object.keys(localStorage)
 			.filter((key) => key.startsWith('node:'))
-			.map((key) => JSON.parse(localStorage[key]));
+			.map((key) => this.#loadNode(JSON.parse(localStorage[key])));
 		this.edges = Object.keys(localStorage)
 			.filter((key) => key.startsWith('edge:'))
 			.map((key) => JSON.parse(localStorage[key]));
+	}
+
+	// A stored config was written against whatever schema its resource had at the time, so it
+	// is parsed again on load. An option added since then arrives at its default and unused
+	// options are pruned
+	#loadNode(node: Node): Node {
+		const data = node.data as NodeData;
+		data.config = getResourceDefinition(node.type).configSchema.parse(data.config);
+		return node;
 	}
 
 	addNode(type: ResourceType, position: { x: number; y: number }) {

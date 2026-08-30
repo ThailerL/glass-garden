@@ -6,29 +6,61 @@ if (!port) {
   throw new Error('PORT is not set');
 }
 
+// Kept in step with the algorithm field of the resource's config schema
+const ALGORITHMS = ['round-robin', 'random'];
+
+// Retries after the first attempt. Bounded so one client request cannot turn into a
+// connection attempt against every instance of a large pool
+const MAX_RETRIES = 3;
+
 let cursor = 0;
 
-// Written by the orchestrator whenever the set of targets changes
-async function readTargets() {
+async function readConfig() {
   let contents;
   try {
-    contents = await readFile('targets.json', 'utf8');
+    contents = await readFile('config.json', 'utf8');
   } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    throw new Error(`Cannot read targets.json: ${error.message}`);
+    if (error.code === 'ENOENT') return { algorithm: 'round-robin', targets: [] };
+    throw new Error(`Cannot read config.json: ${error.message}`);
   }
 
-  let targets;
+  let config;
   try {
-    targets = JSON.parse(contents);
+    config = JSON.parse(contents);
   } catch (error) {
-    throw new Error(`targets.json is not valid JSON (${error.message}): ${contents}`);
+    throw new Error(`config.json is not valid JSON (${error.message}): ${contents}`);
   }
 
-  if (!Array.isArray(targets) || targets.some((target) => !Number.isInteger(target))) {
-    throw new Error(`targets.json is not a list of ports: ${contents}`);
+  const { algorithm, targets } = config ?? {};
+  if (!ALGORITHMS.includes(algorithm)) {
+    throw new Error(`config.json names an unknown algorithm: ${contents}`);
   }
-  return targets;
+  if (!Array.isArray(targets) || targets.some((target) => !Number.isInteger(target))) {
+    throw new Error(`config.json targets are not a list of ports: ${contents}`);
+  }
+  return { algorithm, targets };
+}
+
+// Advanced once per request rather than once per attempt, so retrying past a dead target
+// does not spend its turn and skew the split
+function rotate(targets) {
+  cursor = (cursor + 1) % targets.length;
+  return [...targets.slice(cursor), ...targets.slice(0, cursor)];
+}
+
+// Fisher-Yates. A whole order rather than a single pick, so a refused target still falls
+// through to the rest
+function shuffle(targets) {
+  const order = [...targets];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
+function attemptOrder(algorithm, targets) {
+  return algorithm === 'random' ? shuffle(targets) : rotate(targets);
 }
 
 function forward(target, req, body) {
@@ -54,9 +86,9 @@ const server = http.createServer(async (req, res) => {
   const body = Buffer.concat(chunks);
 
   // Read per request so a rewrite takes effect without restarting the process
-  let targets;
+  let algorithm, targets;
   try {
-    targets = await readTargets();
+    ({ algorithm, targets } = await readConfig());
   } catch (error) {
     console.error(error.message);
     res.writeHead(500, { 'content-type': 'text/plain' }).end(`${error.message}\n`);
@@ -72,9 +104,7 @@ const server = http.createServer(async (req, res) => {
 
   // A target can die between rewrites, so a refused connection falls through to the next
   const failures = [];
-  for (let attempt = 0; attempt < targets.length; attempt++) {
-    cursor = (cursor + 1) % targets.length;
-    const target = targets[cursor];
+  for (const target of attemptOrder(algorithm, targets).slice(0, MAX_RETRIES + 1)) {
     try {
       const upstream = await forward(target, req, body);
       res.writeHead(upstream.statusCode, upstream.headers);
@@ -85,9 +115,10 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  const summary = `No upstream reachable, tried ${failures.length} of ${targets.length}`;
   const detail = failures.join('\n');
-  console.error(`No upstream reachable:\n${detail}`);
-  res.writeHead(502, { 'content-type': 'text/plain' }).end(`No upstream reachable\n\n${detail}\n`);
+  console.error(`${summary}:\n${detail}`);
+  res.writeHead(502, { 'content-type': 'text/plain' }).end(`${summary}\n\n${detail}\n`);
 });
 
 server.listen(port, () => {
