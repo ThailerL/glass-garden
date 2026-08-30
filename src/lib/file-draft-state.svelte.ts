@@ -1,6 +1,21 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { EditorState } from '@codemirror/state';
+import { isAtOrUnder } from './file-tree.svelte';
+
+function moveKeys<T>(map: SvelteMap<string, T>, from: string, to: string) {
+	for (const [key, value] of [...map]) {
+		if (!isAtOrUnder(key, from)) continue;
+		map.delete(key);
+		map.set(to + key.slice(from.length), value);
+	}
+}
+
+function deleteKeys<T>(map: SvelteMap<string, T>, path: string) {
+	for (const key of [...map.keys()]) {
+		if (isAtOrUnder(key, path)) map.delete(key);
+	}
+}
 
 export class FileDraftState {
 	editorStates = new SvelteMap<string, EditorState>();
@@ -28,6 +43,16 @@ export class FileDraftState {
 		this.#baselines.set(path.join('/'), contents);
 	}
 
+	movePath(from: string[], to: string[]) {
+		moveKeys(this.editorStates, from.join('/'), to.join('/'));
+		moveKeys(this.#baselines, from.join('/'), to.join('/'));
+	}
+
+	discardPath(path: string[]) {
+		deleteKeys(this.editorStates, path.join('/'));
+		deleteKeys(this.#baselines, path.join('/'));
+	}
+
 	isDirty(path: string[]) {
 		const draft = this.getDraft(path);
 		return draft !== undefined && draft !== (this.getBaseline(path) ?? '');
@@ -36,7 +61,7 @@ export class FileDraftState {
 	containsDirty(path: string[]) {
 		const prefix = path.join('/');
 		return [...this.editorStates.keys()].some(
-			(key) => key.startsWith(prefix) && this.isDirty(key.split('/'))
+			(key) => isAtOrUnder(key, prefix) && this.isDirty(key.split('/'))
 		);
 	}
 }

@@ -1,6 +1,17 @@
 import type { Vivari, DirEnt } from '@vivari/core';
 import { getFileRefresh } from './file-refresh.svelte';
 
+export function isAtOrUnder(path: string, ancestor: string) {
+	return path === ancestor || path.startsWith(`${ancestor}/`);
+}
+
+// Where `path` ends up once `from` moves to `to`; unchanged when it was never inside `from`,
+// and the same array so assigning the result can't invalidate state that didn't move
+export function rebase(path: string[], from: string[], to: string[]) {
+	if (!isAtOrUnder(path.join('/'), from.join('/'))) return path;
+	return [...to, ...path.slice(from.length)];
+}
+
 function unusedName(names: string[], base: string): string {
 	let i = 1;
 	while (names.includes(`${base}-${i}`)) {

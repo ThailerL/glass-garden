@@ -5,11 +5,19 @@
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { cn } from '$lib/utils.js';
-	import { createFile, createFolder, directoryListing } from '$lib/file-tree.svelte';
+	import {
+		createFile,
+		createFolder,
+		directoryListing,
+		isAtOrUnder,
+		rebase
+	} from '$lib/file-tree.svelte';
 	import { setFileTreeContext } from '$lib/file-tree-context.svelte';
 	import FileTree from './FileTree.svelte';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
+	import { getFileDraftState } from '$lib/file-draft-state.svelte';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -22,35 +30,51 @@
 	} = $props();
 
 	const refresh = getFileRefresh();
+	const fileDraftState = getFileDraftState();
 	// Both are fixed for the life of the editor, so they are read once rather than tracked
 	const listing = untrack(() => directoryListing(container, root));
 
-	function handleDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<string>) {
+	async function handleDrop({
+		draggedItem,
+		sourceContainer,
+		targetContainer
+	}: DragDropState<string>) {
+		const draggedPath = [sourceContainer, draggedItem].filter(Boolean).join('/');
 		// directories can't be dragged into itself or a child directory of itself
 		if (
 			targetContainer === null ||
 			sourceContainer === targetContainer ||
-			targetContainer.startsWith(
-				sourceContainer === '' ? draggedItem : [sourceContainer, draggedItem].join('/')
-			)
+			isAtOrUnder(targetContainer, draggedPath)
 		) {
 			return;
 		}
 
-		container.fs
-			.rename(
-				[root, sourceContainer, draggedItem].filter(Boolean).join('/'),
-				[root, targetContainer, draggedItem].filter(Boolean).join('/')
-			)
-			// Both the source and the target listing are stale now, and neither of them is the
-			// one that ran this handler
-			.then(() => refresh.bump());
+		const movedPath = [targetContainer, draggedItem].filter(Boolean).join('/');
+		const from = draggedPath.split('/');
+		const to = movedPath.split('/');
+		const destinationFsPath = [root, movedPath].join('/');
 
-		const sourcePath = sourceContainer === '' ? [] : sourceContainer.split('/');
-		const targetPath = targetContainer === '' ? [] : targetContainer.split('/');
-		if (selectedFilePath.join('/') === [...sourcePath, draggedItem].join('/')) {
-			selectedFilePath = [...targetPath, draggedItem];
+		async function move() {
+			await container.fs.rename([root, draggedPath].join('/'), destinationFsPath);
+
+			fileDraftState.discardPath(to);
+			fileDraftState.movePath(from, to);
+			selectedFilePath = rebase(selectedFilePath, from, to);
+
+			refresh.bump();
 		}
+
+		const destination = await container.fs.stat(destinationFsPath);
+		if (!destination.exists) return move();
+
+		confirmDelete({
+			title: `Replace "${draggedItem}"?`,
+			description: `${movedPath} already exists. Replacing it deletes ${
+				destination.isDirectory ? 'that folder and everything inside it' : 'the file that is there'
+			}.`,
+			confirm: { text: 'Replace' },
+			onConfirm: move
+		});
 	}
 
 	untrack(() => setFileTreeContext(container, root, handleDrop));

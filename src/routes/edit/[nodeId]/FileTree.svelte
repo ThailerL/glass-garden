@@ -3,7 +3,13 @@
 	import { draggable, droppable } from '@thisux/sveltednd';
 	import type { DirEnt } from '@vivari/core';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
-	import { createFile, createFolder, directoryListing } from '$lib/file-tree.svelte';
+	import {
+		createFile,
+		createFolder,
+		directoryListing,
+		isAtOrUnder,
+		rebase
+	} from '$lib/file-tree.svelte';
 	import { getFileTreeContext } from '$lib/file-tree-context.svelte';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
@@ -62,14 +68,24 @@
 		return newName.trim() !== '' && (!siblingNames.includes(newName) || newName === itemName);
 	}
 
-	function renameItem(newName: string) {
-		tree.container.fs
-			.rename(tree.fsPath(itemPath), tree.fsPath([...parentPath, newName]))
-			.then(() => refresh.bump());
+	async function renameItem(newName: string) {
+		const renamedPath = [...parentPath, newName];
+		await tree.container.fs.rename(tree.fsPath(itemPath), tree.fsPath(renamedPath));
+
+		// Drafts and the selection are keyed by path, so both follow the item that moved
+		fileDraftState.movePath(itemPath, renamedPath);
+		selectedFilePath = rebase(selectedFilePath, itemPath, renamedPath);
+		refresh.bump();
 	}
 
-	function deleteItem() {
-		tree.container.fs.rm(tree.fsPath(itemPath), { recursive: true }).then(() => refresh.bump());
+	async function deleteItem() {
+		await tree.container.fs.rm(tree.fsPath(itemPath), { recursive: true });
+
+		fileDraftState.discardPath(itemPath);
+		// The open file is this item or lives inside it, so the delete invalidates the selected
+		// path — which a save would otherwise write to, recreating what was just removed
+		if (isAtOrUnder(selectedFilePath.join('/'), itemKey)) selectedFilePath = [];
+		refresh.bump();
 	}
 </script>
 
