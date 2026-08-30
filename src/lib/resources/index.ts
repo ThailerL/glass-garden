@@ -1,14 +1,14 @@
 import type { Node } from '@xyflow/svelte';
 import type { Capability, ResourceDefinition, Upstream } from './types';
 import { instanceGroup } from './instance-group';
-import { loadBalancer } from './load-balancer';
+import { httpLoadBalancer } from './http-load-balancer';
 import { postgres } from './postgres';
 
 export * from './types';
 
 export const resourceDefinitions = {
 	instanceGroup,
-	loadBalancer,
+	httpLoadBalancer,
 	postgres
 } satisfies Record<string, ResourceDefinition>;
 

@@ -1,5 +1,5 @@
 {
-  "name": "load-balancer",
+  "name": "http-load-balancer",
   "type": "module",
   "scripts": {
     "start": "node server.js"

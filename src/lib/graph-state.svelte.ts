@@ -25,7 +25,7 @@ export class GraphState {
 	constructor() {
 		this.nodes = Object.keys(localStorage)
 			.filter((key) => key.startsWith('node:'))
-			.map((key) => this.#migrate(JSON.parse(localStorage[key])));
+			.map((key) => JSON.parse(localStorage[key]));
 		this.edges = Object.keys(localStorage)
 			.filter((key) => key.startsWith('edge:'))
 			.map((key) => JSON.parse(localStorage[key]));
@@ -80,14 +80,6 @@ export class GraphState {
 	setNodePorts(node: Node, ports: number[]) {
 		(node.data as NodeData).ports = ports;
 		this.setNodeInStorage(node);
-	}
-
-	// Nodes saved before config and ports were split kept the config at the top of data
-	#migrate(node: Node): Node {
-		if ('config' in node.data) return node;
-		const migrated = { ...node, data: { config: node.data, ports: [] } };
-		this.setNodeInStorage(migrated);
-		return migrated;
 	}
 
 	// Clones before clearing `selected` so persisted state doesn't affect the live node,

@@ -3,14 +3,14 @@ import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import NetworkIcon from '@lucide/svelte/icons/network';
 import * as resourceFiles from 'virtual:resource-files';
-import LoadBalancerConfig from './LoadBalancerConfig.svelte';
+import HttpLoadBalancerConfig from './HttpLoadBalancerConfig.svelte';
 import type { Upstream, ResourceDefinition } from '../types';
 import { upstreamsProviding } from '../index';
 import { processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
 
 const configSchema = z.object({
-	name: z.string().min(1).default('Load Balancer')
+	name: z.string().min(1).default('HTTP Load Balancer')
 });
 
 async function updateTargets(node: Node, container: Vivari, upstreams: readonly Upstream[]) {
@@ -25,15 +25,15 @@ async function updateTargets(node: Node, container: Vivari, upstreams: readonly 
 	);
 }
 
-export const loadBalancer = {
-	name: 'Load Balancer',
+export const httpLoadBalancer = {
+	name: 'HTTP Load Balancer',
 	icon: NetworkIcon,
-	files: resourceFiles.loadBalancer,
+	files: resourceFiles.httpLoadBalancer,
 	hasEditableFiles: false,
 	hasPreview: true,
 	provides: ['http'],
 	consumes: ['http'],
-	configComponent: LoadBalancerConfig,
+	configComponent: HttpLoadBalancerConfig,
 	configSchema,
 	instanceCount: () => 1,
 	start: async (node: Node, container: Vivari, port: number, upstreams: readonly Upstream[]) => {
