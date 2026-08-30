@@ -4,6 +4,9 @@
 		inputText = $state('');
 		options = $state<ConfirmDeleteOptions | null>(null);
 		loading = $state(false);
+		// Whether this confirmation has already had its answer, so a caller waiting on one
+		// hears exactly once however the dialog closed
+		#settled = false;
 
 		constructor() {
 			this.confirm = this.confirm.bind(this);
@@ -12,6 +15,7 @@
 
 		newConfirmation(options: ConfirmDeleteOptions) {
 			this.reset();
+			this.#settled = false;
 			this.options = options;
 			this.open = true;
 		}
@@ -30,6 +34,7 @@
 			}
 
 			this.loading = true;
+			this.#settled = true;
 			this.options
 				?.onConfirm()
 				.then(() => {
@@ -41,6 +46,8 @@
 		}
 
 		cancel() {
+			if (this.#settled) return;
+			this.#settled = true;
 			this.options?.onCancel?.();
 			this.open = false;
 		}
@@ -80,7 +87,13 @@
 	import { Input } from '$lib/components/ui/input';
 </script>
 
-<AlertDialog.Root bind:open={dialogState.open}>
+<!-- Escape closes the dialog without either button, which is still a decision not to delete -->
+<AlertDialog.Root
+	bind:open={dialogState.open}
+	onOpenChange={(open) => {
+		if (!open) dialogState.cancel();
+	}}
+>
 	<AlertDialog.Content>
 		<form
 			method="POST"

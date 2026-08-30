@@ -9,16 +9,23 @@
 		useOnSelectionChange,
 		type Edge,
 		type OnDelete,
+		type OnBeforeDelete,
 		type NodeTargetEventWithPointer,
 		type OnConnect,
 		type IsValidConnection
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import { canConnect, resourceDefinitions, type ResourceType } from '$lib/resources';
+	import {
+		canConnect,
+		getResourceDefinition,
+		resourceDefinitions,
+		type ResourceType
+	} from '$lib/resources';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import ResourceNode from './ResourceNode.svelte';
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
-	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import OrchestratorControls from './OrchestratorControls.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
@@ -40,6 +47,26 @@
 	const nodeTypes = Object.fromEntries(
 		Object.keys(resourceDefinitions).map((resource) => [resource, ResourceNode])
 	);
+
+	// A node's directory goes with it, so the resources holding anything worth keeping ask
+	// before the graph has parted with them
+	const onBeforeDelete: OnBeforeDelete = ({ nodes }) => {
+		const withContents = nodes.filter((node) => {
+			const { ownsStoredData, hasEditableFiles } = getResourceDefinition(node.type);
+			return ownsStoredData || hasEditableFiles;
+		});
+		if (withContents.length === 0) return Promise.resolve(true);
+
+		const names = withContents.map((node) => nodeConfig<{ name: string }>(node).name);
+		return new Promise((resolve) => {
+			confirmDelete({
+				title: nodes.length === 1 ? `Delete "${names[0]}"?` : `Delete ${nodes.length} resources?`,
+				description: `The files and data in ${names.join(', ')} are deleted too, and cannot be recovered.`,
+				onConfirm: async () => resolve(true),
+				onCancel: () => resolve(false)
+			});
+		});
+	};
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
 		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
@@ -118,6 +145,7 @@
 			bind:nodes={graphState.nodes}
 			bind:edges={graphState.edges}
 			{nodeTypes}
+			onbeforedelete={onBeforeDelete}
 			ondelete={onDelete}
 			onnodedragstop={onNodeDragStop}
 			onconnect={onConnect}

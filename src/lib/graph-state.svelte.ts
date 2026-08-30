@@ -1,7 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
-import { getResourceDefinition, type ResourceType } from './resources';
+import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
 
 export type NodeData = {
 	config: Record<string, unknown>;
@@ -18,25 +18,50 @@ export function nodePorts(node: Node): readonly number[] {
 	return (node.data as NodeData).ports;
 }
 
+// Loading runs in the root layout, so anything thrown here costs the whole canvas rather
+// than the entry that caused it. An unreadable one is skipped and left in storage
+function readStored<T>(prefix: string): T[] {
+	return Object.keys(localStorage)
+		.filter((key) => key.startsWith(prefix))
+		.flatMap((key) => {
+			try {
+				return [JSON.parse(localStorage[key]) as T];
+			} catch {
+				return [];
+			}
+		});
+}
+
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
 
 	constructor() {
-		this.nodes = Object.keys(localStorage)
-			.filter((key) => key.startsWith('node:'))
-			.map((key) => this.#loadNode(JSON.parse(localStorage[key])));
-		this.edges = Object.keys(localStorage)
-			.filter((key) => key.startsWith('edge:'))
-			.map((key) => JSON.parse(localStorage[key]));
+		this.nodes = readStored<Node>('node:').flatMap((node) => this.#loadNode(node) ?? []);
+		// An edge to a node that did not load points at nothing, and the canvas would draw it
+		// into empty space
+		this.edges = readStored<Edge>('edge:').filter(
+			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
+		);
+	}
+
+	#hasNode(id: string) {
+		return this.nodes.some((node) => node.id === id);
 	}
 
 	// A stored config was written against whatever schema its resource had at the time, so it
 	// is parsed again on load. An option added since then arrives at its default and unused
-	// options are pruned
-	#loadNode(node: Node): Node {
+	// options are pruned. A resource type that no longer exists takes its node with it
+	#loadNode(node: Node): Node | undefined {
+		const definition = resourceDefinitions[node.type as ResourceType];
+		if (!definition || !node.data) return undefined;
+
 		const data = node.data as NodeData;
-		data.config = getResourceDefinition(node.type).configSchema.parse(data.config);
+		// Falls back to the schema's own defaults, so a config the schema has since outgrown
+		// costs its settings rather than the node
+		const parsed = definition.configSchema.safeParse(data.config);
+		data.config = parsed.success ? parsed.data : definition.configSchema.parse({});
+		data.ports ??= [];
 		return node;
 	}
 

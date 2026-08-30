@@ -14,6 +14,7 @@
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import * as Rename from '$lib/components/ui/rename';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import FileTree from './FileTree.svelte';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
@@ -76,6 +77,16 @@
 		fileDraftState.movePath(itemPath, renamedPath);
 		selectedFilePath = rebase(selectedFilePath, itemPath, renamedPath);
 		refresh.bump();
+	}
+
+	function confirmDeleteItem() {
+		confirmDelete({
+			title: `Delete "${itemName}"?`,
+			description: entry.isDirectory()
+				? 'Deletes this folder and everything inside it.'
+				: 'Deletes this file.',
+			onConfirm: deleteItem
+		});
 	}
 
 	async function deleteItem() {
@@ -154,7 +165,7 @@
 							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>
 						{/snippet}
 					</Rename.Edit>
-					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
+					<ContextMenu.Item onSelect={confirmDeleteItem}>Delete</ContextMenu.Item>
 				</ContextMenu.Content>
 			</ContextMenu.Root>
 		</Rename.Provider>
@@ -209,7 +220,7 @@
 							<ContextMenu.Item onSelect={edit}>Rename</ContextMenu.Item>
 						{/snippet}
 					</Rename.Edit>
-					<ContextMenu.Item onSelect={deleteItem}>Delete</ContextMenu.Item>
+					<ContextMenu.Item onSelect={confirmDeleteItem}>Delete</ContextMenu.Item>
 				</ContextMenu.Content>
 			</ContextMenu.Root>
 		</Rename.Provider>

@@ -38,6 +38,7 @@ export const httpLoadBalancer = {
 	files: resourceFiles.httpLoadBalancer,
 	hasEditableFiles: false,
 	hasPreview: true,
+	ownsStoredData: false,
 	provides: ['http'],
 	consumes: ['http'],
 	configComponent: HttpLoadBalancerConfig,

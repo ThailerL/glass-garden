@@ -69,6 +69,9 @@ export type ResourceDefinition = {
 	// Whether instances serve something a browser can render. A resource speaking a
 	// client protocol still gets a preview URL from server-ready, but nothing answers on it
 	hasPreview: boolean;
+	// Whether the node's directory holds data the user would miss. Deleting the node deletes
+	// it, so these are the resources that ask first
+	ownsStoredData: boolean;
 	// Also what the node's handles are drawn from, one per direction rather than one per
 	// capability: a non-empty provides earns the target handle, a non-empty consumes the source
 	provides: Capability[];

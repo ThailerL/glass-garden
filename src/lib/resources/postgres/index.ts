@@ -29,6 +29,7 @@ export const postgres = {
 	files: resourceFiles.postgres,
 	hasEditableFiles: false,
 	hasPreview: false,
+	ownsStoredData: true,
 	provides: ['sql'],
 	consumes: [],
 	configComponent: PostgresConfig,

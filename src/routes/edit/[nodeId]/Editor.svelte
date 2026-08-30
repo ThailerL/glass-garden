@@ -30,7 +30,7 @@
 
 	let selectedFilePath = $state<string[]>([]);
 
-	setFileDraftState();
+	setFileDraftState(root);
 	const refresh = setFileRefresh();
 
 	const container = await getContainer();

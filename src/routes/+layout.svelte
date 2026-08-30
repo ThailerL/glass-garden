@@ -5,6 +5,7 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import favicon from '$lib/assets/favicon.svg';
 	import { setGraphState } from '$lib/graph-state.svelte';
+	import { anyDraftsDirty } from '$lib/file-draft-state.svelte';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import type { LayoutProps } from './$types';
@@ -17,7 +18,19 @@
 	const orchestrator = setOrchestrator(graphState);
 
 	orchestrator.warmUp();
+
+	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a
+	// node the user has since navigated away from is still unsaved. The browser writes the
+	// wording itself, and cancelling the event is the whole message
+	function warnAboutUnsaved(event: BeforeUnloadEvent) {
+		if (!anyDraftsDirty()) return;
+		event.preventDefault();
+		// Firefox takes the hint from returnValue rather than the cancellation
+		event.returnValue = true;
+	}
 </script>
+
+<svelte:window onbeforeunload={warnAboutUnsaved} />
 
 <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
 <!-- One instance for the whole app; confirmDelete() drives it from anywhere -->
