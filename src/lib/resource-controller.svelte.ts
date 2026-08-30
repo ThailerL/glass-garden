@@ -94,6 +94,14 @@ export class ResourceController {
 	#deployments = 0;
 	// The deployment that last spent from the budget, so it is charged only once
 	#lastFailedDeployment = 0;
+	// The launch config that has already interrupted the user, so a broken one is news once
+	// however many instances it takes down and however often it is redeployed
+	#toastedStamp: string | undefined;
+	// Whether the last update failed, so a resource that cannot be reconfigured interrupts
+	// on the way into that state rather than on every pass it stays in it
+	#updateFailed = false;
+	// The same, for kills that don't land: stopping a whole pool of them is one complaint
+	#stopFailed = false;
 	// The newest crash, which the restart delay runs from
 	#lastCrashAt = 0;
 	#restartTimer: ReturnType<typeof setTimeout> | undefined;
@@ -143,6 +151,8 @@ export class ResourceController {
 		this.#failedDeployments = 0;
 		// Asked for explicitly, so it does not sit out the delay of an earlier crash
 		this.#lastCrashAt = 0;
+		// Retrying unchanged config is worth an answer, even if it is the same failure
+		this.#toastedStamp = undefined;
 		this.#cancelRestart();
 		this.wantsRunning = true;
 		this.schedule();
@@ -170,9 +180,10 @@ export class ResourceController {
 		this.#converging = true;
 		this.#converge()
 			// The pass is abandoned where it stopped, so nothing moves until the next trigger
-			.catch((e) =>
-				this.#logEvent('resource', 'error', `Failed to reconcile, left as is: ${messageOf(e)}`)
-			)
+			.catch((e) => {
+				toast.error(`${this.#nodeName()} stopped applying changes`);
+				this.#logEvent('resource', 'error', `Failed to apply changes, left as is: ${messageOf(e)}`);
+			})
 			.finally(() => (this.#converging = false));
 	}
 
@@ -244,8 +255,13 @@ export class ResourceController {
 					await this.#services.getContainer(),
 					this.#services.getUpstreams()
 				);
+				this.#updateFailed = false;
 			} catch (e) {
 				// A resource that can't be reconfigured keeps its old config
+				if (!this.#updateFailed) {
+					toast.error(`${this.#nodeName()} could not be reconfigured`);
+				}
+				this.#updateFailed = true;
 				this.#logEvent('resource', 'error', `Failed to update: ${messageOf(e)}`);
 			}
 		}
@@ -290,7 +306,8 @@ export class ResourceController {
 			// Only group-wide failures land here (boot, mount, npm install) - per-instance
 			// failures are recorded inside #spawnInstance
 			for (const instance of pending) instance.status = 'crashed';
-			this.#logEvent('resource', 'error', `Failed to prepare: ${messageOf(e)}`);
+			this.#toastOnce(launch.stamp, `${this.#nodeName()} could not be set up`);
+			this.#logEvent('resource', 'error', `Failed to set up: ${messageOf(e)}`);
 		}
 	}
 
@@ -323,11 +340,13 @@ export class ResourceController {
 					// A stop is waiting on the same rejection and reports it as a failed kill
 					if (instance.status === 'stopping') return;
 					instance.status = 'unresponsive';
-					this.#logEvent(instance.port, 'error', `Lost track of instance: ${messageOf(e)}`);
+					toast.error(`Lost contact with an instance of ${this.#nodeName()}`);
+					this.#logEvent(instance.port, 'error', `Lost contact with instance: ${messageOf(e)}`);
 				}
 			);
 		} catch (e) {
 			instance.status = 'crashed';
+			this.#toastOnce(instance.configStamp, `${this.#nodeName()} could not be started`);
 			this.#logEvent(instance.port, 'error', `Instance failed to start: ${messageOf(e)}`);
 		}
 	}
@@ -353,17 +372,18 @@ export class ResourceController {
 
 		const capped = this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
 		if (firstOfDeployment && capped) {
-			this.#logEvent(
-				'resource',
-				'error',
-				'Deployments keep crashing before coming up — restarts paused'
-			);
+			this.#logEvent('resource', 'error', 'Keeps crashing before coming up — restarts paused');
 			if (this.wantsRunning) {
-				toast.error(`${this.#nodeName()} is crash-looping — restarts paused`);
+				toast.error(`${this.#nodeName()} keeps crashing — restarts paused`);
 			}
-		} else if (this.wantsRunning && !capped && (!neverRan || firstOfDeployment)) {
-			// Only the first crash of a deployment toasts; later ones stay in the log
-			toast.warning(`Instance of ${this.#nodeName()} crashed — restarting`);
+		} else if (this.wantsRunning && !capped) {
+			// A config that has already said it cannot come up stays in the log. One that was
+			// running until now cleared the latch when it came up, so it still interrupts
+			this.#toastOnce(
+				instance.configStamp,
+				`Instance of ${this.#nodeName()} crashed — restarting`,
+				'warning'
+			);
 		}
 		this.schedule();
 	}
@@ -391,8 +411,11 @@ export class ResourceController {
 			instance.status = 'stopping';
 			try {
 				await handle.stop();
+				this.#stopFailed = false;
 			} catch (e) {
 				instance.status = 'unresponsive';
+				if (!this.#stopFailed) toast.error(`${this.#nodeName()} would not stop`);
+				this.#stopFailed = true;
 				this.#logEvent(instance.port, 'error', `Instance failed to stop: ${messageOf(e)}`);
 				return;
 			}
@@ -410,8 +433,10 @@ export class ResourceController {
 		instance.previewUrl = url;
 		if (instance.status === 'starting') {
 			instance.status = 'running';
-			// An instance coming fully up is proof the config can run
+			// An instance coming fully up is proof the config can run, so a later failure of
+			// the same config is news again
 			this.#failedDeployments = 0;
+			this.#toastedStamp = undefined;
 			this.#logEvent(port, 'info', 'Instance running');
 			this.schedule();
 		}
@@ -462,5 +487,14 @@ export class ResourceController {
 	#logEvent(source: LogSource, level: ResourceEvent['level'], text: string) {
 		this.events.push({ kind: 'event', time: Date.now(), source, level, text });
 		if (this.events.length > MAX_EVENTS) this.events.shift();
+	}
+
+	// Interrupts once per launch config: the same broken one reaching every instance, and
+	// every redeployment of it, is one piece of news. Editing the config makes the next
+	// failure new again, and the log keeps the ones swallowed here
+	#toastOnce(stamp: string, message: string, level: 'error' | 'warning' = 'error') {
+		if (this.#toastedStamp === stamp) return;
+		this.#toastedStamp = stamp;
+		toast[level](message);
 	}
 }
