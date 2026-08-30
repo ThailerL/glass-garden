@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Handle, type NodeProps } from '@xyflow/svelte';
+	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
@@ -48,6 +48,9 @@
 	{name}
 </span>
 <definition.icon class="h-full w-full" />
-{#each definition.handles as handle (handle.type)}
-	<Handle type={handle.type} position={handle.position} />
-{/each}
+{#if definition.provides.length > 0}
+	<Handle type="target" position={Position.Left} />
+{/if}
+{#if definition.consumes.length > 0}
+	<Handle type="source" position={Position.Right} />
+{/if}

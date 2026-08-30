@@ -10,10 +10,11 @@
 		type Edge,
 		type OnDelete,
 		type NodeTargetEventWithPointer,
-		type OnConnect
+		type OnConnect,
+		type IsValidConnection
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
-	import { resourceDefinitions, type ResourceType } from '$lib/resources';
+	import { canConnect, resourceDefinitions, type ResourceType } from '$lib/resources';
 	import ResourceNode from './ResourceNode.svelte';
 	import ResourceSidebar from './ResourceSidebar.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
@@ -81,6 +82,12 @@
 		if (targetNode) graphState.setNodeInStorage(targetNode);
 	};
 
+	const isValidConnection: IsValidConnection = ({ source, target }) => {
+		const sourceNode = graphState.getNode(source);
+		const targetNode = graphState.getNode(target);
+		return !!sourceNode && !!targetNode && canConnect(sourceNode, targetNode);
+	};
+
 	const onConnect: OnConnect = (connection) => {
 		const edge = graphState.edges.find(
 			(edge) =>
@@ -114,6 +121,7 @@
 			ondelete={onDelete}
 			onnodedragstop={onNodeDragStop}
 			onconnect={onConnect}
+			{isValidConnection}
 			defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
 			fitView
 			colorMode="system"

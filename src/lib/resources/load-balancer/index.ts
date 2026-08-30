@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { Position, type Node } from '@xyflow/svelte';
+import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import NetworkIcon from '@lucide/svelte/icons/network';
 import * as resourceFiles from 'virtual:resource-files';
 import LoadBalancerConfig from './LoadBalancerConfig.svelte';
-import type { Upstream, NodeHandleConfig, ResourceDefinition } from '../types';
+import type { Upstream, ResourceDefinition } from '../types';
+import { upstreamsProviding } from '../index';
 import { processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
 
@@ -13,7 +14,7 @@ const configSchema = z.object({
 });
 
 async function updateTargets(node: Node, container: Vivari, upstreams: readonly Upstream[]) {
-	const upstreamPorts = upstreams.flatMap(({ instances }) =>
+	const upstreamPorts = upstreamsProviding(upstreams, 'http').flatMap(({ instances }) =>
 		instances.filter((instance) => instance.status === 'running').map((instance) => instance.port)
 	);
 	// An update can reach a load balancer whose start has not mounted it yet
@@ -30,10 +31,8 @@ export const loadBalancer = {
 	files: resourceFiles.loadBalancer,
 	hasEditableFiles: false,
 	hasPreview: true,
-	handles: [
-		{ type: 'target', position: Position.Left },
-		{ type: 'source', position: Position.Right }
-	] satisfies NodeHandleConfig[],
+	provides: ['http'],
+	consumes: ['http'],
 	configComponent: LoadBalancerConfig,
 	configSchema,
 	instanceCount: () => 1,

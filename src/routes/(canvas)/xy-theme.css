@@ -127,6 +127,12 @@
 	border-color: var(--xy-theme-edge-hover);
 }
 
+/* Must stay after the connectionindicator:hover rule, which sets a background at the same
+   specificity */
+.svelte-flow .svelte-flow__handle.connectingto:not(.valid) {
+	background: #ff6060;
+}
+
 .svelte-flow__node:has(.svelte-flow__resize-control.line) {
 	border-radius: 0;
 }

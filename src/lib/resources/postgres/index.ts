@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { Position, type Node } from '@xyflow/svelte';
+import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import DatabaseIcon from '@lucide/svelte/icons/database';
 import * as resourceFiles from 'virtual:resource-files';
 import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
-import type { Capture, NodeHandleConfig, ResourceDefinition, Upstream } from '../types';
+import type { Capture, ResourceDefinition, Upstream } from '../types';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory, requestPersistentStorage } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -29,7 +29,8 @@ export const postgres = {
 	files: resourceFiles.postgres,
 	hasEditableFiles: false,
 	hasPreview: false,
-	handles: [{ type: 'target', position: Position.Left }] satisfies NodeHandleConfig[],
+	provides: ['sql'],
+	consumes: [],
 	configComponent: PostgresConfig,
 	configSchema,
 	// PGlite is single-writer, so a second instance would be a second database

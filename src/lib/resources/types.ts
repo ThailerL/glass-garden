@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import type { Component } from 'svelte';
 import { Vivari, type FileSystemTree } from '@vivari/core';
-import { Position, type Node } from '@xyflow/svelte';
+import { type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
 
-// Where xyflow connection handles sit on the node
-export type NodeHandleConfig = { type: 'source' | 'target'; position: Position };
+// What a resource offers its dependents and what it needs from them. An edge is legal when
+// its source consumes something its target provides
+export type Capability = 'http' | 'sql';
 
 // Returned by a definition's start so the orchestrator can manage an instance's
 // lifecycle without touching whatever the definition actually launched
@@ -68,7 +69,10 @@ export type ResourceDefinition = {
 	// Whether instances serve something a browser can render. A resource speaking a
 	// client protocol still gets a preview URL from server-ready, but nothing answers on it
 	hasPreview: boolean;
-	handles: NodeHandleConfig[];
+	// Also what the node's handles are drawn from, one per direction rather than one per
+	// capability: a non-empty provides earns the target handle, a non-empty consumes the source
+	provides: Capability[];
+	consumes: Capability[];
 	configComponent: Component<{ form: unknown; nodeId: string }>;
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;

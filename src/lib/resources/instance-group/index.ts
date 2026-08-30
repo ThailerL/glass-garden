@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { Position, type Node } from '@xyflow/svelte';
+import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import ServerIcon from '@lucide/svelte/icons/server';
 import * as resourceFiles from 'virtual:resource-files';
 import InstanceGroupConfig from './InstanceGroupConfig.svelte';
-import type { NodeHandleConfig, ResourceDefinition, Upstream } from '../types';
-import { getResourceDefinition } from '../index';
+import type { ResourceDefinition, Upstream } from '../types';
+import { getResourceDefinition, upstreamsProviding } from '../index';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -40,7 +40,7 @@ function variableName(node: Node) {
 // wired to several datastores gets meaningful names. Sorted so the set - and with it the
 // configStamp - never depends on edge insertion order
 function connectionEnv(upstreams: readonly Upstream[]): Record<string, string> {
-	const connections = upstreams
+	const connections = upstreamsProviding(upstreams, 'sql')
 		.flatMap(({ node, reservedPorts }) => {
 			const { connectionUrl } = getResourceDefinition(node.type);
 			// Not a live instance's port, so the stamp survives the upstream restarting
@@ -79,10 +79,8 @@ export const instanceGroup = {
 	files: resourceFiles.instanceGroup,
 	hasEditableFiles: true,
 	hasPreview: true,
-	handles: [
-		{ type: 'target', position: Position.Left },
-		{ type: 'source', position: Position.Right }
-	] satisfies NodeHandleConfig[],
+	provides: ['http'],
+	consumes: ['sql'],
 	configComponent: InstanceGroupConfig,
 	configSchema,
 	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,
