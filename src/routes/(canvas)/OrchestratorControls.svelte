@@ -49,7 +49,9 @@
 			<span class="capitalize">{status}</span>
 		{:else}
 			<Spinner class="size-3 text-muted-foreground" />
-			<span class="text-muted-foreground">Booting</span>
+			<span class="text-muted-foreground">
+				{orchestrator.restoringStoredData ? 'Restoring database files' : 'Booting'}
+			</span>
 		{/if}
 	</div>
 

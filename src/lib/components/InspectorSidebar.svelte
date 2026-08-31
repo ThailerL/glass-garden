@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { cn } from '$lib/utils';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
 	import { Button } from '$lib/components/ui/button';
@@ -12,7 +14,7 @@
 	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
-	import { inspectorTab } from '$lib/inspector-tab.svelte';
+	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import ConfigTab from './ConfigTab.svelte';
@@ -20,6 +22,12 @@
 	import LogsTab from './LogsTab.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
+
+	const swappedNode = untrack(() => {
+		const previous = inspectorState.shownNodeId;
+		inspectorState.shownNodeId = nodeId;
+		return previous !== undefined && previous !== nodeId;
+	});
 	const orchestrator = getOrchestrator();
 	const graphState = getGraphState();
 
@@ -37,14 +45,15 @@
 	// Preview is the one tab a node can lack, so a resource without one falls back rather
 	// than showing an empty panel for a tab it never rendered
 	$effect(() => {
-		if (inspectorTab.value === 'preview' && !definition?.hasPreview) inspectorTab.value = 'config';
+		if (inspectorState.tab === 'preview' && !definition?.hasPreview) inspectorState.tab = 'config';
 	});
 </script>
 
-<!-- Rebuilt whenever the selection moves, and a panel replaced in place reads as one
-that never changed, so the rebuild is given something the eye can catch -->
-<Sidebar.Root side="right" collapsible="none" class="w-full! animate-in duration-150 fade-in">
-	<!-- Which resource is being inspected, so the panel still says whose it is -->
+<Sidebar.Root
+	side="right"
+	collapsible="none"
+	class={cn('w-full!', swappedNode && 'animate-in duration-150 fade-in')}
+>
 	{#if definition}
 		<Sidebar.Header class="flex-row items-center gap-2 px-3 pt-3 pb-1">
 			<definition.icon class="size-5 shrink-0" />
@@ -54,7 +63,7 @@ that never changed, so the rebuild is given something the eye can catch -->
 	<Sidebar.Content>
 		<Sidebar.Group class="h-full">
 			<Sidebar.GroupContent class="h-full">
-				<UnderlineTabs.Root bind:value={inspectorTab.value} class="h-full">
+				<UnderlineTabs.Root bind:value={inspectorState.tab} class="h-full">
 					<UnderlineTabs.List>
 						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
 						{#if definition?.hasPreview}

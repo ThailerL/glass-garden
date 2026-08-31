@@ -3,7 +3,7 @@
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
-	import { inspectorTab } from '$lib/inspector-tab.svelte';
+	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { tour, NUMBERED_STEPS, type TourStep } from '$lib/tour.svelte';
 
 	const graphState = getGraphState();
@@ -36,22 +36,17 @@
 		}
 	};
 
-	// Said once Run has been pressed, while the instances are still coming up. The step asks
-	// for nothing more, so it says so rather than leaving the user hunting for the next thing
 	const WAITING = {
 		title: 'Starting up',
 		body: 'Give the app a moment to start. This will move on as soon as every dot is green.'
 	};
 
-	// Replaces the refresh step's opening line once a refresh has landed. Which instance
-	// answered is only known inside the page itself, so this points at it rather than
-	// naming a port the app never sees
+	// Replaces the refresh step's opening line once a the user has refreshed
 	const REFRESHED = 'Look at the port on the page, it moves on to the next instance every time.';
 
 	const CARD_WIDTH = 300;
-	// Between the highlight and the card, and between the card and the window
-	const GAP = 14;
-	const EDGE = 12;
+	const HIGHLIGHT_GAP = 14;
+	const WINDOW_EDGE_GAP = 12;
 
 	function clamp(value: number, min: number, max: number) {
 		return Math.min(Math.max(value, min), max);
@@ -64,8 +59,6 @@
 		return a.top === b.top && a.left === b.left && a.width === b.width && a.height === b.height;
 	}
 
-	// The canvas keeps the selection on the nodes themselves, and the middle steps ask for one
-	// node and no more
 	const selectedNodeId = $derived.by(() => {
 		const selected = graphState.nodes.filter((node) => node.selected);
 		return selected.length === 1 ? selected[0].id : undefined;
@@ -76,8 +69,7 @@
 			graphState.nodes.every((node) => orchestrator.getStatus(node.id) === 'running')
 	);
 
-	// The half of the run step that comes after the press. Stopping again drops out of it,
-	// which puts the step back to asking for a press
+	// The half of the run step that comes after the press
 	const waiting = $derived(
 		!everythingRunning &&
 			graphState.nodes.some((node) => {
@@ -87,9 +79,6 @@
 	);
 
 	const wholeControls = $derived(tour.step === 'run' && waiting);
-
-	// Dimming is there to isolate something worth pressing. The wait after Run has nothing to
-	// press, and the closing pointer is advice rather than a step, so both give the canvas back
 	const dimmed = $derived(!wholeControls && tour.step !== 'edit');
 
 	// Both halves of the tour widen once the user has acted: the thing they pressed stays
@@ -123,11 +112,9 @@
 	});
 
 	let target = $state<Box | undefined>();
-	// Measured rather than assumed, so the beak stays on the card whatever the text runs to
-	let cardHeight = $state(0);
+	let measuredCardHeight = $state(0);
 
-	// Measured every frame rather than on resize: the canvas pans and zooms under the
-	// highlight, and the panel the last two steps point at can be dragged wider
+	// Measure overlay every frame
 	$effect(() => {
 		if (!selector) {
 			target = undefined;
@@ -186,24 +173,27 @@
 		if (beside) {
 			// The edit button sits at the foot of the panel, so the card is held clear of the
 			// bottom of the window rather than hanging off it
-			const lowest = Math.max(EDGE, window.innerHeight - cardHeight - EDGE);
-			const top = clamp(spot.top - 12, EDGE, lowest);
+			const lowest = Math.max(
+				WINDOW_EDGE_GAP,
+				window.innerHeight - measuredCardHeight - WINDOW_EDGE_GAP
+			);
+			const top = clamp(spot.top - 12, WINDOW_EDGE_GAP, lowest);
 			return {
 				top,
-				left: Math.max(EDGE, spot.left - GAP - CARD_WIDTH),
+				left: Math.max(WINDOW_EDGE_GAP, spot.left - HIGHLIGHT_GAP - CARD_WIDTH),
 				beak: 'right' as const,
 				// A highlight taller than the card would otherwise put the beak off its end
-				offset: clamp(spot.top + spot.height / 2 - top, 18, Math.max(18, cardHeight - 18))
+				offset: clamp(spot.top + spot.height / 2 - top, 18, Math.max(18, measuredCardHeight - 18))
 			};
 		}
 
 		const left = clamp(
 			spot.left + spot.width / 2 - CARD_WIDTH / 2,
-			EDGE,
-			window.innerWidth - CARD_WIDTH - EDGE
+			WINDOW_EDGE_GAP,
+			window.innerWidth - CARD_WIDTH - WINDOW_EDGE_GAP
 		);
 		return {
-			top: spot.top + spot.height + GAP,
+			top: spot.top + spot.height + HIGHLIGHT_GAP,
 			left,
 			beak: 'up' as const,
 			offset: clamp(spot.left + spot.width / 2 - left, 18, CARD_WIDTH - 18)
@@ -221,16 +211,14 @@
 	$effect(() => {
 		if (everythingRunning) tour.completed('run');
 		if (selectedNodeId === tour.balancerId) tour.completed('select');
-		if (selectedNodeId === tour.balancerId && inspectorTab.value === 'preview') {
+		if (selectedNodeId === tour.balancerId && inspectorState.tab === 'preview') {
 			tour.completed('preview');
 		}
 	});
 
 	let cardEl = $state<HTMLElement>();
 
-	// The closing pair are notes rather than steps: they wait for nothing, so anything else
-	// the user reaches for puts them away — the button the last one points at included,
-	// which opens the editor on the very same click
+	// The closing pair are notes rather than steps, so close them if the user clicks away
 	$effect(() => {
 		if (tour.step !== 'done' && tour.step !== 'edit') return;
 
@@ -246,8 +234,6 @@
 		graphState.nodes.find((node) => getResourceDefinition(node.type).hasEditableFiles)?.id
 	);
 
-	// Selecting the resource rather than opening it: the canvas stays put, one thing changes,
-	// and the trip to the editor is the reader's own click on a button they have been shown
 	function selectAndPointAtCode(nodeId: string) {
 		graphState.select(nodeId);
 		tour.completed('done');
@@ -272,7 +258,7 @@
 	against, so they take the middle of the window and let the canvas come back around them -->
 	<div
 		bind:this={cardEl}
-		bind:clientHeight={cardHeight}
+		bind:clientHeight={measuredCardHeight}
 		class="fixed z-61 flex flex-col gap-2 rounded-lg border bg-popover p-4
            text-popover-foreground shadow-lg {card
 			? 'w-75'

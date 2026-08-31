@@ -6,10 +6,13 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
+	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import { nodeFiles } from '$lib/node-files';
 
 	const { params }: PageProps = $props();
+
+	const orchestrator = getOrchestrator();
 
 	const nodeId = untrack(() => params.nodeId);
 	// Undefined when the id in the URL isn't a real node
@@ -46,7 +49,7 @@ rendered either side of the boundary and stays in view for the whole wait -->
 			{#snippet mainContent()}
 				<div class="flex h-full items-center justify-center gap-2 text-muted-foreground">
 					<Spinner />
-					Booting the container
+					{orchestrator.restoringStoredData ? 'Restoring database files' : 'Booting the container'}
 				</div>
 			{/snippet}
 

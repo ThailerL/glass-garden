@@ -26,7 +26,6 @@
 		}
 	});
 
-	// Opening the new project is the caller's job, so switching lives in one place
 	function create(event: SubmitEvent) {
 		event.preventDefault();
 		onCreated(createProject(name.trim(), templateId));

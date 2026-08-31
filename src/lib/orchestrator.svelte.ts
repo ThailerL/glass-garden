@@ -3,7 +3,7 @@ import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
-import { GraphState, nodePorts } from './graph-state.svelte';
+import { anyStoredDataNodes, GraphState, nodePorts } from './graph-state.svelte';
 import {
 	getResourceDefinition,
 	type Instance,
@@ -22,6 +22,9 @@ import { getContainer, removeNodeFiles, shutdownContainer } from './container';
 const MIN_PORT = 1024;
 const MAX_PORT = 49151;
 
+// How long a boot may take before the wait is named rather than left as a bare spinner
+const SLOW_BOOT_MS = 1500;
+
 // Registry of one ResourceController per node, plus the cross-node concerns the
 // controllers share: the container, port uniqueness and dependent wiring
 export class Orchestrator {
@@ -29,9 +32,10 @@ export class Orchestrator {
 	#controllers = new SvelteMap<string, ResourceController>();
 	#containerPromise: Promise<Vivari> | undefined;
 	#containerReady = $state(false);
-	// Why the boot failed, if it did. A failed boot never becomes ready, so without this the
-	// UI has nothing to move on from
 	#containerError = $state<string | undefined>();
+	// Whether this boot has passed SLOW_BOOT_MS
+	#slowBoot = $state(false);
+	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
@@ -45,20 +49,24 @@ export class Orchestrator {
 		return this.#containerError;
 	}
 
+	// A slow boot is a restore of the files on disk, and a database is almost always what
+	// makes it slow, so a canvas with one can say so
+	get restoringStoredData(): boolean {
+		return this.#slowBoot && !this.#containerReady && anyStoredDataNodes();
+	}
+
 	warmUp() {
 		// No node owns this failure, and nothing can run without it, so it is said once here
 		// rather than waiting for the first start to report it as a failed prepare
 		void this.#getContainer().catch(() => toast.error('Container failed to boot'));
 	}
 
-	// Switching projects: dropping the VM takes every running process with it, and a fresh
-	// one boots for the new graph. Controllers are discarded rather than forgotten, so the
-	// project being left keeps its files
 	reset() {
 		this.#controllers.clear();
 		this.#containerPromise = undefined;
 		this.#containerReady = false;
 		this.#containerError = undefined;
+		this.#endBootWatch();
 		shutdownContainer();
 		this.warmUp();
 	}
@@ -196,6 +204,7 @@ export class Orchestrator {
 	}
 
 	#getContainer() {
+		this.#slowBootTimer ??= setTimeout(() => (this.#slowBoot = true), SLOW_BOOT_MS);
 		this.#containerPromise ??= getContainer().then(
 			(container) => {
 				container.on('server-ready', (port, url) => {
@@ -204,16 +213,24 @@ export class Orchestrator {
 					}
 				});
 				this.#containerReady = true;
+				this.#endBootWatch();
 				return container;
 			},
 			(error) => {
 				// Recorded wherever the boot was triggered from, then rethrown so whoever asked
 				// still fails and logs it against their own node
 				this.#containerError = error instanceof Error ? error.message : String(error);
+				this.#endBootWatch();
 				throw error;
 			}
 		);
 		return this.#containerPromise;
+	}
+
+	#endBootWatch() {
+		clearTimeout(this.#slowBootTimer);
+		this.#slowBootTimer = undefined;
+		this.#slowBoot = false;
 	}
 
 	// Reservations are exclusive, so the only thing a new instance has to avoid is the

@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { type Edge, type Node } from '@xyflow/svelte';
+import { type Edge, type Node, type Viewport } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
 import { requestPersistentStorage } from './container';
@@ -43,9 +43,31 @@ export function graphKeyPrefix(projectId: string) {
 	return `${GRAPH_PREFIX}${projectId}:`;
 }
 
+// Every project's nodes share one VFS, so a boot restores all of them and not just the graph
+// on screen: a database left in a project the reader is not looking at is still what the wait
+// is spent on. Read from storage rather than a GraphState for the same reason
+export function anyStoredDataNodes(): boolean {
+	return Object.keys(localStorage).some((key) => {
+		if (!key.startsWith(GRAPH_PREFIX) || !key.includes(':node:')) return false;
+		try {
+			const { type } = JSON.parse(localStorage[key]) as Node;
+			return resourceDefinitions[type as ResourceType]?.ownsStoredData ?? false;
+		} catch {
+			return false;
+		}
+	});
+}
+
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
+	// Where the canvas was left, so a trip to the editor and back does not fit the view afresh
+	// over wherever the reader had panned. Undefined until the first move, which is what still
+	// lets a graph open on a fitted view
+	viewport = $state.raw<Viewport | undefined>(undefined);
+	// Which node the canvas had selected. Selection otherwise lives on the nodes, but the flow
+	// unselects everything as it unmounts and that lands in `nodes`, so the id is kept apart
+	selectedNodeId = $state<string | undefined>(undefined);
 	projectId = $state('');
 	#prefix = '';
 
@@ -55,6 +77,9 @@ export class GraphState {
 
 	switchTo(projectId: string) {
 		this.projectId = projectId;
+		// Another project's graph is somewhere else entirely, so it starts fitted and unselected
+		this.viewport = undefined;
+		this.selectedNodeId = undefined;
 		this.#prefix = graphKeyPrefix(projectId);
 		this.nodes = readStored<Node>(`${this.#prefix}node:`).flatMap(
 			(node) => this.#loadNode(node) ?? []
@@ -119,13 +144,10 @@ export class GraphState {
 		return this.nodes.find((node) => node.id === id);
 	}
 
-	// The canvas keeps a node's selection on the node itself, so anything selecting one from
-	// outside the canvas says so here rather than rewriting the array on its own
 	select(id: string) {
 		this.nodes = this.nodes.map((node) => ({ ...node, selected: node.id === id }));
 	}
 
-	// nodes is $state.raw, so the array is replaced rather than the node mutated in place.
 	// The config is snapshotted because callers pass a live form object they keep editing
 	updateNodeConfig(id: string, config: Record<string, unknown>) {
 		const updated = this.nodes.map((node) =>
@@ -147,8 +169,6 @@ export class GraphState {
 		this.setNodeInStorage(node);
 	}
 
-	// Clones before clearing `selected` so persisted state doesn't affect the live node,
-	// which is the same object reference when called from updateNodeData
 	setNodeInStorage(node: Node) {
 		localStorage.setItem(
 			`${this.#prefix}node:${node.id}`,

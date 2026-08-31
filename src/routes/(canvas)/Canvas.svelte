@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import {
 		SvelteFlow,
 		Controls,
@@ -27,6 +28,7 @@
 	import ProjectsGroup from './ProjectsGroup.svelte';
 	import ResourcesGroup from './ResourcesGroup.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
+	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import OrchestratorControls from './OrchestratorControls.svelte';
@@ -82,6 +84,18 @@
 	useOnSelectionChange(({ nodes, edges }) => {
 		selectedNodes = nodes;
 		selectedEdges = edges;
+		graphState.selectedNodeId = nodes.length === 1 ? nodes[0].id : undefined;
+	});
+
+	const restoredNodeId = untrack(() => graphState.selectedNodeId);
+	const savedViewport = untrack(() => graphState.viewport);
+	if (restoredNodeId) graphState.select(restoredNodeId);
+
+	const showsInspector = $derived(selectedNodes.length === 1 && selectedEdges.length === 0);
+
+	// Once the panel is gone the next one is a fresh arrival rather than a swap, so it opens without the fade
+	$effect(() => {
+		if (!showsInspector) inspectorState.shownNodeId = undefined;
 	});
 
 	let pointerPosition = { x: 0, y: 0 };
@@ -156,7 +170,9 @@
 			onconnect={onConnect}
 			{isValidConnection}
 			defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-			fitView
+			onmoveend={(_, viewport) => (graphState.viewport = viewport)}
+			initialViewport={savedViewport}
+			fitView={!savedViewport}
 			colorMode="system"
 		>
 			<Controls />
@@ -176,8 +192,4 @@
 
 <TourOverlay />
 
-<Workspace
-	{leftSidebar}
-	{mainContent}
-	rightSidebar={selectedNodes.length === 1 && selectedEdges.length === 0 ? inspector : undefined}
-/>
+<Workspace {leftSidebar} {mainContent} rightSidebar={showsInspector ? inspector : undefined} />
