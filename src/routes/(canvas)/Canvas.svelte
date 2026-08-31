@@ -113,7 +113,9 @@
 			y: pointerPosition.y
 		});
 
-		graphState.addNode(draggedItem, position);
+		const node = graphState.addNode(draggedItem, position);
+		// Reserves the new node's ports before it first renders
+		orchestrator.refresh(node.id);
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({

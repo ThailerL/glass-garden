@@ -149,12 +149,16 @@ export class GraphState {
 		if (node) this.setNodeInStorage(node);
 	}
 
-	// Mutates the node in place rather than replacing the array, because ports are minted
-	// during reads that happen inside deriveds, where replacing state would throw. Safe
-	// only because nodes is $state.raw and its nodes are therefore not proxied
-	setNodePorts(node: Node, ports: number[]) {
-		(node.data as NodeData).ports = ports;
-		this.setNodeInStorage(node);
+	// Called only from event and reconcile contexts, never during reads, so replacing
+	// state is safe and port changes propagate reactively
+	setNodePorts(id: string, ports: number[]) {
+		const updated = this.nodes.map((node) =>
+			node.id === id ? { ...node, data: { ...(node.data as NodeData), ports } } : node
+		);
+		this.nodes = updated;
+
+		const node = updated.find((node) => node.id === id);
+		if (node) this.setNodeInStorage(node);
 	}
 
 	setNodeInStorage(node: Node) {

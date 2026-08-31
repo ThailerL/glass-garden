@@ -40,6 +40,7 @@ export class Orchestrator {
 
 	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
+		this.reconcileAllReservations();
 	}
 
 	get containerReady(): boolean {
@@ -97,27 +98,13 @@ export class Orchestrator {
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
 	}
 
-	// One port per configured instance, minted on first read rather than at spawn, so a
-	// dependent can be wired to a target the node has not started on yet. The reads a start
-	// pass makes are what put upstreams in a node's very first launch config
+	// One port per configured instance, reserved before anything runs, so a dependent can
+	// be wired to a target the node has not started on yet
 	getReservedPorts(nodeId: string): readonly number[] {
 		const node = this.#graphState.getNode(nodeId);
 		// A deleted node's ports go with it; its winding-down instances hold what they have
 		if (!node) return [];
-
-		const reserved = nodePorts(node);
-		const configured = this.getConfiguredCount(nodeId);
-
-		// A scale-down drops the ports past the new count, except any an instance is still
-		// winding down on: those go once it is gone, so nothing is reserved twice meanwhile
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const held = new Set(this.getInstances(nodeId).map((instance) => instance.port));
-		const kept = reserved.filter((port, index) => index < configured || held.has(port));
-		while (kept.length < configured) kept.push(this.#mintPort());
-
-		// Trimming and topping up are exclusive, so a length change is the whole difference
-		if (kept.length !== reserved.length) this.#graphState.setNodePorts(node, kept);
-		return kept;
+		return nodePorts(node);
 	}
 
 	// Exposed so the config form can predict what a save would do to running instances
@@ -175,10 +162,18 @@ export class Orchestrator {
 		else void removeNodeFiles(nodeId);
 	}
 
-	// Nudges a node's reconciler after something it reads changed: its config, or the
-	// edges it routes through
+	// Nudges a node after something it reads changed: its config, or the edges it routes
+	// through. Reservations resize here so a count change lands ports even while stopped
 	refresh(nodeId: string) {
+		this.#reconcileReservations(nodeId);
 		this.#controllers.get(nodeId)?.schedule();
+	}
+
+	// Establishes the ports-match-configured invariant across a freshly loaded graph
+	reconcileAllReservations() {
+		for (const id of this.#graphState.nodes.map((node) => node.id)) {
+			this.#reconcileReservations(id);
+		}
 	}
 
 	#controllerFor(nodeId: string, node: Node): ResourceController {
@@ -199,6 +194,7 @@ export class Orchestrator {
 			getNode: () => this.#graphState.getNode(nodeId),
 			getContainer: () => this.#getContainer(),
 			takePort: () => this.#takePort(nodeId),
+			reconcileReservations: () => this.#reconcileReservations(nodeId),
 			getUpstreams: () => this.#upstreams(nodeId),
 			scheduleDependents: () => this.#scheduleDependents(nodeId),
 			unregister: () => {
@@ -239,6 +235,29 @@ export class Orchestrator {
 		this.#slowBoot = false;
 	}
 
+	// Re-fits a node's reservation to its configured count. Called only from event sites -
+	// node creation, config saves, instance removal, project load - never during reads
+	#reconcileReservations(nodeId: string) {
+		const node = this.#graphState.getNode(nodeId);
+		if (!node) return;
+
+		const reserved = nodePorts(node);
+		const configured = this.getConfiguredCount(nodeId);
+
+		// A scale-down drops the ports past the new count, except any an instance is still
+		// winding down on: those go once it is gone, so nothing is reserved twice meanwhile
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const held = new Set(this.getInstances(nodeId).map((instance) => instance.port));
+		const kept = reserved.filter((port, index) => index < configured || held.has(port));
+		while (kept.length < configured) kept.push(this.#mintPort(kept));
+
+		// Trimming and topping up are exclusive, so a length change is the whole difference
+		if (kept.length !== reserved.length) {
+			this.#graphState.setNodePorts(nodeId, kept);
+			this.#scheduleDependents(nodeId);
+		}
+	}
+
 	// Reservations are exclusive, so the only thing a new instance has to avoid is the
 	// node's own live ones
 	#takePort(nodeId: string): number {
@@ -250,18 +269,19 @@ export class Orchestrator {
 
 		// Every reserved port is taken, because a stale instance could not be stopped. The
 		// extra joins the reservation rather than being handed back with the instance
-		const node = this.#graphState.getNode(nodeId);
 		const port = this.#mintPort();
-		if (node) this.#graphState.setNodePorts(node, [...reserved, port]);
+		this.#graphState.setNodePorts(nodeId, [...reserved, port]);
 		return port;
 	}
 
 	// Mints a port held by no node. A reservation lives on its node, so it is released only
 	// when the node is deleted - never while a second node could still be using it. A
-	// deleted node's instances outlive the node itself, so their ports are excluded too
-	#mintPort(): number {
+	// deleted node's instances outlive the node itself, so their ports are excluded too.
+	// alsoTaken covers ports minted earlier in a loop that has not persisted them yet
+	#mintPort(alsoTaken: readonly number[] = []): number {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const reserved = new Set([
+			...alsoTaken,
 			...this.#graphState.nodes.flatMap(nodePorts),
 			...[...this.#controllers.values()].flatMap((controller) =>
 				controller.instances.map((instance) => instance.port)

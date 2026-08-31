@@ -27,6 +27,8 @@
 		setLastProjectId(id);
 		orchestrator.reset();
 		graphState.switchTo(id);
+		// A template-built project reserved nothing yet; a stored one should already hold
+		orchestrator.reconcileAllReservations();
 	}
 
 	function confirmDeleteProject(project: Project) {

@@ -56,6 +56,7 @@ export type ControllerServices = {
 	getContainer: () => Promise<Vivari>;
 	// A port for a new instance, free of whatever this node's live instances are on
 	takePort: () => number;
+	reconcileReservations: () => void;
 	getUpstreams: () => readonly Upstream[];
 	scheduleDependents: () => void;
 	unregister: () => void;
@@ -261,6 +262,7 @@ export class ResourceController {
 			}
 		}
 
+		this.#services.reconcileReservations();
 		this.#notifyDependents();
 	}
 
