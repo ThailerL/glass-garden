@@ -34,7 +34,6 @@ export class Orchestrator {
 	#containerPromise: Promise<Vivari> | undefined;
 	#containerReady = $state(false);
 	#containerError = $state<string | undefined>();
-	// Whether this boot has passed SLOW_BOOT_MS
 	#slowBoot = $state(false);
 	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -51,8 +50,7 @@ export class Orchestrator {
 		return this.#containerError;
 	}
 
-	// A slow boot is a restore of the files on disk, and a database is almost always what
-	// makes it slow, so a canvas with one can say so
+	// A slow boot is almost always a database restoring its files, so a canvas with one can say so
 	get restoringStoredData(): boolean {
 		return this.#slowBoot && !this.#containerReady && anyStoredDataNodes();
 	}
@@ -98,8 +96,7 @@ export class Orchestrator {
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
 	}
 
-	// One port per configured instance, reserved before anything runs, so a dependent can
-	// be wired to a target the node has not started on yet
+	// Reserved before anything runs, so a dependent can be wired to a target not yet started
 	getReservedPorts(nodeId: string): readonly number[] {
 		const node = this.#graphState.getNode(nodeId);
 		// A deleted node's ports go with it; its winding-down instances hold what they have
@@ -107,9 +104,22 @@ export class Orchestrator {
 		return nodePorts(node);
 	}
 
-	// Exposed so the config form can predict what a save would do to running instances
+	// Rebuilt per call rather than cached, so a definition always reads current edges
 	getUpstreams(nodeId: string): readonly Upstream[] {
-		return this.#upstreams(nodeId);
+		return this.#graphState.edges
+			.filter((edge) => edge.source === nodeId)
+			.flatMap((edge) => {
+				const node = this.#graphState.getNode(edge.target);
+				return node
+					? [
+							{
+								node,
+								instances: this.getInstances(edge.target),
+								reservedPorts: this.getReservedPorts(edge.target)
+							}
+						]
+					: [];
+			});
 	}
 
 	getEvents(nodeId: string): ResourceEvent[] {
@@ -138,7 +148,7 @@ export class Orchestrator {
 	start(nodeId: string) {
 		const node = this.#graphState.getNode(nodeId);
 		if (!node) return;
-		this.#controllerFor(nodeId, node).start();
+		this.#controllerFor(node).start();
 	}
 
 	stop(nodeId: string) {
@@ -153,17 +163,15 @@ export class Orchestrator {
 		for (const node of this.#graphState.nodes) this.stop(node.id);
 	}
 
-	// Called once a node is gone from the graph. The controller works off its own
-	// state, so the deleted node's processes are still given back. Its files go with the
-	// controller when it unregisters; a node that never ran has none to wait for
+	// Called once a node is gone from the graph. The controller winds down off its own state
+	// and removes the files when it unregisters; a node that never ran has none to wait for
 	remove(nodeId: string) {
 		const controller = this.#controllers.get(nodeId);
 		if (controller) controller.forget();
 		else void removeNodeFiles(nodeId);
 	}
 
-	// Nudges a node after something it reads changed: its config, or the edges it routes
-	// through. Reservations resize here so a count change lands ports even while stopped
+	// Config or edges changed: resize the reservation (even while stopped) and reconcile
 	refresh(nodeId: string) {
 		this.#reconcileReservations(nodeId);
 		this.#controllers.get(nodeId)?.schedule();
@@ -176,15 +184,15 @@ export class Orchestrator {
 		}
 	}
 
-	#controllerFor(nodeId: string, node: Node): ResourceController {
-		let controller = this.#controllers.get(nodeId);
+	#controllerFor(node: Node): ResourceController {
+		let controller = this.#controllers.get(node.id);
 		if (!controller) {
 			controller = new ResourceController(
-				nodeId,
+				node.id,
 				getResourceDefinition(node.type),
-				this.#servicesFor(nodeId)
+				this.#servicesFor(node.id)
 			);
-			this.#controllers.set(nodeId, controller);
+			this.#controllers.set(node.id, controller);
 		}
 		return controller;
 	}
@@ -195,7 +203,7 @@ export class Orchestrator {
 			getContainer: () => this.#getContainer(),
 			takePort: () => this.#takePort(nodeId),
 			reconcileReservations: () => this.#reconcileReservations(nodeId),
-			getUpstreams: () => this.#upstreams(nodeId),
+			getUpstreams: () => this.getUpstreams(nodeId),
 			scheduleDependents: () => this.#scheduleDependents(nodeId),
 			unregister: () => {
 				this.#controllers.delete(nodeId);
@@ -235,8 +243,7 @@ export class Orchestrator {
 		this.#slowBoot = false;
 	}
 
-	// Re-fits a node's reservation to its configured count. Called only from event sites -
-	// node creation, config saves, instance removal, project load - never during reads
+	// Re-fits the reservation to the configured count; called from event sites, never reads
 	#reconcileReservations(nodeId: string) {
 		const node = this.#graphState.getNode(nodeId);
 		if (!node) return;
@@ -246,8 +253,7 @@ export class Orchestrator {
 
 		// A scale-down drops the ports past the new count, except any an instance is still
 		// winding down on: those go once it is gone, so nothing is reserved twice meanwhile
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const held = new Set(this.getInstances(nodeId).map((instance) => instance.port));
+		const held = this.#instancePorts(nodeId);
 		const kept = reserved.filter((port, index) => index < configured || held.has(port));
 		while (kept.length < configured) kept.push(this.#mintPort(kept));
 
@@ -262,8 +268,7 @@ export class Orchestrator {
 	// node's own live ones
 	#takePort(nodeId: string): number {
 		const reserved = this.getReservedPorts(nodeId);
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const used = new Set(this.getInstances(nodeId).map((instance) => instance.port));
+		const used = this.#instancePorts(nodeId);
 		const free = reserved.find((port) => !used.has(port));
 		if (free !== undefined) return free;
 
@@ -274,10 +279,15 @@ export class Orchestrator {
 		return port;
 	}
 
-	// Mints a port held by no node. A reservation lives on its node, so it is released only
-	// when the node is deleted - never while a second node could still be using it. A
-	// deleted node's instances outlive the node itself, so their ports are excluded too.
-	// alsoTaken covers ports minted earlier in a loop that has not persisted them yet
+	// The ports this node's live instances hold
+	#instancePorts(nodeId: string): Set<number> {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		return new Set(this.getInstances(nodeId).map((instance) => instance.port));
+	}
+
+	// Mints a port held by no node. A reservation is released only with its node - never
+	// while another node could still be using it - and a deleted node's instances outlive
+	// it, so their ports are excluded too. alsoTaken covers same-loop mints not yet persisted
 	#mintPort(alsoTaken: readonly number[] = []): number {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const reserved = new Set([
@@ -292,24 +302,6 @@ export class Orchestrator {
 			port = Math.floor(Math.random() * (MAX_PORT - MIN_PORT + 1)) + MIN_PORT;
 		} while (reserved.has(port));
 		return port;
-	}
-
-	// Rebuilt per call rather than cached, so a definition always reads current edges
-	#upstreams(nodeId: string): Upstream[] {
-		return this.#graphState.edges
-			.filter((edge) => edge.source === nodeId)
-			.flatMap((edge) => {
-				const node = this.#graphState.getNode(edge.target);
-				return node
-					? [
-							{
-								node,
-								instances: this.getInstances(edge.target),
-								reservedPorts: this.getReservedPorts(edge.target)
-							}
-						]
-					: [];
-			});
 	}
 
 	#scheduleDependents(nodeId: string) {

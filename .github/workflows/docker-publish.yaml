@@ -19,6 +19,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run check
+      - run: npm test
 
   docker_publish:
     # Nothing is published from a red main

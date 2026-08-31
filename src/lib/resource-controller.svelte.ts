@@ -16,9 +16,8 @@ const RESTART_DELAY_MS = 2000;
 // Instances carry the stamp rather than the config itself, so staleness is one comparison
 const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
 
-// What an instance of this node would be launched with, and the stamp it would carry. The
-// only definition of both, so the config form's prediction of a bounce cannot drift from
-// the comparison the reconciler actually makes
+// What an instance would be launched with and the stamp it carries - the only definition
+// of both, so the form's bounce prediction cannot drift from the reconciler's comparison
 export function launchPlan(
 	definition: ResourceDefinition,
 	node: Node | undefined,
@@ -30,13 +29,10 @@ export function launchPlan(
 
 type LaunchPlan = { config: unknown; stamp: string };
 
-// What produced an entry: an instance, named by its port, or 'resource' for work the node
-// did around them, such as installing dependencies
+// What produced an entry: an instance, named by its port, or 'resource' for the node's own work
 export type LogSource = number | 'resource';
 
-// Everything a node has to say, whoever said it. Shared rather than repeated, because it
-// is these three fields meaning the same thing in both that lets the two be sorted into
-// one stream and filtered by one source
+// Shared fields that let output and events sort into one stream and filter by one source
 type LogEntry = {
 	time: number;
 	source: LogSource;
@@ -74,7 +70,7 @@ export class ResourceController {
 	instances = $state<Instance[]>([]);
 	// Auto-restarts since the last explicit start
 	restarts = $state(0);
-	// Both oldest first, the order they happened in
+	// Both oldest first
 	events = $state<ResourceEvent[]>([]);
 	output = $state<OutputLine[]>([]);
 
@@ -91,10 +87,8 @@ export class ResourceController {
 	// The deployment that last spent from the budget, so it is charged only once
 	#lastFailedDeployment = 0;
 	// The launch config that has already interrupted the user, so a broken one is news once
-	// however many instances it takes down and however often it is redeployed
 	#toastedStamp: string | undefined;
-	// Whether the last update failed, so a resource that cannot be reconfigured interrupts
-	// on the way into that state rather than on every pass it stays in it
+	// Whether the last update failed, so it interrupts on the way in rather than every pass
 	#updateFailed = false;
 	// The same, for kills that don't land: stopping a whole pool of them is one complaint
 	#stopFailed = false;
@@ -122,8 +116,7 @@ export class ResourceController {
 	}
 
 	// Start is only useful when it would change desired state: bringing the node up or
-	// reviving crashed instances. Count and config mismatches self-heal, so no lock on
-	// transitional states is needed
+	// reviving crashed instances. Count and config mismatches self-heal
 	get canStart(): boolean {
 		return !this.wantsRunning || this.instances.some((instance) => instance.status === 'crashed');
 	}
@@ -160,16 +153,15 @@ export class ResourceController {
 		this.schedule();
 	}
 
-	// Called once the node is gone from the graph; winds everything down and
-	// unregisters once the last instance is gone
+	// Called once the node is gone from the graph; winds down and unregisters after the
+	// last instance
 	forget() {
 		this.#forgotten = true;
 		this.stop();
 	}
 
-	// Every trigger funnels through here. At most one pass runs at a time; anything
-	// landing mid-pass just makes the loop go around again with fresh state, which is
-	// what makes concurrent starts, stops and config changes safe
+	// Every trigger funnels through here. At most one pass runs at a time; anything landing
+	// mid-pass makes the loop go around again with fresh state, so concurrent actions are safe
 	schedule() {
 		this.#dirty = true;
 		if (this.#converging) return;
@@ -197,14 +189,12 @@ export class ResourceController {
 		// Read fresh from the graph every pass so a config edit can't go stale in a copy
 		const node = this.#services.getNode();
 		const desired = this.wantsRunning && node ? this.#definition.instanceCount(node) : 0;
-		// Built once and handed to start, so an instance launches with exactly what it is
-		// stamped with
+		// Built once and handed to start, so an instance launches with what it is stamped with
 		const upstreams = this.#services.getUpstreams();
 		const launch = launchPlan(this.#definition, node, upstreams);
 
-		// Auto-restart: free the slots of crashed instances so the deficit step below
-		// respawns them. Skipped at the failed-deployment cap, leaving the pool visibly
-		// crashed instead of looping; a config fix still recovers via the stale check below
+		// Auto-restart: free crashed slots so the deficit step below respawns them. Skipped at
+		// the cap, leaving the pool visibly crashed; a config fix still recovers via the stale check
 		if (this.#failedDeployments < MAX_FAILED_DEPLOYMENTS) {
 			const crashed = this.instances.filter((instance) => instance.status === 'crashed');
 			if (crashed.length > 0) {
@@ -220,8 +210,7 @@ export class ResourceController {
 			}
 		}
 
-		// Surplus from a scale-down, plus stale instances that must be bounced to pick
-		// up new launch config
+		// Surplus from a scale-down, plus stale instances bounced to pick up new launch config
 		const doomed = this.instances.filter(
 			(instance, index) => index >= desired || instance.configStamp !== launch.stamp
 		);
@@ -328,9 +317,8 @@ export class ResourceController {
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
 			this.#logEvent(instance.port, 'info', 'Instance started');
-			// A rejection means nothing will ever say whether the process is still alive, which
-			// is what 'unresponsive' is for: the slot and its port stay held rather than being
-			// respawned over something that may still be running
+			// A rejection means nothing will ever say whether the process is still alive, which is
+			// what 'unresponsive' is for: the slot and port stay held rather than respawned over it
 			handle.exited.then(
 				(code) => this.#onExit(instance, code),
 				(e) => {
@@ -351,8 +339,7 @@ export class ResourceController {
 	#onExit(instance: Instance, code: number) {
 		instance.previewUrl = undefined;
 		instance.handle = undefined;
-		// A deliberate stop sets 'stopping' first, so a live status here means it
-		// crashed unexpectedly
+		// A deliberate stop sets 'stopping' first, so a live status here means a crash
 		if (instance.status !== 'starting' && instance.status !== 'running') return;
 		const neverRan = instance.status === 'starting';
 		instance.status = 'crashed';
@@ -486,9 +473,8 @@ export class ResourceController {
 		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 
-	// Interrupts once per launch config: the same broken one reaching every instance, and
-	// every redeployment of it, is one piece of news. Editing the config makes the next
-	// failure new again, and the log keeps the ones swallowed here
+	// Interrupts once per launch config: a broken one is one piece of news however often it
+	// is redeployed. Editing the config makes it news again; the log keeps the rest
 	#toastOnce(stamp: string, message: string, level: 'error' | 'warning' = 'error') {
 		if (this.#toastedStamp === stamp) return;
 		this.#toastedStamp = stamp;

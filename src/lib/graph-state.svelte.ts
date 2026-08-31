@@ -34,9 +34,8 @@ export function graphKeyPrefix(projectId: string) {
 	return `${GRAPH_PREFIX}${projectId}:`;
 }
 
-// Every project's nodes share one VFS, so a boot restores all of them and not just the graph
-// on screen: a database left in a project the reader is not looking at is still what the wait
-// is spent on. Read from storage rather than a GraphState for the same reason
+// Every project's nodes share one VFS, so a boot restores them all - a database in a project
+// not on screen still spends the wait. Read from storage, not a GraphState, for the same reason
 export function anyStoredDataNodes(): boolean {
 	return keysWithPrefix(GRAPH_PREFIX)
 		.filter((key) => key.includes(':node:'))
@@ -49,9 +48,8 @@ export function anyStoredDataNodes(): boolean {
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
-	// Where the canvas was left, so a trip to the editor and back does not fit the view afresh
-	// over wherever the reader had panned. Undefined until the first move, which is what still
-	// lets a graph open on a fitted view
+	// Where the canvas was left, so a trip to the editor and back does not refit the view.
+	// Undefined until the first move, which is what lets a fresh graph open fitted
 	viewport = $state.raw<Viewport | undefined>(undefined);
 	// Which node the canvas had selected. Selection otherwise lives on the nodes, but the flow
 	// unselects everything as it unmounts and that lands in `nodes`, so the id is kept apart
@@ -72,8 +70,7 @@ export class GraphState {
 		this.nodes = readByPrefix<Node>(`${this.#prefix}node:`).flatMap(
 			(node) => this.#loadNode(node) ?? []
 		);
-		// An edge to a node that did not load points at nothing, and the canvas would draw it
-		// into empty space
+		// An edge to a node that did not load would be drawn into empty space
 		this.edges = readByPrefix<Edge>(`${this.#prefix}edge:`).filter(
 			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
 		);
@@ -83,19 +80,16 @@ export class GraphState {
 		return this.nodes.some((node) => node.id === id);
 	}
 
-	// A stored config was written against whatever schema its resource had at the time, so it
-	// is parsed again on load. An option added since then arrives at its default and unused
-	// options are pruned. A resource type that no longer exists takes its node with it
+	// A stored config is re-parsed against the current schema: new options arrive at their
+	// defaults, unused ones are pruned, and a resource type that no longer exists takes its node
 	#loadNode(node: Node): Node | undefined {
 		const definition = resourceDefinitions[node.type as ResourceType];
 		if (!definition || !node.data) return undefined;
 
 		const data = node.data as NodeData;
-		// Falls back to the schema's own defaults, so a config the schema has since outgrown
-		// costs its settings rather than the node
+		// A config the schema has outgrown costs its settings rather than the node
 		const parsed = definition.configSchema.safeParse(data.config);
 		data.config = parsed.success ? parsed.data : definition.configSchema.parse({});
-		data.ports ??= [];
 		return node;
 	}
 
@@ -138,27 +132,20 @@ export class GraphState {
 
 	// The config is snapshotted because callers pass a live form object they keep editing
 	updateNodeConfig(id: string, config: Record<string, unknown>) {
-		const updated = this.nodes.map((node) =>
-			node.id === id
-				? { ...node, data: { ...(node.data as NodeData), config: $state.snapshot(config) } }
-				: node
-		);
-		this.nodes = updated;
-
-		const node = updated.find((node) => node.id === id);
-		if (node) this.setNodeInStorage(node);
+		this.#patchNodeData(id, { config: $state.snapshot(config) });
 	}
 
-	// Called only from event and reconcile contexts, never during reads, so replacing
-	// state is safe and port changes propagate reactively
+	// Called from event and reconcile contexts, never during reads, so replacing state is safe
 	setNodePorts(id: string, ports: number[]) {
-		const updated = this.nodes.map((node) =>
-			node.id === id ? { ...node, data: { ...(node.data as NodeData), ports } } : node
-		);
-		this.nodes = updated;
+		this.#patchNodeData(id, { ports });
+	}
 
-		const node = updated.find((node) => node.id === id);
-		if (node) this.setNodeInStorage(node);
+	#patchNodeData(id: string, patch: Partial<NodeData>) {
+		const node = this.getNode(id);
+		if (!node) return;
+		const updated = { ...node, data: { ...(node.data as NodeData), ...patch } };
+		this.nodes = this.nodes.map((existing) => (existing.id === id ? updated : existing));
+		this.setNodeInStorage(updated);
 	}
 
 	setNodeInStorage(node: Node) {

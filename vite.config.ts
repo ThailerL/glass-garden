@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readdir, readFile } from 'node:fs/promises';
@@ -187,5 +188,10 @@ export default defineConfig({
 			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 			adapter: adapter()
 		})
-	]
+	],
+
+	test: {
+		include: ['src/**/*.test.ts'],
+		environment: 'node'
+	}
 });
