@@ -4,7 +4,6 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
-	import favicon from '$lib/assets/favicon.svg';
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { anyDraftsDirty } from '$lib/file-draft-state.svelte';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
@@ -43,6 +42,5 @@
 	{@render children?.()}
 </Sidebar.Provider>
 <svelte:head>
-	<link rel="icon" href={favicon} />
 	<title>Glass Garden</title>
 </svelte:head>
