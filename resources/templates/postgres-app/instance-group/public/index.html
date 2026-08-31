@@ -16,9 +16,9 @@
       </ul>
 
       <p class="caption">
-        This request was served by the instance on <strong>:{{port}}</strong>. Refresh and the
-        load balancer sends the next one elsewhere, but the total keeps climbing, because the
-        count lives in Postgres rather than in any one instance.
+        This request was served by the instance on <strong>:{{port}}</strong>. Refresh and another
+        instance may pick it up, but the total keeps climbing, because the count lives in
+        Postgres rather than in any one instance.
       </p>
     </main>
   </body>

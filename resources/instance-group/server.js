@@ -1,8 +1,7 @@
 import express from 'express';
 
-// Every instance of this server runs on the same machine, so each one needs a port of its
-// own. In a real deployment they would sit on separate machines and could share one.
-// Glass Garden sets PORT, which is unique across instances
+// Glass Garden gives every instance its own PORT, because they all share one machine here.
+// In a real deployment they would each be on their own machine, and could all listen on the same port.
 const port = Number(process.env.PORT);
 if (!port) {
   throw new Error('PORT is not set');
@@ -15,8 +14,7 @@ const app = express();
 app.get('/', (req, res) => {
   hits += 1;
 
-  // Nothing is shared between instances, so each one counts only the requests the load
-  // balancer sent its way, and a restart takes the count with it
+  // Nothing is shared between instances, so each counts only the requests it was sent
   res
     .type('text/plain')
     .send(`Hello from the instance on :${port}\nIt has served ${hits} requests since it started.\n`);

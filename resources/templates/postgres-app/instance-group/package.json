@@ -2,7 +2,7 @@
   "name": "instance-group",
   "type": "module",
   "dependencies": {
-    "express": "latest",
+    "express": "^5.1.0",
     "pg": "^8.13.0"
   },
   "scripts": {
