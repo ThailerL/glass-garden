@@ -1,4 +1,6 @@
 <script lang="ts" module>
+	import { toast } from 'svelte-sonner';
+
 	class ConfirmDeleteDialogState {
 		open = $state(false);
 		inputText = $state('');
@@ -37,6 +39,8 @@
 			this.#settled = true;
 			this.options
 				?.onConfirm()
+				// Backstop for a caller that doesn't report its own failure
+				.catch(() => toast.error('Could not finish that'))
 				.then(() => {
 					this.open = false;
 				})

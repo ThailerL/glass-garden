@@ -8,6 +8,7 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getContainer, nodeDirectory } from '$lib/container';
+	import { messageOf } from '$lib/errors';
 	import { connectionUrl } from './connection';
 	import type { Config } from './index';
 
@@ -27,9 +28,17 @@
 				'Deletes everything stored in this database. It will start up empty, and whatever connects to it next must recreate the schema.',
 			confirm: { text: 'Clear data' },
 			onConfirm: async () => {
-				const container = await getContainer();
-				// force: the data dir does not exist until the database has started once
-				await container.fs.rm(`${nodeDirectory(nodeId)}/pgdata`, { recursive: true, force: true });
+				try {
+					const container = await getContainer();
+					// force: the data dir does not exist until the database has started once
+					await container.fs.rm(`${nodeDirectory(nodeId)}/pgdata`, {
+						recursive: true,
+						force: true
+					});
+				} catch (e) {
+					toast.error(`Could not clear the database data: ${messageOf(e)}`);
+					return;
+				}
 				toast.success('Cleared database data');
 			}
 		});

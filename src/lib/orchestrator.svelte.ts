@@ -62,6 +62,7 @@ export class Orchestrator {
 	}
 
 	reset() {
+		for (const controller of this.#controllers.values()) controller.abandon();
 		this.#controllers.clear();
 		this.#containerPromise = undefined;
 		this.#containerReady = false;

@@ -1,10 +1,19 @@
+// Snapshotted rather than iterated lazily, so a caller can delete the keys it is handed
 export function keysWithPrefix(prefix: string): string[] {
-	return Object.keys(localStorage).filter((key) => key.startsWith(prefix));
+	const keys: string[] = [];
+	for (let index = 0; index < localStorage.length; index++) {
+		const key = localStorage.key(index);
+		if (key?.startsWith(prefix)) keys.push(key);
+	}
+	return keys;
 }
 
 export function readEntry<T>(key: string): T | undefined {
+	// Checked rather than left to the parse, which would read a missing key as a stored null
+	const raw = localStorage.getItem(key);
+	if (raw === null) return undefined;
 	try {
-		return JSON.parse(localStorage[key]) as T;
+		return JSON.parse(raw) as T;
 	} catch {
 		return undefined;
 	}

@@ -41,7 +41,7 @@
 		body: 'Give the app a moment to start. This will move on as soon as every dot is green.'
 	};
 
-	// Replaces the refresh step's opening line once a the user has refreshed
+	// Replaces the refresh step's opening line once the user has refreshed
 	const REFRESHED = 'Look at the port on the page, it moves on to the next instance every time.';
 
 	const CARD_WIDTH = 300;

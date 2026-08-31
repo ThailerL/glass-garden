@@ -49,16 +49,18 @@ vi.mock('$lib/resources', async () => {
 
 type Config = { name: string; instanceCount: number; command: string };
 
-// storage.ts reads keys with Object.keys(localStorage) and values by indexing, so the
-// stub keeps entries as plain enumerable properties with non-enumerable methods
 function makeLocalStorage(): Storage {
-	const storage: Record<string, string> = {};
-	Object.defineProperties(storage, {
-		getItem: { value: (key: string) => (key in storage ? storage[key] : null) },
-		setItem: { value: (key: string, value: string) => void (storage[key] = String(value)) },
-		removeItem: { value: (key: string) => void delete storage[key] }
-	});
-	return storage as unknown as Storage;
+	const entries = new Map<string, string>();
+	return {
+		get length() {
+			return entries.size;
+		},
+		key: (index: number) => [...entries.keys()][index] ?? null,
+		getItem: (key: string) => entries.get(key) ?? null,
+		setItem: (key: string, value: string) => void entries.set(key, String(value)),
+		removeItem: (key: string) => void entries.delete(key),
+		clear: () => entries.clear()
+	};
 }
 
 function setup(counts: number[]) {

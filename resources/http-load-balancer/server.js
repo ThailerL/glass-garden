@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 
 const port = Number(process.env.PORT);
 if (!port) {
@@ -108,7 +109,11 @@ const server = http.createServer(async (req, res) => {
     try {
       const upstream = await forward(target, req, body);
       res.writeHead(upstream.statusCode, upstream.headers);
-      upstream.pipe(res);
+      // Caught here rather than by the retry: the headers are already out, so a target dying
+      // mid-body can only be logged
+      await pipeline(upstream, res).catch((error) =>
+        console.error(`:${target} failed mid-response: ${error.message}`)
+      );
       return;
     } catch (error) {
       failures.push(`:${target} ${error.message}`);

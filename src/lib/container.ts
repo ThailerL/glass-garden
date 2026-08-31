@@ -4,8 +4,12 @@ import { Vivari, type FileSystemTree } from '@vivari/core';
 // service-worker relay are all per-origin, so a second instance would collide with this one
 let containerPromise: Promise<Vivari> | undefined;
 
+// A boot waits on this rather than racing it. A container cannot be torn down until it has
+// finished booting, and a shutdown mid-boot would otherwise leave two of them
+let teardownComplete = Promise.resolve();
+
 export function getContainer() {
-	containerPromise ??= Vivari.boot();
+	containerPromise ??= teardownComplete.then(() => Vivari.boot());
 	return containerPromise;
 }
 
@@ -13,7 +17,12 @@ export function shutdownContainer() {
 	const booted = containerPromise;
 	containerPromise = undefined;
 	mounts.clear();
-	void booted?.then((container) => container.teardown()).catch(() => {});
+	if (!booted) return;
+	// A failed boot has nothing to tear down, and must not hold up the next one
+	teardownComplete = booted.then(
+		(container) => container.teardown(),
+		() => {}
+	);
 }
 
 export function nodeDirectory(nodeId: string) {

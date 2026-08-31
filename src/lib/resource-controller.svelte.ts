@@ -96,6 +96,7 @@ export class ResourceController {
 	#lastCrashAt = 0;
 	#restartTimer: ReturnType<typeof setTimeout> | undefined;
 	#forgotten = false;
+	#abandoned = false;
 
 	constructor(nodeId: string, definition: ResourceDefinition, services: ControllerServices) {
 		this.nodeId = nodeId;
@@ -148,9 +149,14 @@ export class ResourceController {
 	}
 
 	stop() {
+		this.#standDown();
+		this.schedule();
+	}
+
+	// Shared by every wind-down: stop wanting instances and drop any pending restart
+	#standDown() {
 		this.wantsRunning = false;
 		this.#cancelRestart();
-		this.schedule();
 	}
 
 	// Called once the node is gone from the graph; winds down and unregisters after the
@@ -160,14 +166,24 @@ export class ResourceController {
 		this.stop();
 	}
 
+	// Called when the container is going away, which kills every process in it: nothing here
+	// can be stopped gracefully any more. Unlike forget(), the node stays, so its files do too
+	abandon() {
+		this.#abandoned = true;
+		this.#standDown();
+		// The processes died with the container, so the slots are dropped rather than stopped
+		this.instances = [];
+	}
+
 	// Every trigger funnels through here. At most one pass runs at a time; anything landing
 	// mid-pass makes the loop go around again with fresh state, so concurrent actions are safe
 	schedule() {
+		if (this.#abandoned) return;
 		this.#dirty = true;
 		if (this.#converging) return;
 		this.#converging = true;
 		this.#converge()
-			// The pass is abandoned where it stopped, so nothing moves until the next trigger
+			// The pass is left where it stopped, so nothing moves until the next trigger
 			.catch((e) => {
 				toast.error(`${this.#nodeName()} stopped applying changes`);
 				this.#logEvent('resource', 'error', `Failed to apply changes, left as is: ${messageOf(e)}`);
@@ -176,11 +192,12 @@ export class ResourceController {
 	}
 
 	async #converge() {
-		while (this.#dirty) {
+		while (this.#dirty && !this.#abandoned) {
 			this.#dirty = false;
 			await this.#reconcilePass();
 		}
-		if (this.#forgotten && this.instances.length === 0) {
+		// An abandoned node is still on its canvas; unregistering would take its files with it
+		if (this.#forgotten && !this.#abandoned && this.instances.length === 0) {
 			this.#services.unregister();
 		}
 	}
