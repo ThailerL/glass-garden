@@ -3,6 +3,7 @@ import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
+import { nodeFiles } from './node-files';
 import { nodeConfig } from './graph-state.svelte';
 
 const MAX_EVENTS = 50;
@@ -292,7 +293,7 @@ export class ResourceController {
 
 		try {
 			const container = await this.#services.getContainer();
-			await mountNodeFiles(this.nodeId, this.#definition.files, !this.#definition.hasEditableFiles);
+			await mountNodeFiles(this.nodeId, nodeFiles(node), !this.#definition.hasEditableFiles);
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container, (output) =>
 				this.#capture('resource', output)

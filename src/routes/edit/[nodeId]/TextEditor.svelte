@@ -1,6 +1,9 @@
 <script lang="ts">
 	import CodeMirror from 'svelte-codemirror-editor';
 	import { javascript } from '@codemirror/lang-javascript';
+	import { html } from '@codemirror/lang-html';
+	import { css } from '@codemirror/lang-css';
+	import { json } from '@codemirror/lang-json';
 	import type { EditorView } from '@codemirror/view';
 	import { Vivari } from '@vivari/core';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
@@ -22,7 +25,13 @@
 	const fileDraftState = getFileDraftState();
 	const refresh = getFileRefresh();
 
+	// An extension with nothing here is left unhighlighted, which reads better than
+	// highlighting it as something it isn't
+	const languages = { js: javascript, mjs: javascript, cjs: javascript, json, html, css };
+
 	const nothingSelected = $derived(selectedFilePath.length === 0);
+	const extension = $derived(selectedFilePath.at(-1)?.match(/\.(\w+)$/)?.[1]);
+	const language = $derived(languages[extension as keyof typeof languages]?.());
 	const currentDraft = $derived(
 		fileDraftState.getDraft(selectedFilePath) ?? fileDraftState.getBaseline(selectedFilePath) ?? ''
 	);
@@ -76,7 +85,7 @@
 	value={currentDraft}
 	readonly={nothingSelected}
 	placeholder={nothingSelected ? 'No file selected' : undefined}
-	lang={javascript()}
+	lang={language}
 	lineWrapping={true}
 	onchange={onChange}
 	onready={onReady}

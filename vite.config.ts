@@ -12,6 +12,7 @@ import type { FileSystemTree } from '@vivari/core';
 const RESOURCE_FILES_MODULE = 'virtual:resource-files';
 const RESOLVED_RESOURCE_FILES_MODULE = `\0${RESOURCE_FILES_MODULE}`;
 const SOURCE_DIRECTORY = 'resources';
+const TEMPLATES_DIRECTORY = 'templates';
 
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -34,9 +35,30 @@ async function readTree(directory: string): Promise<FileSystemTree> {
 	return tree;
 }
 
-// Exports one file tree per directory under resources/, named after it in camel case so
-// the keys line up with ResourceType. Keeps the resource sources plain files rather than
-// escaped template literals
+const camelCase = (name: string) =>
+	name.replace(/-(.)/g, (_, character) => character.toUpperCase());
+
+async function subdirectories(directory: string) {
+	const entries = await readdir(directory, { withFileTypes: true });
+	return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+}
+
+// A template's directory holds one subdirectory per file set it starts a node on, keyed by
+// the path to it
+async function readTemplates(directory: string) {
+	const sets: Record<string, FileSystemTree> = {};
+	for (const template of await subdirectories(directory)) {
+		for (const set of await subdirectories(path.join(directory, template))) {
+			sets[`${template}/${set}`] = await readTree(path.join(directory, template, set));
+		}
+	}
+	return sets;
+}
+
+// Exports one file tree per directory under resources/, named after it in camel case so the
+// keys line up with ResourceType. templates/ is the exception: one entry per file set a
+// template starts a node on, keyed by its path. Keeps the resource sources plain files
+// rather than escaped template literals
 function resourceFiles(): Plugin {
 	return {
 		name: 'resource-files',
@@ -46,15 +68,16 @@ function resourceFiles(): Plugin {
 		async load(id) {
 			if (id !== RESOLVED_RESOURCE_FILES_MODULE) return;
 
-			const directories = await readdir(SOURCE_DIRECTORY, { withFileTypes: true });
+			const names = await subdirectories(SOURCE_DIRECTORY);
 			const exports = await Promise.all(
-				directories
-					.filter((entry) => entry.isDirectory())
-					.map(async (entry) => {
-						const tree = await readTree(path.join(SOURCE_DIRECTORY, entry.name));
-						const name = entry.name.replace(/-(.)/g, (_, character) => character.toUpperCase());
-						return `export const ${name} = ${JSON.stringify(tree)};`;
-					})
+				names.map(async (name) => {
+					const directory = path.join(SOURCE_DIRECTORY, name);
+					const value =
+						name === TEMPLATES_DIRECTORY
+							? await readTemplates(directory)
+							: await readTree(directory);
+					return `export const ${camelCase(name)} = ${JSON.stringify(value)};`;
+				})
 			);
 			return exports.join('\n');
 		},

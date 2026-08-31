@@ -7,6 +7,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
+	import { nodeFiles } from '$lib/node-files';
 
 	const { params }: PageProps = $props();
 
@@ -19,7 +20,7 @@
 	const definition = node ? getResourceDefinition(node.type) : undefined;
 	// Only used for a node whose directory doesn't exist yet; mountNodeFiles leaves an
 	// existing one alone
-	const initialFiles = definition?.hasEditableFiles ? definition.files : undefined;
+	const initialFiles = node && definition?.hasEditableFiles ? nodeFiles(node) : undefined;
 </script>
 
 <svelte:head>

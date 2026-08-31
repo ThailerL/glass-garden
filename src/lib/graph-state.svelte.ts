@@ -3,11 +3,14 @@ import { type Edge, type Node } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
 import { requestPersistentStorage } from './container';
+import type { FileSetId } from './node-files';
 
 export type NodeData = {
 	config: Record<string, unknown>;
 	// Ports reserved to this node, so dependents can be wired to it before it has ever run
 	ports: number[];
+	// Set by a template whose node starts on files other than its resource type's
+	files?: FileSetId;
 };
 
 // Takes anything carrying node data, so a NodeProps in a component reads it the same way
@@ -83,14 +86,15 @@ export class GraphState {
 		return node;
 	}
 
-	addNode(type: ResourceType, position: { x: number; y: number }) {
+	addNode(type: ResourceType, position: { x: number; y: number }, files?: FileSetId) {
 		const definition = getResourceDefinition(type);
 		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
 		if (definition.ownsStoredData) void requestPersistentStorage();
 		const data: NodeData = {
 			// Parsing an empty object yields the schema's defaults
 			config: definition.configSchema.parse({}),
-			ports: []
+			ports: [],
+			files
 		};
 		const node: Node = {
 			id: nanoid(8),
