@@ -1,8 +1,8 @@
-import { getContext, setContext } from 'svelte';
 import type { Vivari } from '@vivari/core';
 import type { DragDropState } from '@thisux/sveltednd';
-
-const FILE_TREE_KEY = Symbol('FILE_TREE');
+import { createContext } from './context';
+import { createFile, createFolder } from './file-tree.svelte';
+import type { FileRefresh } from './file-refresh.svelte';
 
 export class FileTreeContext {
 	renamingPath = $state<string | undefined>();
@@ -10,6 +10,7 @@ export class FileTreeContext {
 	constructor(
 		readonly container: Vivari,
 		readonly root: string,
+		readonly refresh: FileRefresh,
 		readonly onDrop: (state: DragDropState<string>) => void
 	) {}
 
@@ -20,16 +21,27 @@ export class FileTreeContext {
 	fsPath(path: string[]) {
 		return [this.root, ...path].join('/');
 	}
+
+	async createFile(directory: string[], siblingNames: string[]) {
+		await createFile(this.container, siblingNames, this.fsPath(directory));
+		this.refresh.bump();
+	}
+
+	async createFolder(directory: string[], siblingNames: string[]) {
+		await createFolder(this.container, siblingNames, this.fsPath(directory));
+		this.refresh.bump();
+	}
 }
+
+const fileTreeContext = createContext<FileTreeContext>('FILE_TREE');
 
 export function setFileTreeContext(
 	container: Vivari,
 	root: string,
+	refresh: FileRefresh,
 	onDrop: (state: DragDropState<string>) => void
 ) {
-	return setContext(FILE_TREE_KEY, new FileTreeContext(container, root, onDrop));
+	return fileTreeContext.set(new FileTreeContext(container, root, refresh, onDrop));
 }
 
-export function getFileTreeContext() {
-	return getContext<ReturnType<typeof setFileTreeContext>>(FILE_TREE_KEY);
-}
+export const getFileTreeContext = fileTreeContext.get;

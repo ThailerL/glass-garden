@@ -8,7 +8,7 @@ import type { ResourceDefinition, Upstream } from '../types';
 import { getResourceDefinition, upstreamsProviding } from '../index';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
-import { nodeConfig } from '$lib/graph-state.svelte';
+import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
@@ -17,11 +17,6 @@ const configSchema = z.object({
 });
 
 export type Config = z.infer<typeof configSchema>;
-
-// Also called for upstream nodes of other types, so it reads only what every config has
-function nodeName(node: Node) {
-	return nodeConfig<{ name: string }>(node).name;
-}
 
 // "Bob's Orders DB" -> BOBS_ORDERS_DB_URL. Apostrophes and accents are folded away
 // rather than becoming separators

@@ -2,7 +2,7 @@
 	import type { SuperForm } from 'sveltekit-superforms';
 	import * as Form from '$lib/components/ui/form';
 	import * as RadioGroup from '$lib/components/ui/radio-group';
-	import { Input } from '$lib/components/ui/input';
+	import ConfigField from '$lib/components/ConfigField.svelte';
 	import type { Config } from './index';
 
 	const { form }: { form: SuperForm<Config> } = $props();
@@ -14,15 +14,7 @@
 	};
 </script>
 
-<Form.Field {form} name="name">
-	<Form.Control>
-		{#snippet children({ props })}
-			<Form.Label>Name</Form.Label>
-			<Input {...props} bind:value={$formData.name} />
-		{/snippet}
-	</Form.Control>
-	<Form.FieldErrors />
-</Form.Field>
+<ConfigField {form} name="name" label="Name" bind:value={$formData.name} />
 <Form.Fieldset {form} name="algorithm">
 	<Form.Legend>Algorithm</Form.Legend>
 	<RadioGroup.Root bind:value={$formData.algorithm} name="algorithm">

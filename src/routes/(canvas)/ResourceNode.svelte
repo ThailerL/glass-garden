@@ -3,10 +3,10 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import { nodeConfig } from '$lib/graph-state.svelte';
+	import { nodeName } from '$lib/graph-state.svelte';
 
 	const node: NodeProps = $props();
-	const name = $derived(nodeConfig<{ name: string }>(node).name);
+	const name = $derived(nodeName(node));
 
 	const orchestrator = getOrchestrator();
 	const status = $derived(orchestrator.getStatus(node.id));

@@ -1,6 +1,4 @@
-import { getContext, setContext } from 'svelte';
-
-const FILE_REFRESH_KEY = Symbol('FILE_REFRESH');
+import { createContext } from './context';
 
 // Each directory in the editor reads its own listing, but Vivari has no fs.watch and a drag
 // moves a file between two directories at once. Everything that writes to the container
@@ -13,10 +11,10 @@ export class FileRefresh {
 	}
 }
 
+const fileRefreshContext = createContext<FileRefresh>('FILE_REFRESH');
+
 export function setFileRefresh() {
-	return setContext(FILE_REFRESH_KEY, new FileRefresh());
+	return fileRefreshContext.set(new FileRefresh());
 }
 
-export function getFileRefresh() {
-	return getContext<ReturnType<typeof setFileRefresh>>(FILE_REFRESH_KEY);
-}
+export const getFileRefresh = fileRefreshContext.get;

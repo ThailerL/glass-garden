@@ -1,8 +1,9 @@
-import { getContext, setContext } from 'svelte';
 import { type Edge, type Node, type Viewport } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
 import { requestPersistentStorage } from './container';
+import { createContext } from './context';
+import { keysWithPrefix, readByPrefix, readEntry } from './storage';
 import type { FileSetId } from './node-files';
 
 export type NodeData = {
@@ -22,18 +23,8 @@ export function nodePorts(node: Node): readonly number[] {
 	return (node.data as NodeData).ports;
 }
 
-// Loading runs in the root layout, so anything thrown here costs the whole canvas rather
-// than the entry that caused it. An unreadable one is skipped and left in storage
-function readStored<T>(prefix: string): T[] {
-	return Object.keys(localStorage)
-		.filter((key) => key.startsWith(prefix))
-		.flatMap((key) => {
-			try {
-				return [JSON.parse(localStorage[key]) as T];
-			} catch {
-				return [];
-			}
-		});
+export function nodeName(node: { data: Node['data'] }): string {
+	return nodeConfig<{ name: string }>(node).name;
 }
 
 // One key space per project, so a graph's entries can be found and cleared as a set
@@ -47,15 +38,12 @@ export function graphKeyPrefix(projectId: string) {
 // on screen: a database left in a project the reader is not looking at is still what the wait
 // is spent on. Read from storage rather than a GraphState for the same reason
 export function anyStoredDataNodes(): boolean {
-	return Object.keys(localStorage).some((key) => {
-		if (!key.startsWith(GRAPH_PREFIX) || !key.includes(':node:')) return false;
-		try {
-			const { type } = JSON.parse(localStorage[key]) as Node;
+	return keysWithPrefix(GRAPH_PREFIX)
+		.filter((key) => key.includes(':node:'))
+		.some((key) => {
+			const type = readEntry<Node>(key)?.type;
 			return resourceDefinitions[type as ResourceType]?.ownsStoredData ?? false;
-		} catch {
-			return false;
-		}
-	});
+		});
 }
 
 export class GraphState {
@@ -81,12 +69,12 @@ export class GraphState {
 		this.viewport = undefined;
 		this.selectedNodeId = undefined;
 		this.#prefix = graphKeyPrefix(projectId);
-		this.nodes = readStored<Node>(`${this.#prefix}node:`).flatMap(
+		this.nodes = readByPrefix<Node>(`${this.#prefix}node:`).flatMap(
 			(node) => this.#loadNode(node) ?? []
 		);
 		// An edge to a node that did not load points at nothing, and the canvas would draw it
 		// into empty space
-		this.edges = readStored<Edge>(`${this.#prefix}edge:`).filter(
+		this.edges = readByPrefix<Edge>(`${this.#prefix}edge:`).filter(
 			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
 		);
 	}
@@ -192,12 +180,10 @@ export class GraphState {
 	}
 }
 
-const GRAPH_KEY = Symbol('GRAPH');
+const graphContext = createContext<GraphState>('GRAPH');
 
 export function setGraphState(projectId: string) {
-	return setContext(GRAPH_KEY, new GraphState(projectId));
+	return graphContext.set(new GraphState(projectId));
 }
 
-export function getGraphState() {
-	return getContext<ReturnType<typeof setGraphState>>(GRAPH_KEY);
-}
+export const getGraphState = graphContext.get;

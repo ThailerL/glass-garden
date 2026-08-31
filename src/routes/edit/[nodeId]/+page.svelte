@@ -5,7 +5,8 @@
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
-	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
+	import { messageOf } from '$lib/errors';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import { nodeFiles } from '$lib/node-files';
@@ -27,7 +28,7 @@
 </script>
 
 <svelte:head>
-	<title>Editing {node && nodeConfig<{ name: string }>(node).name}</title>
+	<title>Editing {node && nodeName(node)}</title>
 </svelte:head>
 
 <!-- The editor waits on the container; the inspector needs nothing from it, so it is
@@ -62,9 +63,7 @@ rendered either side of the boundary and stays in view for the whole wait -->
 					class="flex h-full flex-col items-center justify-center gap-2 p-4 text-muted-foreground"
 				>
 					<p>Could not open this resource</p>
-					<pre class="max-w-full overflow-x-auto text-xs">{error instanceof Error
-							? error.message
-							: String(error)}</pre>
+					<pre class="max-w-full overflow-x-auto text-xs">{messageOf(error)}</pre>
 				</div>
 			{/snippet}
 

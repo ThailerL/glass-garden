@@ -13,7 +13,7 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
@@ -39,7 +39,7 @@
 	const restarts = $derived(orchestrator.getRestarts(nodeId));
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
 	const definition = $derived(node && getResourceDefinition(node.type));
-	const name = $derived(node && nodeConfig<{ name: string }>(node).name);
+	const name = $derived(node && nodeName(node));
 	const editable = $derived(!!definition && definition.hasEditableFiles);
 
 	// Preview is the one tab a node can lack, so a resource without one falls back rather

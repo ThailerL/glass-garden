@@ -3,13 +3,7 @@
 	import { draggable, droppable } from '@thisux/sveltednd';
 	import type { DirEnt } from '@vivari/core';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
-	import {
-		createFile,
-		createFolder,
-		directoryListing,
-		isAtOrUnder,
-		rebase
-	} from '$lib/file-tree.svelte';
+	import { directoryListing, isAtOrUnder, rebase } from '$lib/file-tree.svelte';
 	import { getFileTreeContext } from '$lib/file-tree-context.svelte';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
@@ -58,11 +52,11 @@
 	});
 
 	function newFile() {
-		createFile(tree.container, listing.names, tree.fsPath(itemPath)).then(() => refresh.bump());
+		void tree.createFile(itemPath, listing.names);
 	}
 
 	function newFolder() {
-		createFolder(tree.container, listing.names, tree.fsPath(itemPath)).then(() => refresh.bump());
+		void tree.createFolder(itemPath, listing.names);
 	}
 
 	function validateName(newName: string) {

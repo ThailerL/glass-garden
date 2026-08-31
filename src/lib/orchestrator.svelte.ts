@@ -1,9 +1,10 @@
-import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import { anyStoredDataNodes, GraphState, nodePorts } from './graph-state.svelte';
+import { createContext } from './context';
+import { messageOf } from './errors';
 import {
 	getResourceDefinition,
 	type Instance,
@@ -219,7 +220,7 @@ export class Orchestrator {
 			(error) => {
 				// Recorded wherever the boot was triggered from, then rethrown so whoever asked
 				// still fails and logs it against their own node
-				this.#containerError = error instanceof Error ? error.message : String(error);
+				this.#containerError = messageOf(error);
 				this.#endBootWatch();
 				throw error;
 			}
@@ -293,12 +294,10 @@ export class Orchestrator {
 	}
 }
 
-const ORCHESTRATOR_KEY = Symbol('ORCHESTRATOR');
+const orchestratorContext = createContext<Orchestrator>('ORCHESTRATOR');
 
 export function setOrchestrator(graphState: GraphState) {
-	return setContext(ORCHESTRATOR_KEY, new Orchestrator(graphState));
+	return orchestratorContext.set(new Orchestrator(graphState));
 }
 
-export function getOrchestrator() {
-	return getContext<ReturnType<typeof setOrchestrator>>(ORCHESTRATOR_KEY);
-}
+export const getOrchestrator = orchestratorContext.get;

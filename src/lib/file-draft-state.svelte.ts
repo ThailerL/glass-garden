@@ -1,6 +1,6 @@
-import { getContext, setContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import type { EditorState } from '@codemirror/state';
+import { createContext } from './context';
 import { isAtOrUnder } from './file-tree.svelte';
 
 function moveKeys<T>(map: SvelteMap<string, T>, from: string, to: string) {
@@ -19,8 +19,7 @@ function deleteKeys<T>(map: SvelteMap<string, T>, path: string) {
 
 export class FileDraftState {
 	editorStates = new SvelteMap<string, EditorState>();
-	// What each opened file holds on disk. Kept here so a draft can be told apart from a
-	// saved file without the whole directory in memory
+	// What each opened file holds on disk
 	#baselines = new SvelteMap<string, string>();
 
 	getDraft(path: string[]) {
@@ -71,7 +70,7 @@ export class FileDraftState {
 	}
 }
 
-const FILE_DRAFT_KEY = Symbol('FILE_DRAFT');
+const fileDraftContext = createContext<FileDraftState>('FILE_DRAFT');
 
 // Outlives the editor, so leaving for the canvas and coming back keeps what was typed. One
 // per node, because the paths a state is keyed by are relative to its node
@@ -83,7 +82,7 @@ export function setFileDraftState(nodeId: string) {
 		state = new FileDraftState();
 		states.set(nodeId, state);
 	}
-	return setContext(FILE_DRAFT_KEY, state);
+	return fileDraftContext.set(state);
 }
 
 // Across every node, so a guard outside the editor still knows about work left unsaved in
@@ -92,6 +91,4 @@ export function anyDraftsDirty() {
 	return [...states.values()].some((state) => state.anyDirty);
 }
 
-export function getFileDraftState() {
-	return getContext<ReturnType<typeof setFileDraftState>>(FILE_DRAFT_KEY);
-}
+export const getFileDraftState = fileDraftContext.get;

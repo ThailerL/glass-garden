@@ -29,7 +29,7 @@
 	import ResourcesGroup from './ResourcesGroup.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { inspectorState } from '$lib/inspector-state.svelte';
-	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import OrchestratorControls from './OrchestratorControls.svelte';
 	import TourOverlay from '$lib/components/TourOverlay.svelte';
@@ -58,7 +58,7 @@
 		});
 		if (withContents.length === 0) return Promise.resolve(true);
 
-		const names = withContents.map((node) => nodeConfig<{ name: string }>(node).name);
+		const names = withContents.map(nodeName);
 		return new Promise((resolve) => {
 			confirmDelete({
 				title: nodes.length === 1 ? `Delete "${names[0]}"?` : `Delete ${nodes.length} resources?`,

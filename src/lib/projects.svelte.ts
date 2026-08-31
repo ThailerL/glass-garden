@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import { templates, type TemplateId } from './templates';
 import { removeNodeFiles } from './container';
 import { GRAPH_PREFIX, GraphState, graphKeyPrefix } from './graph-state.svelte';
+import { keysWithPrefix, readByPrefix } from './storage';
 
 export type Project = { id: string; name: string; createdAt: number };
 
@@ -10,18 +11,9 @@ const LAST_PROJECT_KEY = 'lastProjectId';
 
 let projects = $state<Project[]>(readProjects());
 
+// Oldest first, so the list reads in the order the projects were made
 function readProjects(): Project[] {
-	return Object.keys(localStorage)
-		.filter((key) => key.startsWith(PROJECT_PREFIX))
-		.flatMap((key) => {
-			// An unreadable entry is skipped and left in storage, the way stored nodes are
-			try {
-				return [JSON.parse(localStorage[key]) as Project];
-			} catch {
-				return [];
-			}
-		})
-		.sort((a, b) => a.createdAt - b.createdAt);
+	return readByPrefix<Project>(PROJECT_PREFIX).sort((a, b) => a.createdAt - b.createdAt);
 }
 
 export function listProjects(): readonly Project[] {
@@ -67,7 +59,7 @@ export function ensureProject(): Project {
 export function deleteProject(id: string) {
 	const prefix = graphKeyPrefix(id);
 	const nodePrefix = `${prefix}node:`;
-	const keys = Object.keys(localStorage).filter((key) => key.startsWith(prefix));
+	const keys = keysWithPrefix(prefix);
 
 	// Read before the keys go, since nothing else records which nodes were this project's
 	const nodeIds = keys
@@ -85,8 +77,6 @@ export function deleteProject(id: string) {
 // back off the key holding it
 export function findProjectIdForNode(nodeId: string): string | undefined {
 	const suffix = `:node:${nodeId}`;
-	const key = Object.keys(localStorage).find(
-		(key) => key.startsWith(GRAPH_PREFIX) && key.endsWith(suffix)
-	);
+	const key = keysWithPrefix(GRAPH_PREFIX).find((key) => key.endsWith(suffix));
 	return key?.slice(GRAPH_PREFIX.length, key.length - suffix.length);
 }

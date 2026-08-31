@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import type { SuperForm } from 'sveltekit-superforms';
-	import * as Form from '$lib/components/ui/form';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { Input } from '$lib/components/ui/input';
+	import ConfigField from '$lib/components/ConfigField.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Label } from '$lib/components/ui/label';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -37,26 +36,16 @@
 	}
 </script>
 
-<Form.Field {form} name="name">
-	<Form.Control>
-		{#snippet children({ props })}
-			<Form.Label>Name</Form.Label>
-			<Input {...props} bind:value={$formData.name} />
-		{/snippet}
-	</Form.Control>
-	<Form.FieldErrors />
-</Form.Field>
+<ConfigField {form} name="name" label="Name" bind:value={$formData.name} />
 
-<Form.Field {form} name="maxConnections">
-	<Form.Control>
-		{#snippet children({ props })}
-			<Form.Label>Max Connections</Form.Label>
-			<Input type="number" {...props} bind:value={$formData.maxConnections} />
-		{/snippet}
-	</Form.Control>
-	<Form.Description>Connections past this limit are refused.</Form.Description>
-	<Form.FieldErrors />
-</Form.Field>
+<ConfigField
+	{form}
+	name="maxConnections"
+	label="Max Connections"
+	type="number"
+	description="Connections past this limit are refused."
+	bind:value={$formData.maxConnections}
+/>
 
 <div class="space-y-2">
 	<Label>Connection String</Label>

@@ -4,7 +4,8 @@ import { toast } from 'svelte-sonner';
 import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
 import { nodeFiles } from './node-files';
-import { nodeConfig } from './graph-state.svelte';
+import { nodeName } from './graph-state.svelte';
+import { messageOf } from './errors';
 
 const MAX_EVENTS = 50;
 const MAX_OUTPUT_LINES = 500;
@@ -14,10 +15,6 @@ const RESTART_DELAY_MS = 2000;
 
 // Instances carry the stamp rather than the config itself, so staleness is one comparison
 const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
-
-// Everything thrown at this layer ends up in the node's log, where the reason is the
-// whole point of the entry
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // What an instance of this node would be launched with, and the stamp it would carry. The
 // only definition of both, so the config form's prediction of a bounce cannot drift from
@@ -45,9 +42,6 @@ type LogEntry = {
 	source: LogSource;
 	text: string;
 };
-
-// Both tagged rather than told apart by which fields they carry, which breaks as soon as
-// the two are given one in common
 
 // A line a process printed
 export type OutputLine = LogEntry & { kind: 'output' };
@@ -457,7 +451,7 @@ export class ResourceController {
 	// Falls back to the resource's own name once the node is gone from the graph
 	#nodeName() {
 		const node = this.#services.getNode();
-		return node ? nodeConfig<{ name: string }>(node).name : this.#definition.name;
+		return node ? nodeName(node) : this.#definition.name;
 	}
 
 	// Chunks arrive at whatever size the stream hands over, so a partial line is carried

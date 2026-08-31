@@ -7,13 +7,7 @@
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { cn } from '$lib/utils.js';
-	import {
-		createFile,
-		createFolder,
-		directoryListing,
-		isAtOrUnder,
-		rebase
-	} from '$lib/file-tree.svelte';
+	import { directoryListing, isAtOrUnder, rebase } from '$lib/file-tree.svelte';
 	import { setFileTreeContext } from '$lib/file-tree-context.svelte';
 	import FileTree from './FileTree.svelte';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
@@ -77,14 +71,14 @@
 		});
 	}
 
-	untrack(() => setFileTreeContext(container, root, handleDrop));
+	const tree = untrack(() => setFileTreeContext(container, root, refresh, handleDrop));
 
 	function newFile() {
-		createFile(container, listing.names, root).then(() => refresh.bump());
+		void tree.createFile([], listing.names);
 	}
 
 	function newFolder() {
-		createFolder(container, listing.names, root).then(() => refresh.bump());
+		void tree.createFolder([], listing.names);
 	}
 </script>
 
