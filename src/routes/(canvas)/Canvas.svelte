@@ -22,8 +22,10 @@
 		type ResourceType
 	} from '$lib/resources';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import * as Sidebar from '$lib/components/ui/sidebar';
 	import ResourceNode from './ResourceNode.svelte';
-	import ResourceSidebar from './ResourceSidebar.svelte';
+	import ProjectsGroup from './ProjectsGroup.svelte';
+	import ResourcesGroup from './ResourcesGroup.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
@@ -33,12 +35,6 @@
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
 	const { screenToFlowPosition } = useSvelteFlow();
-
-	if (graphState.nodes.length === 0) {
-		const httpLoadBalancer = graphState.addNode('httpLoadBalancer', { x: -100, y: 0 });
-		const instanceGroup = graphState.addNode('instanceGroup', { x: 100, y: 0 });
-		graphState.addEdge(httpLoadBalancer.id, instanceGroup.id);
-	}
 
 	// Every resource type renders through the same component, which reads its icon and
 	// handles from the node's own definition
@@ -129,7 +125,13 @@
 </script>
 
 {#snippet leftSidebar()}
-	<ResourceSidebar />
+	<Sidebar.Root collapsible="none" class="w-full!">
+		<Sidebar.Content class="gap-0 pt-2">
+			<ProjectsGroup />
+			<Sidebar.Separator class="my-2" />
+			<ResourcesGroup />
+		</Sidebar.Content>
+	</Sidebar.Root>
 {/snippet}
 
 {#snippet mainContent()}

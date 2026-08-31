@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
-import NetworkIcon from '@lucide/svelte/icons/network';
+import LoadBalancerIcon from './LoadBalancerIcon.svelte';
 import * as resourceFiles from 'virtual:resource-files';
 import HttpLoadBalancerConfig from './HttpLoadBalancerConfig.svelte';
 import type { Upstream, ResourceDefinition } from '../types';
@@ -34,7 +34,7 @@ async function updateConfig(node: Node, container: Vivari, upstreams: readonly U
 
 export const httpLoadBalancer = {
 	name: 'HTTP Load Balancer',
-	icon: NetworkIcon,
+	icon: LoadBalancerIcon,
 	files: resourceFiles.httpLoadBalancer,
 	hasEditableFiles: false,
 	hasPreview: true,

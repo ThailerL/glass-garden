@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import './layout.css';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
@@ -10,9 +11,10 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import type { LayoutProps } from './$types';
 
-	let { children }: LayoutProps = $props();
+	let { children, data }: LayoutProps = $props();
 
-	const graphState = setGraphState();
+	// Switching projects is a full page load, so this is read once rather than tracked
+	const graphState = setGraphState(untrack(() => data.projectId));
 	// Set here rather than on the canvas so the editor route shares one orchestrator,
 	// and with it one container and one set of running instances
 	const orchestrator = setOrchestrator(graphState);

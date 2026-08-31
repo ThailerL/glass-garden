@@ -9,6 +9,13 @@ export function getContainer() {
 	return containerPromise;
 }
 
+export function shutdownContainer() {
+	const booted = containerPromise;
+	containerPromise = undefined;
+	mounts.clear();
+	void booted?.then((container) => container.teardown()).catch(() => {});
+}
+
 export function nodeDirectory(nodeId: string) {
 	return `/${nodeId}`;
 }

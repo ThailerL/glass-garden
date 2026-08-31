@@ -16,7 +16,7 @@ import {
 	type OutputLine,
 	type ResourceEvent
 } from './resource-controller.svelte';
-import { getContainer, removeNodeFiles } from './container';
+import { getContainer, removeNodeFiles, shutdownContainer } from './container';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -49,6 +49,18 @@ export class Orchestrator {
 		// No node owns this failure, and nothing can run without it, so it is said once here
 		// rather than waiting for the first start to report it as a failed prepare
 		void this.#getContainer().catch(() => toast.error('Container failed to boot'));
+	}
+
+	// Switching projects: dropping the VM takes every running process with it, and a fresh
+	// one boots for the new graph. Controllers are discarded rather than forgotten, so the
+	// project being left keeps its files
+	reset() {
+		this.#controllers.clear();
+		this.#containerPromise = undefined;
+		this.#containerReady = false;
+		this.#containerError = undefined;
+		shutdownContainer();
+		this.warmUp();
 	}
 
 	getStatus(nodeId: string): ResourceStatus {

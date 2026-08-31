@@ -33,15 +33,32 @@ function readStored<T>(prefix: string): T[] {
 		});
 }
 
+// One key space per project, so a graph's entries can be found and cleared as a set
+export const GRAPH_PREFIX = 'graph:';
+
+export function graphKeyPrefix(projectId: string) {
+	return `${GRAPH_PREFIX}${projectId}:`;
+}
+
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
+	projectId = $state('');
+	#prefix = '';
 
-	constructor() {
-		this.nodes = readStored<Node>('node:').flatMap((node) => this.#loadNode(node) ?? []);
+	constructor(projectId: string) {
+		this.switchTo(projectId);
+	}
+
+	switchTo(projectId: string) {
+		this.projectId = projectId;
+		this.#prefix = graphKeyPrefix(projectId);
+		this.nodes = readStored<Node>(`${this.#prefix}node:`).flatMap(
+			(node) => this.#loadNode(node) ?? []
+		);
 		// An edge to a node that did not load points at nothing, and the canvas would draw it
 		// into empty space
-		this.edges = readStored<Edge>('edge:').filter(
+		this.edges = readStored<Edge>(`${this.#prefix}edge:`).filter(
 			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
 		);
 	}
@@ -123,26 +140,32 @@ export class GraphState {
 	// Clones before clearing `selected` so persisted state doesn't affect the live node,
 	// which is the same object reference when called from updateNodeData
 	setNodeInStorage(node: Node) {
-		localStorage.setItem(`node:${node.id}`, JSON.stringify({ ...node, selected: false }));
+		localStorage.setItem(
+			`${this.#prefix}node:${node.id}`,
+			JSON.stringify({ ...node, selected: false })
+		);
 	}
 
 	setEdgeInStorage(edge: Edge) {
-		localStorage.setItem(`edge:${edge.id}`, JSON.stringify({ ...edge, selected: false }));
+		localStorage.setItem(
+			`${this.#prefix}edge:${edge.id}`,
+			JSON.stringify({ ...edge, selected: false })
+		);
 	}
 
 	deleteNodeFromStorage(id: string) {
-		localStorage.removeItem(`node:${id}`);
+		localStorage.removeItem(`${this.#prefix}node:${id}`);
 	}
 
 	deleteEdgeFromStorage(id: string) {
-		localStorage.removeItem(`edge:${id}`);
+		localStorage.removeItem(`${this.#prefix}edge:${id}`);
 	}
 }
 
 const GRAPH_KEY = Symbol('GRAPH');
 
-export function setGraphState() {
-	return setContext(GRAPH_KEY, new GraphState());
+export function setGraphState(projectId: string) {
+	return setContext(GRAPH_KEY, new GraphState(projectId));
 }
 
 export function getGraphState() {
