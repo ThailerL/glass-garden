@@ -1,10 +1,3 @@
-<script lang="ts" module>
-	// Which tab is open is about the reader rather than the node, and the inspector is
-	// rebuilt from scratch on every selection, so this is shared by all instances of it and
-	// survives switching between nodes
-	let tab = $state('config');
-</script>
-
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as ButtonGroup from '$lib/components/ui/button-group';
@@ -18,7 +11,8 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
+	import { inspectorTab } from '$lib/inspector-tab.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import ConfigTab from './ConfigTab.svelte';
@@ -37,24 +31,36 @@
 	const restarts = $derived(orchestrator.getRestarts(nodeId));
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
 	const definition = $derived(node && getResourceDefinition(node.type));
+	const name = $derived(node && nodeConfig<{ name: string }>(node).name);
 	const editable = $derived(!!definition && definition.hasEditableFiles);
 
 	// Preview is the one tab a node can lack, so a resource without one falls back rather
 	// than showing an empty panel for a tab it never rendered
 	$effect(() => {
-		if (tab === 'preview' && !definition?.hasPreview) tab = 'config';
+		if (inspectorTab.value === 'preview' && !definition?.hasPreview) inspectorTab.value = 'config';
 	});
 </script>
 
-<Sidebar.Root side="right" collapsible="none" class="w-full!">
+<!-- Rebuilt whenever the selection moves, and a panel replaced in place reads as one
+that never changed, so the rebuild is given something the eye can catch -->
+<Sidebar.Root side="right" collapsible="none" class="w-full! animate-in duration-150 fade-in">
+	<!-- Which resource is being inspected, so the panel still says whose it is -->
+	{#if definition}
+		<Sidebar.Header class="flex-row items-center gap-2 px-3 pt-3 pb-1">
+			<definition.icon class="size-5 shrink-0" />
+			<span class="truncate font-medium">{name}</span>
+		</Sidebar.Header>
+	{/if}
 	<Sidebar.Content>
 		<Sidebar.Group class="h-full">
 			<Sidebar.GroupContent class="h-full">
-				<UnderlineTabs.Root bind:value={tab} class="h-full">
+				<UnderlineTabs.Root bind:value={inspectorTab.value} class="h-full">
 					<UnderlineTabs.List>
 						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
 						{#if definition?.hasPreview}
-							<UnderlineTabs.Trigger value="preview">Preview</UnderlineTabs.Trigger>
+							<UnderlineTabs.Trigger value="preview" data-tour="preview-tab">
+								Preview
+							</UnderlineTabs.Trigger>
 						{/if}
 						<UnderlineTabs.Trigger value="logs">Logs</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
@@ -80,7 +86,7 @@
 				Back to Canvas
 			</Button>
 		{:else if editable}
-			<Button variant="outline" href={resolve('/edit/[nodeId]', { nodeId })}>
+			<Button variant="outline" data-tour="edit-code" href={resolve('/edit/[nodeId]', { nodeId })}>
 				<FilePenIcon />
 				Edit Resource Code
 			</Button>

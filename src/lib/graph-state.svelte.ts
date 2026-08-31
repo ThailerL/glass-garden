@@ -119,6 +119,12 @@ export class GraphState {
 		return this.nodes.find((node) => node.id === id);
 	}
 
+	// The canvas keeps a node's selection on the node itself, so anything selecting one from
+	// outside the canvas says so here rather than rewriting the array on its own
+	select(id: string) {
+		this.nodes = this.nodes.map((node) => ({ ...node, selected: node.id === id }));
+	}
+
 	// nodes is $state.raw, so the array is replaced rather than the node mutated in place.
 	// The config is snapshotted because callers pass a live form object they keep editing
 	updateNodeConfig(id: string, config: Record<string, unknown>) {

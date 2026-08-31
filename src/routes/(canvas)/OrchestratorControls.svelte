@@ -35,6 +35,7 @@
 </script>
 
 <div
+	data-tour="controls"
 	class="fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3
          rounded-full border bg-background px-3 py-1.5 shadow-lg backdrop-blur"
 >
@@ -58,6 +59,7 @@
 				{#snippet child({ props })}
 					<Button
 						{...props}
+						data-tour="run"
 						variant="outline"
 						disabled={startDisabled}
 						onclick={() => orchestrator.startAll()}

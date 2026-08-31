@@ -30,11 +30,16 @@
 	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import OrchestratorControls from './OrchestratorControls.svelte';
+	import TourOverlay from '$lib/components/TourOverlay.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
+	import { tour } from '$lib/tour.svelte';
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
 	const { screenToFlowPosition } = useSvelteFlow();
+
+	// Offered once, on a first visit: the tour reads the canvas it is about to point at
+	tour.begin(graphState.nodes);
 
 	// Every resource type renders through the same component, which reads its icon and
 	// handles from the node's own definition
@@ -168,6 +173,8 @@
 {/snippet}
 
 <OrchestratorControls />
+
+<TourOverlay />
 
 <Workspace
 	{leftSidebar}

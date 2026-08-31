@@ -4,6 +4,7 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
+	import { tour } from '$lib/tour.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
@@ -19,9 +20,18 @@
 	);
 </script>
 
-<div class="flex h-full flex-col gap-2">
+<div class="flex h-full flex-col gap-2" data-tour="preview-panel">
 	<div class="flex items-center gap-2">
-		<Button variant="outline" size="icon" disabled={!previewUrl} onclick={() => frame?.reload()}>
+		<Button
+			variant="outline"
+			size="icon"
+			data-tour="refresh"
+			disabled={!previewUrl}
+			onclick={() => {
+				frame?.reload();
+				tour.noteRefresh(nodeId);
+			}}
+		>
 			<RefreshCwIcon />
 		</Button>
 		<InstanceSelect {nodeId} bind:selected />
