@@ -48,12 +48,15 @@ app.get('/', async (req, res) => {
     const { rows } = await pool.query('SELECT instance, count FROM views ORDER BY instance');
 
     const total = rows.reduce((sum, row) => sum + row.count, 0);
+    const busiest = Math.max(...rows.map((row) => row.count));
+    // The next multiple of 10 above the busiest instance, so one request always moves a bar
+    const scale = Math.ceil(busiest / 10) * 10;
     // The only markup built here, because it is the one part that varies in length
     const bars = rows
       .map(
         (row) => `<li class="${row.instance === port ? 'serving' : ''}">
           <span>:${row.instance}</span>
-          <span class="bar" style="width: ${(row.count / total) * 100}%"></span>
+          <span class="bar" style="width: ${(row.count / scale) * 100}%"></span>
           <span class="count">${row.count}</span>
         </li>`
       )
