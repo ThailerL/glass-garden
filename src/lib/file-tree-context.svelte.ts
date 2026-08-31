@@ -1,5 +1,6 @@
 import type { Vivari } from '@vivari/core';
 import type { DragDropState } from '@thisux/sveltednd';
+import { toast } from 'svelte-sonner';
 import { createContext } from './context';
 import { createFile, createFolder } from './file-tree.svelte';
 import type { FileRefresh } from './file-refresh.svelte';
@@ -23,12 +24,22 @@ export class FileTreeContext {
 	}
 
 	async createFile(directory: string[], siblingNames: string[]) {
-		await createFile(this.container, siblingNames, this.fsPath(directory));
+		try {
+			await createFile(this.container, siblingNames, this.fsPath(directory));
+		} catch {
+			toast.error('Could not create a new file');
+			return;
+		}
 		this.refresh.bump();
 	}
 
 	async createFolder(directory: string[], siblingNames: string[]) {
-		await createFolder(this.container, siblingNames, this.fsPath(directory));
+		try {
+			await createFolder(this.container, siblingNames, this.fsPath(directory));
+		} catch {
+			toast.error('Could not create a new folder');
+			return;
+		}
 		this.refresh.bump();
 	}
 }

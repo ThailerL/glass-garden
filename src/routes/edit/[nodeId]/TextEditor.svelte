@@ -11,6 +11,7 @@
 	import { mode } from 'mode-watcher';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
 	import { requestPersistentStorage } from '$lib/container';
+	import { toast } from 'svelte-sonner';
 
 	const {
 		container,
@@ -35,6 +36,7 @@
 	const currentDraft = $derived(
 		fileDraftState.getDraft(selectedFilePath) ?? fileDraftState.getBaseline(selectedFilePath) ?? ''
 	);
+	const loaded = $derived(fileDraftState.getBaseline(selectedFilePath) !== undefined);
 
 	let view: EditorView | undefined = $state();
 
@@ -42,11 +44,11 @@
 		if (nothingSelected) return;
 		// Captured so a read that lands after the selection moves still writes its own key
 		const path = selectedFilePath;
-		container.fs
-			.readFile([root, ...path].join('/'), 'utf-8')
-			// An unreadable file reads as empty rather than keeping a stale baseline
-			.catch(() => '')
-			.then((contents) => fileDraftState.setBaseline(path, contents));
+		container.fs.readFile([root, ...path].join('/'), 'utf-8').then(
+			(contents) => fileDraftState.setBaseline(path, contents),
+			// No baseline is left behind, so the file stays closed rather than looking empty
+			() => toast.error(`Could not open ${path.at(-1)}`)
+		);
 	});
 
 	function onChange() {
@@ -63,10 +65,16 @@
 		if (cached) view.setState(cached);
 	});
 
+	// The terminal and the inspector share this window and keep their own use of the key
+	function inSaveScope(target: EventTarget | null) {
+		return target instanceof Element && !!target.closest('[data-save-scope]');
+	}
+
 	async function handleKeydown(e: KeyboardEvent) {
 		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+			if (!inSaveScope(e.target)) return;
 			e.preventDefault();
-			if (nothingSelected) return;
+			if (!loaded) return;
 			const saved = currentDraft;
 			await container.fs.writeFile([root, ...selectedFilePath].join('/'), saved);
 			// Not awaited: on Firefox this prompts, and saving shouldn't wait on an answer
@@ -80,22 +88,24 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<CodeMirror
-	class="h-full"
-	value={currentDraft}
-	readonly={nothingSelected}
-	placeholder={nothingSelected ? 'No file selected' : undefined}
-	lang={language}
-	lineWrapping={true}
-	onchange={onChange}
-	onready={onReady}
-	// So that the unsaved icon displays right when typing starts
-	nodebounce={true}
-	theme={mode.current === 'dark' ? dracula : undefined}
-	styles={{
-		'&': {
-			height: '100%',
-			width: '100%'
-		}
-	}}
-/>
+<div class="h-full" data-save-scope>
+	<CodeMirror
+		class="h-full"
+		value={currentDraft}
+		readonly={!loaded}
+		placeholder={nothingSelected ? 'No file selected' : undefined}
+		lang={language}
+		lineWrapping={true}
+		onchange={onChange}
+		onready={onReady}
+		// So that the unsaved icon displays right when typing starts
+		nodebounce={true}
+		theme={mode.current === 'dark' ? dracula : undefined}
+		styles={{
+			'&': {
+				height: '100%',
+				width: '100%'
+			}
+		}}
+	/>
+</div>

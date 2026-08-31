@@ -22,10 +22,15 @@
 	// the list doesn't reshuffle as they come and go
 	const ports = $derived(orchestrator.getReservedPorts(nodeId));
 
-	// Settles what nothing chosen yet means, so a caller reads a real port back rather than
-	// carrying its own fallback
+	// Whether the choice still names something this node has
+	const offered = $derived(
+		selected === ALL ? all : selected !== undefined && ports.includes(selected)
+	);
+
+	// Settles what nothing chosen yet means, and takes back a choice a scale-down has removed,
+	// so a caller reads a real port back rather than carrying its own fallback
 	$effect(() => {
-		if (selected === undefined) selected = all ? ALL : ports[0];
+		if (!offered) selected = all ? ALL : ports[0];
 	});
 
 	function status(port: number | 'all') {

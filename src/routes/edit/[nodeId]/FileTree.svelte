@@ -12,6 +12,7 @@
 	import FileTree from './FileTree.svelte';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
+	import { toast } from 'svelte-sonner';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -65,7 +66,12 @@
 
 	async function renameItem(newName: string) {
 		const renamedPath = [...parentPath, newName];
-		await tree.container.fs.rename(tree.fsPath(itemPath), tree.fsPath(renamedPath));
+		try {
+			await tree.container.fs.rename(tree.fsPath(itemPath), tree.fsPath(renamedPath));
+		} catch {
+			toast.error(`Could not rename ${itemName}`);
+			return;
+		}
 
 		// Drafts and the selection are keyed by path, so both follow the item that moved
 		fileDraftState.movePath(itemPath, renamedPath);
@@ -84,7 +90,12 @@
 	}
 
 	async function deleteItem() {
-		await tree.container.fs.rm(tree.fsPath(itemPath), { recursive: true });
+		try {
+			await tree.container.fs.rm(tree.fsPath(itemPath), { recursive: true });
+		} catch {
+			toast.error(`Could not delete ${itemName}`);
+			return;
+		}
 
 		fileDraftState.discardPath(itemPath);
 		// The open file is this item or lives inside it, so the delete invalidates the selected

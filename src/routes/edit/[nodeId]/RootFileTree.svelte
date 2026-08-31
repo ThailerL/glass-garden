@@ -12,6 +12,7 @@
 	import FileTree from './FileTree.svelte';
 	import { getFileRefresh } from '$lib/file-refresh.svelte';
 	import { getFileDraftState } from '$lib/file-draft-state.svelte';
+	import { toast } from 'svelte-sonner';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -49,7 +50,12 @@
 		const destinationFsPath = [root, movedPath].join('/');
 
 		async function move() {
-			await container.fs.rename([root, draggedPath].join('/'), destinationFsPath);
+			try {
+				await container.fs.rename([root, draggedPath].join('/'), destinationFsPath);
+			} catch {
+				toast.error(`Could not move ${draggedItem}`);
+				return;
+			}
 
 			fileDraftState.discardPath(to);
 			fileDraftState.movePath(from, to);
@@ -58,7 +64,12 @@
 			refresh.bump();
 		}
 
-		const destination = await container.fs.stat(destinationFsPath);
+		// Without knowing whether something is already there, the move could silently replace it
+		const destination = await container.fs.stat(destinationFsPath).catch(() => undefined);
+		if (!destination) {
+			toast.error(`Could not move ${draggedItem}`);
+			return;
+		}
 		if (!destination.exists) return move();
 
 		confirmDelete({
@@ -87,9 +98,11 @@
 		{#snippet child({ props })}
 			<!-- bits-ui types the child snippet's props as unknown, so class is cast to what cn
 			accepts rather than to the one shape a caller happens to pass -->
+			<!-- Choosing a file here focuses its button, so Ctrl+S still reaches the editor -->
 			<div
 				{...props}
 				class={cn(props.class as ClassValue, 'min-h-full')}
+				data-save-scope
 				use:droppable={{ container: '', callbacks: { onDrop: handleDrop } }}
 			>
 				<TreeView.Root>

@@ -107,12 +107,17 @@ export class Orchestrator {
 
 		const reserved = nodePorts(node);
 		const configured = this.getConfiguredCount(nodeId);
-		if (reserved.length >= configured) return reserved;
 
-		const topped = [...reserved];
-		while (topped.length < configured) topped.push(this.#mintPort());
-		this.#graphState.setNodePorts(node, topped);
-		return topped;
+		// A scale-down drops the ports past the new count, except any an instance is still
+		// winding down on: those go once it is gone, so nothing is reserved twice meanwhile
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const held = new Set(this.getInstances(nodeId).map((instance) => instance.port));
+		const kept = reserved.filter((port, index) => index < configured || held.has(port));
+		while (kept.length < configured) kept.push(this.#mintPort());
+
+		// Trimming and topping up are exclusive, so a length change is the whole difference
+		if (kept.length !== reserved.length) this.#graphState.setNodePorts(node, kept);
+		return kept;
 	}
 
 	// Exposed so the config form can predict what a save would do to running instances

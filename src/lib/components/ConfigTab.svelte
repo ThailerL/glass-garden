@@ -76,11 +76,22 @@
 		orchestrator.refresh(node.id);
 		toast.success('Successfully saved config');
 	}
+
+	// Keystrokes from the fields bubble here, so the shortcut is the form's own rather than the
+	// window's and cannot answer for the editor or the terminal
+	function handleKeydown(e: KeyboardEvent) {
+		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+			e.preventDefault();
+			void handleSubmit();
+		}
+	}
 </script>
 
 <div class="min-h-0 flex-1 overflow-y-auto">
 	<!-- Spaced here so every config component stacks its fields the same way -->
-	<form method="dialog" onsubmit={handleSubmit} class="space-y-2">
+	<!-- The handler catches keystrokes from the fields; the form itself is not a control -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<form method="dialog" onsubmit={handleSubmit} onkeydown={handleKeydown} class="space-y-2">
 		<ConfigComponent {form} {nodeId} />
 	</form>
 </div>
