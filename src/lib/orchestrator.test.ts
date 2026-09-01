@@ -14,7 +14,8 @@ vi.mock('$lib/container', () => ({
 	mountNodeFiles: vi.fn(),
 	removeNodeFiles: vi.fn(),
 	shutdownContainer: vi.fn(),
-	requestPersistentStorage: vi.fn()
+	requestPersistentStorage: vi.fn(),
+	setActiveProject: vi.fn()
 }));
 vi.mock('$lib/files/node-files', () => ({ nodeFiles: () => ({}) }));
 vi.mock('svelte-sonner', () => ({

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { templates, type TemplateId } from './templates';
-import { removeNodeFiles } from './container';
+import { onContainerBoot, projectDirectory, PROJECTS_ROOT, removeProjectFiles } from './container';
 import { GRAPH_PREFIX, GraphState, graphKeyPrefix } from './graph-state.svelte';
 import { keysWithPrefix, readByPrefix } from './storage';
 
@@ -70,8 +70,21 @@ export function deleteProject(id: string) {
 	localStorage.removeItem(`${PROJECT_PREFIX}${id}`);
 	projects = projects.filter((project) => project.id !== id);
 
-	for (const nodeId of nodeIds) void removeNodeFiles(nodeId);
+	void removeProjectFiles(id, nodeIds);
 }
+
+// Catches project dirs whose delete was skipped because the container wasn't booted
+onContainerBoot(async (container) => {
+	const keep = new Set(projects.map((project) => project.id));
+	const entries = await container.fs
+		.readdir(PROJECTS_ROOT, { withFileTypes: true })
+		.catch(() => []);
+	await Promise.all(
+		entries
+			.filter((entry) => entry.isDirectory() && !keep.has(entry.name))
+			.map((entry) => container.fs.rm(projectDirectory(entry.name), { recursive: true, force: true }))
+	);
+});
 
 // The editor route carries a node id and nothing else, so the project it belongs to is read
 // back off the key holding it

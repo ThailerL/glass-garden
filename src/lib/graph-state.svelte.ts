@@ -1,7 +1,7 @@
 import { type Edge, type Node, type Viewport } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
-import { requestPersistentStorage } from './container';
+import { requestPersistentStorage, setActiveProject } from './container';
 import { createContext } from './context';
 import { keysWithPrefix, readByPrefix, readEntry } from './storage';
 import type { FileSetId } from './files/node-files';
@@ -63,6 +63,7 @@ export class GraphState {
 
 	switchTo(projectId: string) {
 		this.projectId = projectId;
+		setActiveProject(projectId);
 		// Another project's graph is somewhere else entirely, so it starts fitted and unselected
 		this.viewport = undefined;
 		this.selectedNodeId = undefined;

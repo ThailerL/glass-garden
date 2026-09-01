@@ -8,8 +8,19 @@ let containerPromise: Promise<Vivari> | undefined;
 // finished booting, and a shutdown mid-boot would otherwise leave two of them
 let teardownComplete = Promise.resolve();
 
+// Run after every boot; failures are logged, never fatal
+const bootTasks: ((container: Vivari) => Promise<void>)[] = [];
+
+export function onContainerBoot(task: (container: Vivari) => Promise<void>) {
+	bootTasks.push(task);
+}
+
 export function getContainer() {
-	containerPromise ??= teardownComplete.then(() => Vivari.boot());
+	containerPromise ??= teardownComplete.then(async () => {
+		const container = await Vivari.boot();
+		for (const task of bootTasks) void task(container).catch(console.error);
+		return container;
+	});
 	return containerPromise;
 }
 
@@ -25,8 +36,22 @@ export function shutdownContainer() {
 	);
 }
 
+export const PROJECTS_ROOT = '/projects';
+
+// Ambient: GraphState.switchTo is the single writer, and a switch tears the container down
+let activeProjectId: string | undefined;
+
+export function setActiveProject(projectId: string) {
+	activeProjectId = projectId;
+}
+
+export function projectDirectory(projectId: string) {
+	return `${PROJECTS_ROOT}/${projectId}`;
+}
+
 export function nodeDirectory(nodeId: string) {
-	return `/${nodeId}`;
+	if (!activeProjectId) throw new Error('No active project');
+	return `${projectDirectory(activeProjectId)}/nodes/${nodeId}`;
 }
 
 let persistence: Promise<boolean> | undefined;
@@ -73,4 +98,12 @@ export async function removeNodeFiles(nodeId: string) {
 	if (!containerPromise) return;
 	const container = await containerPromise;
 	await container.fs.rm(nodeDirectory(nodeId), { recursive: true, force: true });
+}
+
+// Skipping while unbooted is safe here: the boot-time sweep removes orphaned project dirs
+export async function removeProjectFiles(projectId: string, nodeIds: readonly string[]) {
+	for (const nodeId of nodeIds) mounts.delete(nodeId);
+	if (!containerPromise) return;
+	const container = await containerPromise;
+	await container.fs.rm(projectDirectory(projectId), { recursive: true, force: true });
 }
