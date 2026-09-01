@@ -18,6 +18,7 @@ import {
 const MAX_EVENTS = 50;
 const MAX_OUTPUT_LINES = 500;
 const MAX_FAILED_DEPLOYMENTS = 3;
+const MAX_METRIC_NAMES = 20;
 // Before a crashed instance is respawned
 const RESTART_DELAY_MS = 2000;
 
@@ -112,6 +113,8 @@ export class ResourceController {
 	#restartTimer = $state<ReturnType<typeof setTimeout> | undefined>(undefined);
 	#forgotten = false;
 	#abandoned = false;
+	// So a flood of new names does not fill the log with the complaint about it
+	#warnedNameCap = false;
 
 	constructor(nodeId: string, definition: ResourceDefinition, services: ControllerServices) {
 		this.nodeId = nodeId;
@@ -324,7 +327,8 @@ export class ResourceController {
 					status: 'starting',
 					configStamp: launch.stamp,
 					deployment,
-					replacement: replacing
+					replacement: replacing,
+					startedAt: Date.now()
 				}) - 1;
 			// Read back so we hold the reactive proxy rather than the object we pushed
 			pending.push(this.instances[index]);
@@ -541,7 +545,21 @@ export class ResourceController {
 		this.metrics[source] ??= {};
 		// Read back rather than reuse: $state hands out a proxy of what we assigned
 		const bySource = this.metrics[source];
-		bySource[name] ??= newSeries(now);
+		if (bySource[name] === undefined) {
+			// A name per request id is one typo away, so names are refused past the cap
+			if (Object.keys(bySource).length >= MAX_METRIC_NAMES) {
+				if (!this.#warnedNameCap) {
+					this.#warnedNameCap = true;
+					this.#logEvent(
+						source,
+						'warning',
+						`Reporting more than ${MAX_METRIC_NAMES} different metrics, so later ones are ignored`
+					);
+				}
+				return;
+			}
+			bySource[name] = newSeries(now);
+		}
 		record(bySource[name], now, value);
 	}
 

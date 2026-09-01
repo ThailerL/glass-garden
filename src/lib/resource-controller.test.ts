@@ -414,6 +414,18 @@ describe('metric lines', () => {
 		expect(controller.metrics[3001]?.requests?.buckets[0].sum).toBe(4);
 	});
 
+	// A name per request id is one typo away, and each costs a series and a chart
+	it('stops taking new names past the cap, and says so once', async () => {
+		const { controller, print } = await setupPrinting();
+
+		for (let i = 0; i < 25; i++) await print(metric({ name: `request-${i}`, value: 1 }));
+
+		expect(Object.keys(controller.metrics[3001] ?? {})).toHaveLength(20);
+		const warnings = controller.events.filter((event) => event.level === 'warning');
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0].text).toContain('ignored');
+	});
+
 	it('folds repeats of one name into one series', async () => {
 		const { controller, print } = await setupPrinting();
 

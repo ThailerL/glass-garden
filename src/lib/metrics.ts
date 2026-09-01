@@ -3,9 +3,6 @@
 export const BASE_INTERVAL_MS = 1000;
 export const MAX_BUCKETS = 900;
 
-// Wider than the interval, so a reporter running a little late does not flicker to a dash
-export const STALE_AFTER_MS = 5000;
-
 export const METRIC_SENTINEL = 'gg:metric/1 ';
 
 export type MetricBucket = {
@@ -21,8 +18,23 @@ export type MetricSeries = {
 	buckets: MetricBucket[];
 };
 
-// avg is the one that is derived rather than stored
-export type MetricStatistic = keyof MetricBucket | 'avg';
+// Listed as well as typed, so a picker cannot miss a field added to MetricBucket. avg is
+// the one that is derived rather than stored
+export const METRIC_STATISTICS = ['avg', 'n', 'sum', 'min', 'max'] as const;
+export type MetricStatistic = (typeof METRIC_STATISTICS)[number];
+
+export const CHART_READINGS = [...METRIC_STATISTICS, 'cumsum'] as const;
+export type ChartReading = (typeof CHART_READINGS)[number];
+
+// Sum rather than Total, which would suggest a running figure rather than one interval's
+export const READING_TEXT: Record<ChartReading, string> = {
+	avg: 'Average',
+	n: 'Samples',
+	sum: 'Sum',
+	min: 'Lowest',
+	max: 'Highest',
+	cumsum: 'Running total'
+};
 
 export type MetricReport = { name: string; value: number };
 
@@ -105,12 +117,55 @@ export function statistic(bucket: MetricBucket, stat: MetricStatistic): number |
 	return stat === 'avg' ? bucket.sum / bucket.n : bucket[stat];
 }
 
-// The current value is the newest interval, not a statistic over a window
-export function latest(series: MetricSeries, now: number): MetricBucket | undefined {
-	const last = series.buckets[series.buckets.length - 1];
-	if (last.n === 0) return undefined;
+// series is optional so an instance that has never reported this metric still holds its place
+export type MetricLine = { port: number; series?: MetricSeries };
+// instance port: metric value, plus the same reading across every line at once
+export const ALL_LINES = 'all';
+export type MetricWindowRow = { time: Date; all: number | null } & Record<number, number | null>;
 
-	// A series that went quiet has no current value, rather than a minutes-old one shown as live
-	const lastStart = series.start + (series.buckets.length - 1) * BASE_INTERVAL_MS;
-	return now - lastStart <= STALE_AFTER_MS ? last : undefined;
+// The stored buckets covering [from, to). Out-of-range ends just shorten the slice
+function bucketsIn(series: MetricSeries, from: number, to: number): MetricBucket[] {
+	const first = (bucketStart(from) - series.start) / BASE_INTERVAL_MS;
+	const count = (to - from) / BASE_INTERVAL_MS;
+	return series.buckets.slice(Math.max(0, first), Math.max(0, first + count));
+}
+
+// One row per interval, so every line is read at the same instant and a gap stays a gap.
+// Anchored to the clock and always the full window, so the scale does not shift as samples
+// land. Folding several base buckets into a row keeps a wide window readable. A fold of nothing
+// counts zero but cannot be averaged, so counts run along the bottom where the rest leave a gap
+export function metricWindow(
+	lines: readonly MetricLine[],
+	reading: ChartReading,
+	now: number,
+	windowMs: number,
+	intervalMs: number = BASE_INTERVAL_MS
+): MetricWindowRow[] {
+	// A running total accumulates each interval's sum, so that is what every row holds first
+	const stat = reading === 'cumsum' ? 'sum' : reading;
+	const end = bucketStart(now) + BASE_INTERVAL_MS;
+	const rows: MetricWindowRow[] = [];
+	const running: Record<number | string, number> = {};
+	// Anchored to the left edge of the window rather than to the series
+	const read = (key: number | typeof ALL_LINES, bucket: MetricBucket) => {
+		const value = statistic(bucket, stat) ?? null;
+		if (reading !== 'cumsum') return value;
+		running[key] = (running[key] ?? 0) + (value ?? 0);
+		return running[key];
+	};
+
+	for (let time = end - windowMs; time < end; time += intervalMs) {
+		const row: MetricWindowRow = { time: new Date(time), all: null };
+		const across: MetricBucket[] = [];
+		for (const { port, series } of lines) {
+			const merged = mergeBuckets(series ? bucketsIn(series, time, time + intervalMs) : []);
+			across.push(merged);
+			row[port] = read(port, merged);
+		}
+		// The same associative fold as over time, so the statistic keeps its meaning: a sum
+		// totals the group, an average weights by sample count, min and max name an instance
+		row.all = read(ALL_LINES, mergeBuckets(across));
+		rows.push(row);
+	}
+	return rows;
 }

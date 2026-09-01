@@ -2,10 +2,12 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getResourceDefinition, type Instance } from '$lib/resources';
-	import { STATUS_TEXT } from '$lib/status';
-	import { latest, statistic } from '$lib/metrics';
+	import { STATUS_TEXT, uptimeText } from '$lib/status';
+	import { type ChartReading } from '$lib/metrics';
+	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
+	import MetricChart, { type ChartLine } from '$lib/components/MetricChart.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
@@ -28,24 +30,35 @@
 		return () => clearInterval(clock);
 	});
 
-	// The union across instances, so every row carries the same labels and an instance that
-	// has not reported one yet shows a dash rather than a shorter list. Taken from every
-	// reserved port rather than the shown ones, so filtering to one instance keeps the set.
-	// Sorted, because arrival order is whichever line printed first and would reshuffle
+	// The union across every reserved port, so narrowing the selection keeps the set
 	const metricNames = $derived(
 		[...new Set(ports.flatMap((port) => Object.keys(metrics[port] ?? {})))].sort()
 	);
 
-	function reading(port: number, name: string) {
-		const series = metrics[port]?.[name];
-		const bucket = series && latest(series, now);
-		return bucket && { value: statistic(bucket, 'avg'), samples: bucket.n };
-	}
+	// Per metric, since a node reports counts and measurements side by side. Sum by default:
+	// the avg of a count reported as 1 per event is 1 by construction, which draws a flat line
+	const stats = $state<Partial<Record<string, ChartReading>>>({});
+	const statFor = (name: string) => stats[name] ?? 'sum';
 
-	// A dash where there is nothing current, so a gap never reads as a measured zero
-	function format(value: number | undefined) {
-		if (value === undefined) return '-';
-		return Number.isInteger(value) ? String(value) : value.toFixed(2);
+	let windowMs = $state(60_000);
+
+	// Each carries the interval its points are folded to, holding every window to 60 points
+	const WINDOWS = [
+		{ ms: 60_000, intervalMs: 1_000, label: '1 min' },
+		{ ms: 300_000, intervalMs: 5_000, label: '5 min' },
+		{ ms: 900_000, intervalMs: 15_000, label: '15 min' }
+	];
+
+	const range = $derived(WINDOWS.find((option) => option.ms === windowMs) ?? WINDOWS[0]);
+
+	// Keyed on the port's place among every reserved port, so narrowing the selection does not
+	// repaint the survivors
+	const colorOf = (port: number) => `var(--chart-${(ports.indexOf(port) % 5) + 1})`;
+
+	// Every shown instance, reporting this metric or not, so a chart's legend never changes
+	// under the reader
+	function linesFor(name: string): ChartLine[] {
+		return shown.map((port) => ({ port, color: colorOf(port), series: metrics[port]?.[name] }));
 	}
 
 	function statusLabel(instance: Instance | undefined) {
@@ -59,7 +72,21 @@
 </script>
 
 <div class="flex h-full flex-col gap-3">
-	<div class="flex">
+	<div class="flex gap-2">
+		<Select.Root
+			type="single"
+			value={String(windowMs)}
+			onValueChange={(value) => (windowMs = Number(value))}
+		>
+			<Select.Trigger class="w-24 shrink-0 text-xs" aria-label="How far back the charts reach">
+				{range.label}
+			</Select.Trigger>
+			<Select.Content>
+				{#each WINDOWS as option (option.ms)}
+					<Select.Item value={String(option.ms)}>{option.label}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
 		<InstanceSelect {nodeId} bind:selected all />
 	</div>
 
@@ -74,53 +101,34 @@
 		</p>
 	{/if}
 
-	{#if metricNames.length > 0}
-		<p class="text-xs text-muted-foreground">Measured over the most recent second.</p>
-	{/if}
-
 	<div class="min-h-0 flex-1 overflow-y-auto text-sm">
 		<ul>
 			{#each shown as port (port)}
 				{@const instance = instances.find((candidate) => candidate.port === port)}
 				{@const instanceStatus = instance?.status ?? 'stopped'}
 				{@const url = definition?.hasPreview ? instance?.previewUrl : undefined}
-				<li class="border-b py-1.5 last:border-b-0">
-					<div class="flex items-center gap-2">
-						<StatusDot status={instanceStatus} />
-						<span class="font-mono tabular-nums">:{port}</span>
-						<span class="text-muted-foreground">{statusLabel(instance)}</span>
-						{#if url}
-							<!-- Served by the preview service worker rather than by SvelteKit routing, so
-					     there is no route for resolve() to take -->
-							<!-- eslint-disable svelte/no-navigation-without-resolve -->
-							<a
-								href={url}
-								target="_blank"
-								rel="noreferrer"
-								class="ml-auto text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-							>
-								Open
-							</a>
-							<!-- eslint-enable svelte/no-navigation-without-resolve -->
-						{/if}
-					</div>
-
-					{#each metricNames as name (name)}
-						{@const current = reading(port, name)}
-						<!-- Both are always shown and always labelled: which one carries the meaning
-						     depends on the metric, and nothing on the wire says which -->
-						<dl class="mt-1 flex items-baseline gap-2 pl-4 text-xs">
-							<dt class="truncate text-muted-foreground">{name}</dt>
-							<dd class="ml-auto w-20 text-right tabular-nums">
-								<span class="text-muted-foreground">avg</span>
-								{format(current?.value)}
-							</dd>
-							<dd class="w-12 text-right tabular-nums">
-								<span class="text-muted-foreground">n</span>
-								{format(current?.samples)}
-							</dd>
-						</dl>
-					{/each}
+				{@const uptime = uptimeText(instance, now)}
+				<li class="flex items-center gap-2 border-b py-1.5 last:border-b-0">
+					<StatusDot status={instanceStatus} />
+					<span class="font-mono tabular-nums">:{port}</span>
+					<span class="text-muted-foreground">{statusLabel(instance)}</span>
+					{#if uptime}
+						<span class="text-xs text-muted-foreground tabular-nums">{uptime}</span>
+					{/if}
+					{#if url}
+						<!-- Served by the preview service worker rather than by SvelteKit routing, so
+				     there is no route for resolve() to take -->
+						<!-- eslint-disable svelte/no-navigation-without-resolve -->
+						<a
+							href={url}
+							target="_blank"
+							rel="noreferrer"
+							class="ml-auto text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+						>
+							Open
+						</a>
+						<!-- eslint-enable svelte/no-navigation-without-resolve -->
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -129,6 +137,22 @@
 			<p class="pt-2 text-xs text-muted-foreground">
 				No measurements yet. Resources report their own numbers as they run.
 			</p>
+		{:else}
+			<div class="mt-4 space-y-3 border-t pt-3">
+				{#each metricNames as name (name)}
+					{@const lines = linesFor(name)}
+					{#if lines.length > 0}
+						<MetricChart
+							{name}
+							{lines}
+							windowMs={range.ms}
+							intervalMs={range.intervalMs}
+							{now}
+							bind:stat={() => statFor(name), (value) => (stats[name] = value)}
+						/>
+					{/if}
+				{/each}
+			</div>
 		{/if}
 	</div>
 </div>

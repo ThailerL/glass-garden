@@ -3,13 +3,16 @@ import {
 	BASE_INTERVAL_MS,
 	MAX_BUCKETS,
 	METRIC_SENTINEL,
-	STALE_AFTER_MS,
-	latest,
+	CHART_READINGS,
+	METRIC_STATISTICS,
+	READING_TEXT,
 	mergeBuckets,
+	metricWindow,
 	newSeries,
 	parseMetricLine,
 	record,
-	statistic
+	statistic,
+	type MetricStatistic
 } from './metrics';
 
 // Divisible by BASE_INTERVAL_MS, so it is itself the start of a bucket
@@ -135,27 +138,172 @@ describe('statistic', () => {
 	});
 });
 
-describe('latest', () => {
-	const now = t0 + 4 * BASE_INTERVAL_MS;
-
-	it('is the newest interval, not a statistic over the whole series', () => {
-		const series = newSeries(t0);
-		record(series, t0, 5);
-		record(series, now, 8);
-
-		expect(latest(series, now)).toEqual({ n: 1, sum: 8, min: 8, max: 8 });
+describe('METRIC_STATISTICS', () => {
+	// The picker is built from this list, so a missing field is unreachable
+	it('offers every stored field, and avg', () => {
+		const stored = Object.keys(newSeries(t0).buckets[0]);
+		expect([...METRIC_STATISTICS].sort()).toEqual([...stored, 'avg'].sort());
 	});
 
-	// Otherwise a resource that stopped reporting minutes ago reads as live
-	it('is undefined once nothing has been reported for a while', () => {
-		const series = newSeries(t0);
-		record(series, t0, 5);
+	// The picker reads from CHART_READINGS, so anything only in the statistics is unreachable
+	it('is offered in full by the chart readings, which add a running total', () => {
+		expect(CHART_READINGS).toEqual([...METRIC_STATISTICS, 'cumsum']);
+		expect(Object.keys(READING_TEXT).sort()).toEqual([...CHART_READINGS].sort());
+	});
+});
 
-		expect(latest(series, t0 + STALE_AFTER_MS)).toEqual({ n: 1, sum: 5, min: 5, max: 5 });
-		expect(latest(series, t0 + STALE_AFTER_MS + 1)).toBeUndefined();
+describe('metricWindow', () => {
+	const port = 3000;
+	// The window ends at the bucket after `now`, so this is its last column
+	const now = t0 + 5 * BASE_INTERVAL_MS;
+	const windowMs = 4 * BASE_INTERVAL_MS;
+
+	function column(rows: ReturnType<typeof metricWindow>, offset: number) {
+		return rows.find((row) => row.time.getTime() === now + offset * BASE_INTERVAL_MS)?.[port];
+	}
+
+	it('spans the full window whatever the series holds', () => {
+		const series = newSeries(now);
+		const rows = metricWindow([{ port, series }], 'sum', now, windowMs);
+
+		expect(rows).toHaveLength(4);
+		expect(rows[0].time.getTime()).toBe(now - 3 * BASE_INTERVAL_MS);
+		expect(rows[3].time.getTime()).toBe(now);
 	});
 
-	it('is undefined before anything is reported', () => {
-		expect(latest(newSeries(t0), t0)).toBeUndefined();
+	it('reads every line at the same instant, and keeps one line short of another', () => {
+		const early = newSeries(now - 3 * BASE_INTERVAL_MS);
+		record(early, now - 3 * BASE_INTERVAL_MS, 4);
+		const late = newSeries(now);
+		record(late, now, 9);
+
+		const rows = metricWindow(
+			[
+				{ port: 3000, series: early },
+				{ port: 3001, series: late }
+			],
+			'sum',
+			now,
+			windowMs
+		);
+
+		expect(rows[0][3000]).toBe(4);
+		// It had counted nothing yet, which is zero rather than unknown
+		expect(rows[0][3001]).toBe(0);
+		expect(rows[3][3000]).toBe(0);
+		expect(rows[3][3001]).toBe(9);
+	});
+
+	// Otherwise an instance that has served nothing reads differently from one that has been
+	// idle a minute, though both counted nothing just now
+	it('counts zero for a line that has never reported', () => {
+		const rows = metricWindow([{ port }], 'sum', now, windowMs);
+
+		expect(rows).toHaveLength(4);
+		expect(rows.every((row) => row[port] === 0)).toBe(true);
+	});
+
+	// The fold is associative, so a coarser interval must give the same answer over fewer
+	// points, not a different one
+	it('folds several base intervals into one point without changing the answer', () => {
+		const series = newSeries(now - 3 * BASE_INTERVAL_MS);
+		for (const [offset, value] of [
+			[-3, 2],
+			[-2, 6],
+			[-1, 4],
+			[0, 8]
+		]) {
+			record(series, now + offset * BASE_INTERVAL_MS, value);
+		}
+		const coarse = (stat: MetricStatistic) =>
+			metricWindow([{ port, series }], stat, now, windowMs, windowMs)[0][port];
+
+		expect(coarse('n')).toBe(4);
+		expect(coarse('sum')).toBe(20);
+		expect(coarse('avg')).toBe(5);
+		expect(coarse('min')).toBe(2);
+		expect(coarse('max')).toBe(8);
+	});
+
+	// The figure the default app's page used to print, which nothing else answers now
+	it('accumulates a running total across the window', () => {
+		const series = newSeries(now - 3 * BASE_INTERVAL_MS);
+		record(series, now - 3 * BASE_INTERVAL_MS, 2);
+		record(series, now - BASE_INTERVAL_MS, 3);
+		record(series, now, 5);
+
+		const rows = metricWindow([{ port, series }], 'cumsum', now, windowMs);
+
+		// Climbs and never falls, holding its level through the silent interval
+		expect(rows.map((row) => row[port])).toEqual([2, 2, 5, 10]);
+	});
+
+	// Anchored to the range shown, so it answers "how many over this window" rather than
+	// "how many ever"
+	it('starts the running total again at the left edge of a shorter window', () => {
+		const series = newSeries(now - 3 * BASE_INTERVAL_MS);
+		record(series, now - 3 * BASE_INTERVAL_MS, 2);
+		record(series, now, 5);
+
+		const narrow = metricWindow([{ port, series }], 'cumsum', now, 2 * BASE_INTERVAL_MS);
+
+		expect(narrow.map((row) => row[port])).toEqual([0, 5]);
+	});
+
+	it('totals every line for a sum', () => {
+		const one = newSeries(now);
+		record(one, now, 4);
+		const two = newSeries(now);
+		for (const value of [3, 5]) record(two, now, value);
+
+		const rows = metricWindow(
+			[{ port: 3000, series: one }, { port: 3001, series: two }, { port: 3002 }],
+			'sum',
+			now,
+			windowMs
+		);
+
+		expect(rows[3].all).toBe(12);
+	});
+
+	// Weighted by how many observations each line contributed, which the average of their
+	// averages ((4 + 10) / 2 = 7) would not be
+	it('averages every line by sample count rather than by line', () => {
+		const one = newSeries(now);
+		record(one, now, 4);
+		const two = newSeries(now);
+		for (const value of [8, 12]) record(two, now, value);
+
+		const rows = metricWindow(
+			[
+				{ port: 3000, series: one },
+				{ port: 3001, series: two }
+			],
+			'avg',
+			now,
+			windowMs
+		);
+
+		expect(rows[3].all).toBe(8);
+	});
+
+	it('draws silence either side of a count as zero', () => {
+		const series = newSeries(now - BASE_INTERVAL_MS);
+		record(series, now - BASE_INTERVAL_MS, 2);
+		const rows = metricWindow([{ port, series }], 'n', now, windowMs);
+
+		expect(column(rows, -3)).toBe(0);
+		expect(column(rows, -1)).toBe(1);
+		expect(column(rows, 0)).toBe(0);
+	});
+
+	it('leaves a gap either side for a statistic nothing can be averaged into', () => {
+		const series = newSeries(now - BASE_INTERVAL_MS);
+		record(series, now - BASE_INTERVAL_MS, 2);
+		const rows = metricWindow([{ port, series }], 'avg', now, windowMs);
+
+		expect(column(rows, -3)).toBeNull();
+		expect(column(rows, -1)).toBe(2);
+		expect(column(rows, 0)).toBeNull();
 	});
 });

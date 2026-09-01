@@ -53,6 +53,9 @@ export type Instance = {
 	// Put up by a pass that was clearing crashed instances, so a start that follows a
 	// failure reads differently from a first one
 	replacement: boolean;
+	// When the slot was created, re-stamped on a crash because the slot is made again. Says
+	// which instance restarted, where the node's restart count only says that one did
+	startedAt: number;
 };
 
 // An outgoing edge's target with its current instances. The instances belong to another
