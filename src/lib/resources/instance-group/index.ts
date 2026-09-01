@@ -79,6 +79,8 @@ export const instanceGroup = {
 	consumes: ['sql'],
 	configComponent: InstanceGroupConfig,
 	configSchema,
+	// The names the examples report. A user's own metric falls back to the default
+	metricDefaults: { requests: 'sum', 'response ms': 'avg' },
 	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,
 	launchConfig,
 	prepare: npmInstall,

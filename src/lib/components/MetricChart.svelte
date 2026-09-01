@@ -62,7 +62,7 @@
 	const rows = $derived(metricWindow(lines, stat, now, windowMs, intervalMs));
 
 	// The whole window rather than its last point, which the end of the line already shows
-	const total = $derived(metricTotals(lines, stat, now, windowMs));
+	const total = $derived(metricTotals(lines, stat, now, windowMs, intervalMs));
 </script>
 
 <!-- A section rather than a figure: a figcaption has to be a figure's immediate child, and

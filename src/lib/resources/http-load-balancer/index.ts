@@ -43,6 +43,7 @@ export const httpLoadBalancer = {
 	consumes: ['http'],
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,
+	metricDefaults: { requests: 'sum', failures: 'sum', latency: 'avg' },
 	instanceCount: () => 1,
 	start: async (node: Node, container: Vivari, port: number, upstreams: readonly Upstream[]) => {
 		// Written before the process spawns so its first request already has the right targets

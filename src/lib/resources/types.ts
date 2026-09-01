@@ -3,6 +3,7 @@ import type { Component } from 'svelte';
 import { Vivari, type FileSystemTree } from '@vivari/core';
 import { type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
+import type { ChartReading } from '$lib/metrics';
 
 // What a resource offers its dependents and what it needs from them. An edge is legal when
 // its source consumes something its target provides
@@ -72,22 +73,17 @@ export type ResourceDefinition = {
 	// Mounted for every resource. hasEditableFiles only decides whether the editor exposes them
 	files: FileSystemTree;
 	hasEditableFiles: boolean;
-	// Whether instances serve something a browser can render. A resource speaking a
-	// client protocol still gets a preview URL from server-ready, but nothing answers on it
 	hasPreview: boolean;
-	// Whether the node's directory holds data the user would miss. Deleting the node deletes
-	// it, so these are the resources that ask first
+	// Whether the node's directory holds data the user would miss
 	ownsStoredData: boolean;
 	// Also what the node's handles are drawn from, one per direction rather than one per
 	// capability: a non-empty provides earns the target handle, a non-empty consumes the source
 	provides: Capability[];
 	consumes: Capability[];
-	// Each component is written against the config its own schema produces, which the
-	// registry cannot name. never is assignable to all of them, so the concrete type is
-	// restored where a component is actually rendered
 	configComponent: Component<{ form: never; nodeId: string }>;
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
+	metricDefaults?: Partial<Record<string, ChartReading>>;
 	instanceCount: (node: Node) => number;
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a server-ready that

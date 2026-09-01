@@ -123,6 +123,14 @@ export type MetricLine = { port: number; series?: MetricSeries };
 export const ALL_LINES = 'all';
 export type MetricWindowRow = { time: Date; all: number | null } & Record<number, number | null>;
 
+// Rows sit on a fixed grid rather than being measured back from the clock, so a row keeps its
+// value once the clock is past it. Anchored to `now`, every boundary slides a second at a time
+// and samples fold into a different row on each tick, which shuffles the points sideways and
+// opens and closes gaps in a line that has not changed
+function windowEnd(now: number, gridMs: number) {
+	return Math.floor(now / gridMs) * gridMs + gridMs;
+}
+
 // The stored buckets covering [from, to). Out-of-range ends just shorten the slice
 function bucketsIn(series: MetricSeries, from: number, to: number): MetricBucket[] {
 	const first = (bucketStart(from) - series.start) / BASE_INTERVAL_MS;
@@ -139,11 +147,14 @@ export function metricWindow(
 	reading: ChartReading,
 	now: number,
 	windowMs: number,
-	intervalMs: number = BASE_INTERVAL_MS
+	intervalMs: number = BASE_INTERVAL_MS,
+	// The grid the window ends on, which is the row width unless a caller folds the whole
+	// window into one point and still wants the span the chart beside it covers
+	gridMs: number = intervalMs
 ): MetricWindowRow[] {
 	// A running total accumulates each interval's sum, so that is what every row holds first
 	const stat = reading === 'cumsum' ? 'sum' : reading;
-	const end = bucketStart(now) + BASE_INTERVAL_MS;
+	const end = windowEnd(now, gridMs);
 	const rows: MetricWindowRow[] = [];
 	const running: Record<number | string, number> = {};
 	// Anchored to the left edge of the window rather than to the series
@@ -177,7 +188,8 @@ export function metricTotals(
 	lines: readonly MetricLine[],
 	reading: ChartReading,
 	now: number,
-	windowMs: number
+	windowMs: number,
+	intervalMs: number = BASE_INTERVAL_MS
 ): MetricWindowRow {
-	return metricWindow(lines, reading, now, windowMs, windowMs)[0];
+	return metricWindow(lines, reading, now, windowMs, windowMs, intervalMs)[0];
 }

@@ -3,7 +3,7 @@
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getResourceDefinition, type Instance } from '$lib/resources';
 	import { STATUS_TEXT, uptimeText } from '$lib/status';
-	import { type ChartReading } from '$lib/metrics';
+	import { METRIC_WINDOWS, metricsView } from '$lib/metrics-view.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
@@ -16,6 +16,7 @@
 	let selected = $state<number | 'all'>('all');
 
 	const node = $derived(graphState.getNode(nodeId));
+	const type = $derived(node?.type ?? '');
 	const definition = $derived(node && getResourceDefinition(node.type));
 	const ports = $derived(orchestrator.getReservedPorts(nodeId));
 	const shown = $derived(selected === 'all' ? ports : ports.filter((port) => port === selected));
@@ -35,23 +36,10 @@
 		[...new Set(ports.flatMap((port) => Object.keys(metrics[port] ?? {})))].sort()
 	);
 
-	// Per metric, since a node reports counts and measurements side by side. Sum by default:
-	// the avg of a count reported as 1 per event is 1 by construction, which draws a flat line
-	const stats = $state<Partial<Record<string, ChartReading>>>({});
-	const statFor = (name: string) => stats[name] ?? 'sum';
-
-	// Wide enough that traffic driven by hand a minute ago is still on screen, which 1 min is
-	// not: nothing here generates load on its own
-	let windowMs = $state(300_000);
-
-	// Each carries the interval its points are folded to, holding every window to 60 points
-	const WINDOWS = [
-		{ ms: 60_000, intervalMs: 1_000, label: '1 min' },
-		{ ms: 300_000, intervalMs: 5_000, label: '5 min' },
-		{ ms: 900_000, intervalMs: 15_000, label: '15 min' }
-	];
-
-	const range = $derived(WINDOWS.find((option) => option.ms === windowMs) ?? WINDOWS[0]);
+	// A resource says how its own metrics are read; anything else sums, since the avg of a count
+	// reported as 1 per event is 1 by construction, which draws a flat line
+	const statFor = (name: string) =>
+		metricsView.stat(type, name) ?? definition?.metricDefaults?.[name] ?? 'sum';
 
 	// Keyed on the port's place among every reserved port, so narrowing the selection does not
 	// repaint the survivors
@@ -77,14 +65,14 @@
 	<div class="flex gap-2">
 		<Select.Root
 			type="single"
-			value={String(windowMs)}
-			onValueChange={(value) => (windowMs = Number(value))}
+			value={String(metricsView.window.ms)}
+			onValueChange={(value) => metricsView.setWindow(Number(value))}
 		>
 			<Select.Trigger class="w-24 shrink-0 text-xs" aria-label="How far back the charts reach">
-				{range.label}
+				{metricsView.window.label}
 			</Select.Trigger>
 			<Select.Content>
-				{#each WINDOWS as option (option.ms)}
+				{#each METRIC_WINDOWS as option (option.ms)}
 					<Select.Item value={String(option.ms)}>{option.label}</Select.Item>
 				{/each}
 			</Select.Content>
@@ -147,10 +135,10 @@
 						<MetricChart
 							{name}
 							{lines}
-							windowMs={range.ms}
-							intervalMs={range.intervalMs}
+							windowMs={metricsView.window.ms}
+							intervalMs={metricsView.window.intervalMs}
 							{now}
-							bind:stat={() => statFor(name), (value) => (stats[name] = value)}
+							bind:stat={() => statFor(name), (value) => metricsView.setStat(type, name, value)}
 						/>
 					{/if}
 				{/each}

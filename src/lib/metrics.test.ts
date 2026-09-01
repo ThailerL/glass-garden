@@ -207,17 +207,19 @@ describe('metricWindow', () => {
 	// The fold is associative, so a coarser interval must give the same answer over fewer
 	// points, not a different one
 	it('folds several base intervals into one point without changing the answer', () => {
-		const series = newSeries(now - 3 * BASE_INTERVAL_MS);
+		// Read at the end of a grid interval, so the single wide row is the one holding them
+		const last = t0 + 3 * BASE_INTERVAL_MS;
+		const series = newSeries(t0);
 		for (const [offset, value] of [
-			[-3, 2],
-			[-2, 6],
-			[-1, 4],
-			[0, 8]
+			[0, 2],
+			[1, 6],
+			[2, 4],
+			[3, 8]
 		]) {
-			record(series, now + offset * BASE_INTERVAL_MS, value);
+			record(series, t0 + offset * BASE_INTERVAL_MS, value);
 		}
 		const coarse = (stat: MetricStatistic) =>
-			metricWindow([{ port, series }], stat, now, windowMs, windowMs)[0][port];
+			metricWindow([{ port, series }], stat, last, windowMs, windowMs)[0][port];
 
 		expect(coarse('n')).toBe(4);
 		expect(coarse('sum')).toBe(20);
@@ -286,6 +288,21 @@ describe('metricWindow', () => {
 		);
 
 		expect(rows[3].all).toBe(8);
+	});
+
+	// Anchored to the clock instead, a coarse row's boundaries slide a second at a time, so
+	// points shuffle sideways and gaps open in a line whose samples have not changed
+	it('keeps a past row on the same grid as the clock moves through it', () => {
+		const series = newSeries(t0);
+		for (const at of [2_000, 3_500, 9_000, 21_000]) record(series, t0 + at, 7);
+		const drawn = (clock: number) =>
+			metricWindow([{ port, series }], 'avg', clock, 60_000, 5_000)
+				.filter((row) => row[port] !== null)
+				.map((row) => row.time.getTime());
+
+		const settled = drawn(t0 + 30_000);
+		expect(drawn(t0 + 31_000)).toEqual(settled);
+		expect(drawn(t0 + 34_000)).toEqual(settled);
 	});
 
 	// What the chart cannot be eyeballed for: the last interval alone would read 5 here

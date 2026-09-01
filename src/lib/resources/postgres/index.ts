@@ -34,6 +34,7 @@ export const postgres = {
 	consumes: [],
 	configComponent: PostgresConfig,
 	configSchema,
+	metricDefaults: { connections: 'avg', 'database size (MB)': 'avg' },
 	// PGlite is single-writer, so a second instance would be a second database
 	instanceCount: () => 1,
 	connectionUrl: (_node: Node, port: number) => connectionUrl(port),
