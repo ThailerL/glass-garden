@@ -3,6 +3,7 @@ import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import type { InstanceHandle, ResourceDefinition } from '$lib/resources/types';
 import { ResourceController, type ControllerServices } from '$lib/resource-controller.svelte';
+import { METRIC_SENTINEL } from '$lib/metrics';
 
 // The controller is tested through its ControllerServices seam; everything it reaches
 // past that seam is faked out so no container, graph or DOM is needed
@@ -345,5 +346,87 @@ describe('ResourceController', () => {
 		await settle();
 		expect(controller.instances).toHaveLength(0);
 		expect(services.unregister).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('metric lines', () => {
+	// An instance that prints whatever the test hands it, so the split between output and
+	// metrics can be driven a chunk at a time
+	async function setupPrinting() {
+		let print!: (chunk: string) => void;
+		const { controller } = setup({}, {
+			start: vi.fn(async () => ({
+				exited: new Promise<number>(() => {}),
+				stop: vi.fn(async () => {}),
+				output: new ReadableStream<string>({
+					start: (stream) => {
+						print = (chunk) => stream.enqueue(chunk);
+					}
+				})
+			}))
+		} as unknown as Partial<ResourceDefinition>);
+		controller.start();
+		await settle();
+		return { controller, print: async (chunk: string) => (print(chunk), settle()) };
+	}
+
+	const metric = (body: unknown) => `${METRIC_SENTINEL}${JSON.stringify(body)}\n`;
+
+	it('stores a metric line rather than logging it', async () => {
+		const { controller, print } = await setupPrinting();
+
+		await print(metric({ name: 'requests', value: 4 }));
+
+		expect(controller.metrics[3001]?.requests?.buckets).toEqual([{ n: 1, sum: 4, min: 4, max: 4 }]);
+		expect(controller.output).toHaveLength(0);
+	});
+
+	it('leaves anything else as output', async () => {
+		const { controller, print } = await setupPrinting();
+
+		await print('listening on 3001\n');
+
+		expect(controller.output.map((line) => line.text)).toEqual(['listening on 3001']);
+		expect(controller.metrics).toEqual({});
+	});
+
+	// A line meant as a metric that we cannot read is worth seeing rather than swallowing
+	it('logs a malformed metric line and warns once', async () => {
+		const { controller, print } = await setupPrinting();
+
+		await print(`${METRIC_SENTINEL}{oh dear\n`);
+
+		expect(controller.output).toHaveLength(1);
+		expect(controller.metrics).toEqual({});
+		const warnings = controller.events.filter((event) => event.level === 'warning');
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0].text).toContain('not valid JSON');
+	});
+
+	it('reassembles a metric line split across chunks', async () => {
+		const { controller, print } = await setupPrinting();
+		const line = metric({ name: 'requests', value: 4 });
+
+		await print(line.slice(0, 6));
+		expect(controller.metrics).toEqual({});
+
+		await print(line.slice(6));
+		expect(controller.metrics[3001]?.requests?.buckets[0].sum).toBe(4);
+	});
+
+	it('folds repeats of one name into one series', async () => {
+		const { controller, print } = await setupPrinting();
+
+		await print(metric({ name: 'requests', value: 1 }));
+		await print(metric({ name: 'requests', value: 5 }));
+		await print(metric({ name: 'latency', value: 12 }));
+
+		expect(controller.metrics[3001]?.requests?.buckets[0]).toEqual({
+			n: 2,
+			sum: 6,
+			min: 1,
+			max: 5
+		});
+		expect(controller.metrics[3001]?.latency?.buckets[0].n).toBe(1);
 	});
 });

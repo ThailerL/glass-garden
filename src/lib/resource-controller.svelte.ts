@@ -6,6 +6,14 @@ import { mountNodeFiles } from './container';
 import { nodeFiles } from './node-files';
 import { nodeName } from './graph-state.svelte';
 import { messageOf } from './errors';
+import {
+	METRIC_SENTINEL,
+	newSeries,
+	parseMetricLine,
+	record,
+	type MetricReport,
+	type MetricSeries
+} from './metrics';
 
 const MAX_EVENTS = 50;
 const MAX_OUTPUT_LINES = 500;
@@ -45,6 +53,12 @@ export type OutputLine = LogEntry & { kind: 'output' };
 // Something the orchestrator did, which carries a severity printed output cannot
 export type ResourceEvent = LogEntry & { kind: 'event'; level: 'info' | 'warning' | 'error' };
 
+// What one source has reported, by metric name
+export type SourceMetrics = Partial<Record<string, MetricSeries>>;
+
+// A source appears only once it has reported something
+export type MetricStore = Partial<Record<LogSource, SourceMetrics>>;
+
 // The cross-node concerns a controller can't own itself: the graph, the shared
 // container, global port uniqueness and reaching other controllers
 export type ControllerServices = {
@@ -73,6 +87,7 @@ export class ResourceController {
 	// Both oldest first
 	events = $state<ResourceEvent[]>([]);
 	output = $state<OutputLine[]>([]);
+	metrics = $state<MetricStore>({});
 
 	#services: ControllerServices;
 	#dirty = false;
@@ -496,14 +511,38 @@ export class ResourceController {
 					write: (chunk) => {
 						const lines = (carry + chunk).split('\n');
 						carry = lines.pop() ?? '';
-						for (const line of lines) this.#logOutput(source, line.replace(/\r$/, ''));
+						for (const line of lines) this.#routeLine(source, line.replace(/\r$/, ''));
 					},
 					close: () => {
-						if (carry) this.#logOutput(source, carry);
+						if (carry) this.#routeLine(source, carry);
 					}
 				})
 			)
 			.catch(() => {});
+	}
+
+	// A captured line is either a metric report or something the process printed
+	#routeLine(source: LogSource, line: string) {
+		if (!line.startsWith(METRIC_SENTINEL)) {
+			this.#logOutput(source, line);
+			return;
+		}
+		const parsed = parseMetricLine(line);
+		if (!parsed.ok) {
+			this.#logOutput(source, line);
+			this.#logEvent(source, 'warning', `Ignored a metric line - it is ${parsed.reason}`);
+			return;
+		}
+		this.#recordMetric(source, parsed.report);
+	}
+
+	#recordMetric(source: LogSource, { name, value }: MetricReport) {
+		const now = Date.now();
+		this.metrics[source] ??= {};
+		// Read back rather than reuse: $state hands out a proxy of what we assigned
+		const bySource = this.metrics[source];
+		bySource[name] ??= newSeries(now);
+		record(bySource[name], now, value);
 	}
 
 	#logOutput(source: LogSource, text: string) {

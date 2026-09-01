@@ -14,6 +14,7 @@ import {
 import {
 	ResourceController,
 	type ControllerServices,
+	type MetricStore,
 	type OutputLine,
 	type ResourceEvent
 } from './resource-controller.svelte';
@@ -129,6 +130,10 @@ export class Orchestrator {
 
 	getOutput(nodeId: string): OutputLine[] {
 		return this.#controllers.get(nodeId)?.output ?? [];
+	}
+
+	getMetrics(nodeId: string): MetricStore {
+		return this.#controllers.get(nodeId)?.metrics ?? {};
 	}
 
 	getRestarts(nodeId: string): number {
