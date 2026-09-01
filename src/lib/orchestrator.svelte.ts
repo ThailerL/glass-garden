@@ -135,6 +135,10 @@ export class Orchestrator {
 		return this.#controllers.get(nodeId)?.restarts ?? 0;
 	}
 
+	getRestartsPaused(nodeId: string): boolean {
+		return this.#controllers.get(nodeId)?.restartsPaused ?? false;
+	}
+
 	// No controller means the node has never been started, so starting is what it needs
 	// and stopping is meaningless
 	canStart(nodeId: string): boolean {

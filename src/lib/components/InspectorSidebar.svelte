@@ -19,6 +19,7 @@
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
+	import MetricsTab from './MetricsTab.svelte';
 	import LogsTab from './LogsTab.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
@@ -71,6 +72,9 @@
 								Preview
 							</UnderlineTabs.Trigger>
 						{/if}
+						<UnderlineTabs.Trigger value="metrics" data-tour="metrics-tab">
+							Metrics
+						</UnderlineTabs.Trigger>
 						<UnderlineTabs.Trigger value="logs">Logs</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
 					<UnderlineTabs.Content value="config" class="flex flex-col">
@@ -81,6 +85,9 @@
 							<PreviewTab {nodeId} />
 						</UnderlineTabs.Content>
 					{/if}
+					<UnderlineTabs.Content value="metrics" class="min-h-0 flex-1">
+						<MetricsTab {nodeId} />
+					</UnderlineTabs.Content>
 					<UnderlineTabs.Content value="logs" class="min-h-0 flex-1">
 						<LogsTab {nodeId} />
 					</UnderlineTabs.Content>

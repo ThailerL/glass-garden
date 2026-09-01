@@ -10,7 +10,7 @@
 // point: a Vivari upgrade regenerates a matching pack instead of leaving a stale one that
 // only shows up as npm misbehaving inside the VM.
 //
-// Requires git, network and a host npm. Idempotent — a no-op unless the installed Vivari
+// Requires git, network and a host npm. Idempotent - a no-op unless the installed Vivari
 // version changed or --force is passed.
 //
 // Usage: node scripts/vendor-assets.mjs [--force]
@@ -43,7 +43,7 @@ function fail(message) {
 
 function installedVivariVersion() {
 	const manifest = path.join(ROOT, 'node_modules', '@vivari', 'core', 'package.json');
-	if (!fs.existsSync(manifest)) fail('@vivari/core is not installed — run npm install first');
+	if (!fs.existsSync(manifest)) fail('@vivari/core is not installed - run npm install first');
 	return JSON.parse(fs.readFileSync(manifest, 'utf8')).version;
 }
 
@@ -66,7 +66,7 @@ if (
 ) {
 	const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf8'));
 	if (metadata.vivariVersion === vivariVersion) {
-		log(`up to date — vivari ${tag}, packs: ${PACKS.join(', ')} (--force to rebuild)`);
+		log(`up to date - vivari ${tag}, packs: ${PACKS.join(', ')} (--force to rebuild)`);
 		process.exit(0);
 	}
 	log(`vivari changed: ${metadata.vivariVersion} -> ${vivariVersion}, regenerating`);
@@ -81,7 +81,7 @@ try {
 	} catch (error) {
 		// Vivari tags releases as v<version>, so a missing tag is the usual cause after ENOENT
 		if (error.code === 'ENOENT') fail('git is required to generate the vendor assets');
-		fail(`could not clone ${REPOSITORY} at ${tag} — is there a ${tag} tag?`);
+		fail(`could not clone ${REPOSITORY} at ${tag} - is there a ${tag} tag?`);
 	}
 	execFileSync('git', ['-C', checkout, 'sparse-checkout', 'set', 'scripts'], { stdio: 'ignore' });
 
@@ -110,7 +110,7 @@ try {
 			sha256: createHash('sha256').update(bytes).digest('hex')
 		};
 		log(
-			`wrote ${pack}-pack.bin — ${(bytes.length / 1e6).toFixed(2)} MB, ${pack}@${packs[pack].version}`
+			`wrote ${pack}-pack.bin - ${(bytes.length / 1e6).toFixed(2)} MB, ${pack}@${packs[pack].version}`
 		);
 	}
 

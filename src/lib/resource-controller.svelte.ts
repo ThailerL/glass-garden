@@ -81,7 +81,7 @@ export class ResourceController {
 	#lastEndpoints: number[] = [];
 	// Consecutive deployments that never got an instance running; at the cap the
 	// reconciler stops respawning so a broken command doesn't loop forever
-	#failedDeployments = 0;
+	#failedDeployments = $state(0);
 	// Numbers deployments, so the instances of one can be told from the next
 	#deployments = 0;
 	// The deployment that last spent from the budget, so it is charged only once
@@ -128,6 +128,10 @@ export class ResourceController {
 		return this.wantsRunning || this.instances.some((instance) => instance.status !== 'stopping');
 	}
 
+	get restartsPaused(): boolean {
+		return this.wantsRunning && this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
+	}
+
 	// A stopping instance still owns its process and its port until the kill lands, so
 	// it counts as up and the number ticks down as each one actually dies
 	get upCount(): number {
@@ -144,6 +148,8 @@ export class ResourceController {
 		// Retrying unchanged config is worth an answer, even if it is the same failure
 		this.#toastedStamp = undefined;
 		this.#cancelRestart();
+		// Dropped here so the pass fills empty slots rather than counting a recovery
+		this.#dropCrashed();
 		this.wantsRunning = true;
 		this.schedule();
 	}
@@ -210,22 +216,9 @@ export class ResourceController {
 		const upstreams = this.#services.getUpstreams();
 		const launch = launchPlan(this.#definition, node, upstreams);
 
-		// Auto-restart: free crashed slots so the deficit step below respawns them. Skipped at
-		// the cap, leaving the pool visibly crashed; a config fix still recovers via the stale check
-		if (this.#failedDeployments < MAX_FAILED_DEPLOYMENTS) {
-			const crashed = this.instances.filter((instance) => instance.status === 'crashed');
-			if (crashed.length > 0) {
-				// They stay visibly crashed until the delay is out. It runs from the newest crash,
-				// so siblings that die together are respawned as one deployment
-				const wait = this.wantsRunning ? this.#lastCrashAt + RESTART_DELAY_MS - Date.now() : 0;
-				if (wait > 0) {
-					this.#restartLater(wait);
-				} else {
-					this.instances = this.instances.filter((instance) => instance.status !== 'crashed');
-					if (desired > 0) this.restarts += crashed.length;
-				}
-			}
-		}
+		// Whatever the deficit step puts up after a slot was freed is a replacement rather
+		// than a first start
+		const replacing = this.#freeCrashedSlots(desired);
 
 		// Surplus from a scale-down, plus stale instances bounced to pick up new launch config
 		const doomed = this.instances.filter(
@@ -245,7 +238,7 @@ export class ResourceController {
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
 
 		if (node && this.instances.length < desired) {
-			await this.#spawnDeficit(node, desired, upstreams, launch);
+			await this.#spawnDeficit(node, desired, upstreams, launch, replacing);
 		}
 
 		if (node && this.wantsRunning && this.#definition.update) {
@@ -272,11 +265,35 @@ export class ResourceController {
 		this.#notifyDependents();
 	}
 
+	// Auto-restart: drops crashed instances so the deficit step refills their slots, charging
+	// the incident one restart however many died. Skipped at the cap, leaving the pool visibly
+	// crashed; a config fix still recovers via the stale check. Says whether it freed anything
+	#freeCrashedSlots(desired: number): boolean {
+		if (this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS) return false;
+		if (!this.instances.some((instance) => instance.status === 'crashed')) return false;
+		// They stay visibly crashed until the delay is out. It runs from the newest crash,
+		// so siblings that die together are respawned as one deployment
+		const wait = this.wantsRunning ? this.#lastCrashAt + RESTART_DELAY_MS - Date.now() : 0;
+		if (wait > 0) {
+			this.#restartLater(wait);
+			return false;
+		}
+		this.#dropCrashed();
+		if (desired > 0) this.restarts += 1;
+		return true;
+	}
+
+	// A crashed instance owns nothing any more, so its slot is dropped rather than stopped
+	#dropCrashed() {
+		this.instances = this.instances.filter((instance) => instance.status !== 'crashed');
+	}
+
 	async #spawnDeficit(
 		node: Node,
 		desired: number,
 		upstreams: readonly Upstream[],
-		launch: LaunchPlan
+		launch: LaunchPlan,
+		replacing: boolean
 	) {
 		const pending: Instance[] = [];
 		// Everything this pass puts up is one deployment, however many instances that is
@@ -287,7 +304,8 @@ export class ResourceController {
 					port: this.#services.takePort(),
 					status: 'starting',
 					configStamp: launch.stamp,
-					deployment
+					deployment,
+					replacement: replacing
 				}) - 1;
 			// Read back so we hold the reactive proxy rather than the object we pushed
 			pending.push(this.instances[index]);
@@ -373,16 +391,20 @@ export class ResourceController {
 
 		const capped = this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
 		if (firstOfDeployment && capped) {
-			this.#logEvent('resource', 'error', 'Keeps crashing before coming up — restarts paused');
+			this.#logEvent(
+				'resource',
+				'error',
+				'Restarts paused - instances kept crashing before coming up'
+			);
 			if (this.wantsRunning) {
-				toast.error(`${this.#nodeName()} keeps crashing — restarts paused`);
+				toast.error(`${this.#nodeName()} keeps crashing - restarts paused`);
 			}
 		} else if (this.wantsRunning && !capped) {
 			// A config that has already said it cannot come up stays in the log. One that was
 			// running until now cleared the latch when it came up, so it still interrupts
 			this.#toastOnce(
 				instance.configStamp,
-				`Instance of ${this.#nodeName()} crashed — restarting`,
+				`Instance of ${this.#nodeName()} crashed - restarting`,
 				'warning'
 			);
 		}

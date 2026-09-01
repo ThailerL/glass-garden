@@ -50,6 +50,9 @@ export type Instance = {
 	// The deployment that spawned it, so a whole deployment failing counts once against
 	// the restart budget however many instances it put up
 	deployment: number;
+	// Put up by a pass that was clearing crashed instances, so a start that follows a
+	// failure reads differently from a first one
+	replacement: boolean;
 };
 
 // An outgoing edge's target with its current instances. The instances belong to another

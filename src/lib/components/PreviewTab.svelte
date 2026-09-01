@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
@@ -34,6 +35,27 @@
 		>
 			<RefreshCwIcon />
 		</Button>
+		{#if previewUrl}
+			<!-- Served by the preview service worker rather than by SvelteKit routing, so there
+			     is no route for resolve() to take, and Button's href only takes resolved ones -->
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
+			<a
+				href={previewUrl}
+				target="_blank"
+				rel="noreferrer"
+				title="Open preview in a new tab"
+				class={buttonVariants({ variant: 'outline', size: 'icon' })}
+			>
+				<ExternalLinkIcon />
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+		{:else}
+			<!-- An anchor has no disabled state to style, so nothing to open is a real button
+			     and dims like the refresh beside it -->
+			<Button variant="outline" size="icon" disabled>
+				<ExternalLinkIcon />
+			</Button>
+		{/if}
 		<InstanceSelect {nodeId} bind:selected />
 	</div>
 	<div class="min-h-0 flex-1">

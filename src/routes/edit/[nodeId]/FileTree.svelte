@@ -99,7 +99,7 @@
 
 		fileDraftState.discardPath(itemPath);
 		// The open file is this item or lives inside it, so the delete invalidates the selected
-		// path — which a save would otherwise write to, recreating what was just removed
+		// path - which a save would otherwise write to, recreating what was just removed
 		if (isAtOrUnder(selectedFilePath.join('/'), itemKey)) selectedFilePath = [];
 		refresh.bump();
 	}

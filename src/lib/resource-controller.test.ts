@@ -223,6 +223,61 @@ describe('ResourceController', () => {
 		expect(definition.start).toHaveBeenCalledTimes(2);
 	});
 
+	it('counts siblings that die together as one restart, not one each', async () => {
+		const { definition, handles, controller } = setup({ instanceCount: 3 });
+
+		controller.start();
+		await settle();
+
+		for (const { exit } of handles) exit(1);
+		await settle();
+
+		await vi.advanceTimersByTimeAsync(2100);
+		await settle();
+
+		// One pass freed all three and respawned them as a single deployment, so the count
+		// tracks the incident rather than the process churn it took to recover from it
+		expect(controller.restarts).toBe(1);
+		expect(definition.start).toHaveBeenCalledTimes(6);
+		expect(controller.status).toBe('running');
+	});
+
+	it('marks an auto-respawned instance as a replacement, but not a first start', async () => {
+		const { handles, controller } = setup();
+
+		controller.start();
+		await settle();
+		expect(controller.instances[0].replacement).toBe(false);
+
+		handles[0].exit(1);
+		await settle();
+		await vi.advanceTimersByTimeAsync(2100);
+		await settle();
+
+		expect(controller.instances[0].replacement).toBe(true);
+	});
+
+	it('does not charge a restart when an explicit start clears a crashed pool', async () => {
+		const { handles, controller } = setup();
+
+		controller.start();
+		await settle();
+
+		// Crashed and sitting out the restart delay, which is where the pool is visibly
+		// crashed and start is still offered
+		handles[0].exit(1);
+		await settle();
+		expect(controller.instances[0].status).toBe('crashed');
+
+		// Pressing start is not an auto-restart, and what it puts up is not a replacement
+		controller.start();
+		await settle();
+
+		expect(controller.restarts).toBe(0);
+		expect(controller.instances[0].status).toBe('running');
+		expect(controller.instances[0].replacement).toBe(false);
+	});
+
 	it('pauses restarts after three failed deployments, charging each deployment once', async () => {
 		const { node, definition, handles, controller } = setup(
 			{ instanceCount: 2 },
@@ -243,7 +298,9 @@ describe('ResourceController', () => {
 		}
 		expect(definition.start).toHaveBeenCalledTimes(6);
 		expect(controller.status).toBe('crashed');
-		expect(controller.events.some((event) => event.text.includes('restarts paused'))).toBe(true);
+		expect(
+			controller.events.some((event) => event.text.toLowerCase().includes('restarts paused'))
+		).toBe(true);
 
 		// Fixing the config recovers without an explicit start: the stale stamp drops the
 		// capped instances and the deficit respawns on the new config
