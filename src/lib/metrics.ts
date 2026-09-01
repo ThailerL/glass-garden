@@ -169,3 +169,15 @@ export function metricWindow(
 	}
 	return rows;
 }
+
+// The window folded to a single point, for a readout beside the chart: the shape is what a
+// chart shows well and a total is what it cannot be read for. One interval as wide as the
+// window, so it is the same fold and cannot disagree with what is drawn
+export function metricTotals(
+	lines: readonly MetricLine[],
+	reading: ChartReading,
+	now: number,
+	windowMs: number
+): MetricWindowRow {
+	return metricWindow(lines, reading, now, windowMs, windowMs)[0];
+}

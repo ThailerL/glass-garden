@@ -40,7 +40,9 @@
 	const stats = $state<Partial<Record<string, ChartReading>>>({});
 	const statFor = (name: string) => stats[name] ?? 'sum';
 
-	let windowMs = $state(60_000);
+	// Wide enough that traffic driven by hand a minute ago is still on screen, which 1 min is
+	// not: nothing here generates load on its own
+	let windowMs = $state(300_000);
 
 	// Each carries the interval its points are folded to, holding every window to 60 points
 	const WINDOWS = [
@@ -138,7 +140,7 @@
 				No measurements yet. Resources report their own numbers as they run.
 			</p>
 		{:else}
-			<div class="mt-4 space-y-3 border-t pt-3">
+			<div class="mt-4 space-y-3 border-t pt-3" data-tour="metrics-charts">
 				{#each metricNames as name (name)}
 					{@const lines = linesFor(name)}
 					{#if lines.length > 0}

@@ -7,6 +7,7 @@ import {
 	METRIC_STATISTICS,
 	READING_TEXT,
 	mergeBuckets,
+	metricTotals,
 	metricWindow,
 	newSeries,
 	parseMetricLine,
@@ -285,6 +286,29 @@ describe('metricWindow', () => {
 		);
 
 		expect(rows[3].all).toBe(8);
+	});
+
+	// What the chart cannot be eyeballed for: the last interval alone would read 5 here
+	it('totals the whole window rather than its last interval', () => {
+		const series = newSeries(now - 3 * BASE_INTERVAL_MS);
+		record(series, now - 3 * BASE_INTERVAL_MS, 2);
+		record(series, now - BASE_INTERVAL_MS, 3);
+		record(series, now, 5);
+
+		expect(metricTotals([{ port }], 'sum', now, windowMs)[port]).toBe(0);
+		expect(metricTotals([{ port, series }], 'sum', now, windowMs)[port]).toBe(10);
+	});
+
+	// The readout is folded from the same buckets as the chart, so it cannot contradict it:
+	// where a running total ends is what the window holds
+	it('agrees with where a running total ends', () => {
+		const series = newSeries(now - 3 * BASE_INTERVAL_MS);
+		record(series, now - 3 * BASE_INTERVAL_MS, 2);
+		record(series, now, 5);
+		const lines = [{ port, series }];
+
+		const drawn = metricWindow(lines, 'cumsum', now, windowMs);
+		expect(metricTotals(lines, 'cumsum', now, windowMs)[port]).toBe(drawn[drawn.length - 1][port]);
 	});
 
 	it('draws silence either side of a count as zero', () => {

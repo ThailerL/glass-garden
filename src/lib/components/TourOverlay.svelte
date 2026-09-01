@@ -26,13 +26,17 @@
 			title: 'Refresh, and watch the port change',
 			body: 'Every refresh is sent to a different instance of your app. The port on the page tells you which one answered.'
 		},
-		edit: {
-			title: 'The code lives here',
-			body: 'Open it from Edit Resource Code. Every resource with files you can change has this button.'
+		app: {
+			title: 'Open your app',
+			body: 'Click it on the canvas. Every refresh you just did went to one of its instances.'
+		},
+		metrics: {
+			title: 'See where the refreshes landed',
+			body: 'Switch to the Metrics tab to see what each instance did with them.'
 		},
 		done: {
 			title: "That's the whole loop",
-			body: 'Every instance is running the same small server file. Open it, change what the page says, and they all pick it up on their next boot.'
+			body: 'Every instance is running the same small server file. Open it from Edit Resource Code, change what the page says, and they all pick it up on their next boot.'
 		}
 	};
 
@@ -43,6 +47,10 @@
 
 	// Replaces the refresh step's opening line once the user has refreshed
 	const REFRESHED = 'Look at the port on the page, it moves on to the next instance every time.';
+
+	// Replaces the metrics step's opening line once its charts are on screen
+	const CHARTS_OPEN =
+		'Each instance counted the requests it answered on its own. The chart shows how they were shared out, and "all" adds them back up to the refreshes you did.';
 
 	const CARD_WIDTH = 300;
 	const HIGHLIGHT_GAP = 14;
@@ -64,6 +72,22 @@
 		return selected.length === 1 ? selected[0].id : undefined;
 	});
 
+	// The app the balancer sits in front of, which is also what the closing step points at
+	const editableNodeId = $derived(
+		graphState.nodes.find((node) => getResourceDefinition(node.type).hasEditableFiles)?.id
+	);
+
+	// The metrics step asks for two things, so it moves on from the canvas once it has the first
+	const appOpen = $derived(!!editableNodeId && selectedNodeId === editableNodeId);
+
+	// The step's last phase: what it asked for is on screen, and the card waits to be dismissed
+	const chartsOpen = $derived(
+		tour.step === 'metrics' && appOpen && inspectorState.tab === 'metrics'
+	);
+
+	// Both steps that point at a node on the canvas
+	const onNode = $derived(tour.step === 'select' || tour.step === 'app');
+
 	const everythingRunning = $derived(
 		graphState.nodes.length > 0 &&
 			graphState.nodes.every((node) => orchestrator.getStatus(node.id) === 'running')
@@ -79,7 +103,7 @@
 	);
 
 	const wholeControls = $derived(tour.step === 'run' && waiting);
-	const dimmed = $derived(!wholeControls && tour.step !== 'edit');
+	const dimmed = $derived(!wholeControls && tour.step !== 'done');
 
 	// Both halves of the tour widen once the user has acted: the thing they pressed stays
 	// lit, and what it changed comes into the light beside it
@@ -95,7 +119,12 @@
 				return '[data-tour="preview-tab"]';
 			case 'refresh':
 				return tour.refreshed ? '[data-tour="preview-panel"]' : '[data-tour="refresh"]';
-			case 'edit':
+			case 'app':
+				return `.svelte-flow__node[data-id="${editableNodeId}"]`;
+			// Widens from the tab to the charts it opens, the way refresh widens to the page
+			case 'metrics':
+				return chartsOpen ? '[data-tour="metrics-charts"]' : '[data-tour="metrics-tab"]';
+			case 'done':
 				return '[data-tour="edit-code"]';
 			default:
 				return undefined;
@@ -107,6 +136,9 @@
 		if (wholeControls) return WAITING;
 		if (tour.step === 'refresh' && tour.refreshed) {
 			return { ...CARD_TEXT.refresh, body: REFRESHED };
+		}
+		if (tour.step === 'metrics' && chartsOpen) {
+			return { ...CARD_TEXT.metrics, body: CHARTS_OPEN };
 		}
 		return CARD_TEXT[tour.step];
 	});
@@ -145,14 +177,14 @@
 	const spot = $derived.by(() => {
 		if (!target) return undefined;
 
-		const pad = tour.step === 'select' ? 8 : 6;
+		const pad = onNode ? 8 : 6;
 		const height = target.height + pad * 2;
 
 		// The controls are a rounded pill and a node is a large box; everything else is a
 		// small control carrying the app's usual corner
 		let radius = 10;
 		if (wholeControls) radius = height / 2;
-		else if (tour.step === 'select') radius = 16;
+		else if (onNode) radius = 16;
 
 		return {
 			top: target.top - pad,
@@ -165,7 +197,7 @@
 
 	// Both of these sit in the narrow panel on the right, which leaves no room for a card
 	// above or below them and plenty of it alongside
-	const beside = $derived(tour.step === 'refresh' || tour.step === 'edit');
+	const beside = $derived(tour.step === 'refresh' || tour.step === 'done' || chartsOpen);
 
 	const card = $derived.by(() => {
 		if (!spot) return undefined;
@@ -214,13 +246,16 @@
 		if (selectedNodeId === tour.balancerId && inspectorState.tab === 'preview') {
 			tour.completed('preview');
 		}
+		if (appOpen) tour.completed('app');
+		// The metrics step is not here: opening the tab is what it asked for, but the reader
+		// needs a moment with the charts, so it ends on its own button
 	});
 
 	let cardEl = $state<HTMLElement>();
 
-	// The closing pair are notes rather than steps, so close them if the user clicks away
+	// The closing card is a note rather than a step, so it closes if the user clicks away
 	$effect(() => {
-		if (tour.step !== 'done' && tour.step !== 'edit') return;
+		if (tour.step !== 'done') return;
 
 		const dismiss = (event: PointerEvent) => {
 			if (!cardEl?.contains(event.target as Node)) tour.end();
@@ -229,15 +264,6 @@
 		window.addEventListener('pointerdown', dismiss);
 		return () => window.removeEventListener('pointerdown', dismiss);
 	});
-
-	const editableNodeId = $derived(
-		graphState.nodes.find((node) => getResourceDefinition(node.type).hasEditableFiles)?.id
-	);
-
-	function selectAndPointAtCode(nodeId: string) {
-		graphState.select(nodeId);
-		tour.completed('done');
-	}
 </script>
 
 {#if showCard && cardText}
@@ -287,8 +313,9 @@
 
 		{#if tour.step === 'done'}
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				Each instance counts on its own. When you create a new project, there is a version that
-				shares one view-count in a database.
+				Those counts are separate: each instance only knows its own, and the chart adds them up for
+				you. When you create a new project, there is a version where they share one view-count in a
+				database instead.
 			</p>
 		{/if}
 
@@ -296,13 +323,10 @@
 			<Button variant="ghost" size="sm" onclick={() => tour.end()}>
 				{stepNumber > 0 ? 'Skip tour' : 'Close'}
 			</Button>
-			<!-- The refresh step is the one the user can repeat, so it needs a way out of its own -->
-			{#if tour.step === 'refresh'}
-				<Button size="sm" onclick={() => tour.completed('refresh')}>Done</Button>
-			{:else if tour.step === 'done' && editableNodeId}
-				<Button size="sm" onclick={() => selectAndPointAtCode(editableNodeId)}>
-					Show me the code
-				</Button>
+			{#if tour.step === 'refresh' && tour.refreshed}
+				<Button size="sm" onclick={() => tour.completed('refresh')}>Next</Button>
+			{:else if tour.step === 'metrics' && chartsOpen}
+				<Button size="sm" onclick={() => tour.completed('metrics')}>Done</Button>
 			{/if}
 		</div>
 	</div>

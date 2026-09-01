@@ -12,6 +12,7 @@
 	import {
 		CHART_READINGS,
 		READING_TEXT,
+		metricTotals,
 		metricWindow,
 		type ChartReading,
 		type MetricWindowRow
@@ -60,8 +61,8 @@
 
 	const rows = $derived(metricWindow(lines, stat, now, windowMs, intervalMs));
 
-	// Read off the chart's last column, so the number beside a line is where that line ends
-	const current = $derived(rows[rows.length - 1]);
+	// The whole window rather than its last point, which the end of the line already shows
+	const total = $derived(metricTotals(lines, stat, now, windowMs));
 </script>
 
 <!-- A section rather than a figure: a figcaption has to be a figure's immediate child, and
@@ -91,7 +92,7 @@
 				<li class="flex items-center gap-1.5">
 					<span class="size-2.5 rounded-xs" style="background-color: {color}"></span>
 					<span class="font-mono text-muted-foreground tabular-nums">:{port}</span>
-					<span class="tabular-nums">{format(current?.[port])}</span>
+					<span class="tabular-nums">{format(total[port])}</span>
 				</li>
 			{/each}
 			<!-- The group as a whole, which the chart deliberately does not draw: a line above
@@ -99,7 +100,7 @@
 			{#if lines.length > 1}
 				<li class="flex items-center gap-1.5 border-l pl-2">
 					<span class="text-muted-foreground">all</span>
-					<span class="tabular-nums">{format(current?.all)}</span>
+					<span class="tabular-nums">{format(total.all)}</span>
 				</li>
 			{/if}
 		</ul>

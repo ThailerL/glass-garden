@@ -1,6 +1,6 @@
 import type { Node } from '@xyflow/svelte';
 
-const ORDER = ['run', 'select', 'preview', 'refresh', 'done', 'edit'] as const;
+const ORDER = ['run', 'select', 'preview', 'refresh', 'app', 'metrics', 'done'] as const;
 
 export type TourStep = (typeof ORDER)[number];
 
