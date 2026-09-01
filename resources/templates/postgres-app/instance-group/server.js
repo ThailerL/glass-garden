@@ -32,6 +32,7 @@ const app = express();
 app.use(express.static('public', { index: false }));
 
 app.get('/', async (req, res) => {
+  const started = Date.now();
   try {
     // Done here so the server can start without a running database
     await pool.query(`CREATE TABLE IF NOT EXISTS views (
@@ -67,6 +68,11 @@ app.get('/', async (req, res) => {
     // This server is fine, the database is not, so it answers 503 rather than stopping
     console.error('database unavailable:', error.message);
     res.status(503).type('text/plain').send(`Database unavailable: ${error.message}\n`);
+  } finally {
+    // The two shapes a metric takes: a count of something, and a measurement of it. Reported
+    // here so a request the database refused still counts
+    console.log(`gg:metric/1 ${JSON.stringify({ name: 'requests', value: 1 })}`);
+    console.log(`gg:metric/1 ${JSON.stringify({ name: 'response ms', value: Date.now() - started })}`);
   }
 });
 

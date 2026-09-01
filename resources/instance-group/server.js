@@ -7,17 +7,14 @@ if (!port) {
   throw new Error('PORT is not set');
 }
 
-let hits = 0;
-
 const app = express();
 
 app.get('/', (req, res) => {
-  hits += 1;
+  // This prefix sends a line to the Metrics tab instead of the Logs tab. The number is one
+  // observation, not a running total - print one per event and they are summed per second
+  console.log(`gg:metric/1 ${JSON.stringify({ name: 'requests', value: 1 })}`);
 
-  // Nothing is shared between instances, so each counts only the requests it was sent
-  res
-    .type('text/plain')
-    .send(`Hello from the instance on :${port}\nIt has served ${hits} requests since it started.\n`);
+  res.type('text/plain').send(`Hello from the instance on :${port}\n`);
 });
 
 app.listen(port, () => {
