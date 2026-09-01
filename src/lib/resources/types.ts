@@ -7,7 +7,7 @@ import type { ChartReading } from '$lib/metrics';
 
 // What a resource offers its dependents and what it needs from them. An edge is legal when
 // its source consumes something its target provides
-export type Capability = 'http' | 'sql';
+export type Capability = 'http' | 'sql' | 'aws';
 
 // Returned by a definition's start so the orchestrator can manage an instance's
 // lifecycle without touching whatever the definition actually launched
@@ -107,4 +107,6 @@ export type ResourceDefinition = {
 	// Called when something this resource points at changes, so it can rewrite whatever
 	// config its running process reads
 	update?: (node: Node, container: Vivari, upstreams: readonly Upstream[]) => Promise<void>;
+	// Called when the node is deleted. For data that lives outside the node's directory
+	remove?: (node: Node, container: Vivari) => Promise<void>;
 };

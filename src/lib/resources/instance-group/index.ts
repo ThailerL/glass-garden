@@ -76,7 +76,7 @@ export const instanceGroup = {
 	hasPreview: true,
 	ownsStoredData: false,
 	provides: ['http'],
-	consumes: ['sql'],
+	consumes: ['sql', 'aws'],
 	configComponent: InstanceGroupConfig,
 	configSchema,
 	// The names the examples report. A user's own metric falls back to the default

@@ -2,7 +2,7 @@ import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
-import { anyStoredDataNodes, GraphState, nodePorts } from './graph-state.svelte';
+import { anyStoredDataNodes, GraphState, nodeName, nodePorts } from './graph-state.svelte';
 import { createContext } from './context';
 import { messageOf } from './errors';
 import {
@@ -174,10 +174,16 @@ export class Orchestrator {
 
 	// Called once a node is gone from the graph. The controller winds down off its own state
 	// and removes the files when it unregisters; a node that never ran has none to wait for
-	remove(nodeId: string) {
-		const controller = this.#controllers.get(nodeId);
+	remove(node: Node) {
+		const definition = getResourceDefinition(node.type);
+		if (definition.remove) {
+			void this.#getContainer()
+				.then((container) => definition.remove?.(node, container))
+				.catch(() => toast.error(`Could not delete its stored datafor ${nodeName(node)}`));
+		}
+		const controller = this.#controllers.get(node.id);
 		if (controller) controller.forget();
-		else void removeNodeFiles(nodeId);
+		else void removeNodeFiles(node.id);
 	}
 
 	// Config or edges changed: resize the reservation (even while stopped) and reconcile

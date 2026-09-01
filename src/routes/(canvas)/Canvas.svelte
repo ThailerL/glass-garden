@@ -73,7 +73,7 @@
 		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
 		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
 
-		nodes.forEach((node) => orchestrator.remove(node.id));
+		nodes.forEach((node) => orchestrator.remove(node));
 		// A deleted edge changes what its source routes to
 		edges.forEach((edge) => orchestrator.refresh(edge.source));
 	};

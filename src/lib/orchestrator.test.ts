@@ -212,9 +212,10 @@ describe('Orchestrator port reservations', () => {
 		// Delete node A the way the canvas does, with a kill that fails: the node is gone
 		// but its unresponsive instance still occupies the port
 		fake.stopFails = true;
+		const nodeA = graphState.nodes.find((node) => node.id === a)!;
 		graphState.deleteNodeFromStorage(a);
 		graphState.nodes = graphState.nodes.filter((node) => node.id !== a);
-		orchestrator.remove(a);
+		orchestrator.remove(nodeA);
 		await settle();
 		expect(orchestrator.getReservedPorts(a)).toEqual([]);
 		expect(orchestrator.getInstanceStatus(a, draining)).toBe('unresponsive');
