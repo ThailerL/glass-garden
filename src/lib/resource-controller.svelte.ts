@@ -94,7 +94,7 @@ export class ResourceController {
 	#stopFailed = false;
 	// The newest crash, which the restart delay runs from
 	#lastCrashAt = 0;
-	#restartTimer: ReturnType<typeof setTimeout> | undefined;
+	#restartTimer = $state<ReturnType<typeof setTimeout> | undefined>(undefined);
 	#forgotten = false;
 	#abandoned = false;
 
@@ -130,6 +130,10 @@ export class ResourceController {
 
 	get restartsPaused(): boolean {
 		return this.wantsRunning && this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
+	}
+
+	get restartPending(): boolean {
+		return this.#restartTimer !== undefined;
 	}
 
 	// A stopping instance still owns its process and its port until the kill lands, so

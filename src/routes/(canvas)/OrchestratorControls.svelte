@@ -9,6 +9,7 @@
 	import type { ResourceStatus } from '$lib/resources';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { STATUS_TEXT } from '$lib/status';
 	import { Spinner } from '$lib/components/ui/spinner';
 
 	const graphState = getGraphState();
@@ -46,7 +47,7 @@
 			<span class="text-muted-foreground" title={orchestrator.containerError}>Boot failed</span>
 		{:else if orchestrator.containerReady}
 			<StatusDot {status} />
-			<span class="capitalize">{status}</span>
+			<span>{STATUS_TEXT[status]}</span>
 		{:else}
 			<Spinner class="size-3 text-muted-foreground" />
 			<span class="text-muted-foreground">

@@ -17,6 +17,7 @@
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { STATUS_TEXT } from '$lib/status';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
 	import MetricsTab from './MetricsTab.svelte';
@@ -111,7 +112,7 @@
 		<div class="flex flex-row items-center justify-between gap-2">
 			<div class="flex items-center gap-1.5 text-sm">
 				<StatusDot {status} />
-				<span class="capitalize">{status}</span>
+				<span>{STATUS_TEXT[status]}</span>
 				{#if configured > 1}
 					<span class="text-muted-foreground" title="Instances running out of the configured count">
 						{up}/{configured}

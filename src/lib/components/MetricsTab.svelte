@@ -2,6 +2,7 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getResourceDefinition, type Instance } from '$lib/resources';
+	import { STATUS_TEXT } from '$lib/status';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
 
@@ -19,8 +20,12 @@
 	const instances = $derived(orchestrator.getInstances(nodeId));
 
 	function statusLabel(instance: Instance | undefined) {
-		if (!instance) return 'stopped';
-		return instance.status === 'starting' && instance.replacement ? 'retrying' : instance.status;
+		if (!instance) return STATUS_TEXT.stopped;
+		if (instance.status === 'crashed' && orchestrator.getRestartPending(nodeId)) {
+			return 'Waiting to retry';
+		}
+		if (instance.status === 'starting' && instance.replacement) return 'Retrying';
+		return STATUS_TEXT[instance.status];
 	}
 </script>
 
@@ -48,7 +53,7 @@
 			<li class="flex items-center gap-2 border-b py-1.5 last:border-b-0">
 				<StatusDot status={instanceStatus} />
 				<span class="font-mono tabular-nums">:{port}</span>
-				<span class="text-muted-foreground capitalize">{statusLabel(instance)}</span>
+				<span class="text-muted-foreground">{statusLabel(instance)}</span>
 				{#if url}
 					<!-- Served by the preview service worker rather than by SvelteKit routing, so
 					     there is no route for resolve() to take -->
