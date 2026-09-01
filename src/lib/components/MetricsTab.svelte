@@ -127,20 +127,17 @@
 			<p class="pt-2 text-xs text-muted-foreground">
 				No measurements yet. Resources report their own numbers as they run.
 			</p>
-		{:else}
+		{:else if shown.length > 0}
 			<div class="mt-4 space-y-3 border-t pt-3" data-tour="metrics-charts">
 				{#each metricNames as name (name)}
-					{@const lines = linesFor(name)}
-					{#if lines.length > 0}
-						<MetricChart
-							{name}
-							{lines}
-							windowMs={metricsView.window.ms}
-							intervalMs={metricsView.window.intervalMs}
-							{now}
-							bind:stat={() => statFor(name), (value) => metricsView.setStat(type, name, value)}
-						/>
-					{/if}
+					<MetricChart
+						{name}
+						lines={linesFor(name)}
+						windowMs={metricsView.window.ms}
+						intervalMs={metricsView.window.intervalMs}
+						{now}
+						bind:stat={() => statFor(name), (value) => metricsView.setStat(type, name, value)}
+					/>
 				{/each}
 			</div>
 		{/if}
