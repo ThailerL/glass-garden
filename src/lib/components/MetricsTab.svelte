@@ -74,6 +74,10 @@
 		</p>
 	{/if}
 
+	{#if metricNames.length > 0}
+		<p class="text-xs text-muted-foreground">Measured over the most recent second.</p>
+	{/if}
+
 	<div class="min-h-0 flex-1 overflow-y-auto text-sm">
 		<ul>
 			{#each shown as port (port)}
@@ -103,12 +107,17 @@
 
 					{#each metricNames as name (name)}
 						{@const current = reading(port, name)}
+						<!-- Both are always shown and always labelled: which one carries the meaning
+						     depends on the metric, and nothing on the wire says which -->
 						<dl class="mt-1 flex items-baseline gap-2 pl-4 text-xs">
 							<dt class="truncate text-muted-foreground">{name}</dt>
-							<dd class="ml-auto tabular-nums">{format(current?.value)}</dd>
-							<!-- How many landed in the interval, so a rate is not read as one reading -->
-							<dd class="w-10 text-right text-muted-foreground">
-								{current && current.samples > 1 ? `×${current.samples}` : ''}
+							<dd class="ml-auto w-20 text-right tabular-nums">
+								<span class="text-muted-foreground">avg</span>
+								{format(current?.value)}
+							</dd>
+							<dd class="w-12 text-right tabular-nums">
+								<span class="text-muted-foreground">n</span>
+								{format(current?.samples)}
 							</dd>
 						</dl>
 					{/each}

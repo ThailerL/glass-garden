@@ -16,6 +16,10 @@ const MAX_RETRIES = 3;
 
 let cursor = 0;
 
+function emitMetric(name, value) {
+  console.log(`gg:metric/1 ${JSON.stringify({ name, value })}`);
+}
+
 async function readConfig() {
   let contents;
   try {
@@ -82,6 +86,13 @@ function forward(target, req, body) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const started = Date.now();
+  res.on('finish', () => {
+    emitMetric('requests', 1);
+    emitMetric('latency', Date.now() - started);
+    if (res.statusCode >= 500) emitMetric('failures', 1);
+  });
+
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const body = Buffer.concat(chunks);
