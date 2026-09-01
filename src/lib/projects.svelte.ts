@@ -82,7 +82,9 @@ onContainerBoot(async (container) => {
 	await Promise.all(
 		entries
 			.filter((entry) => entry.isDirectory() && !keep.has(entry.name))
-			.map((entry) => container.fs.rm(projectDirectory(entry.name), { recursive: true, force: true }))
+			.map((entry) =>
+				container.fs.rm(projectDirectory(entry.name), { recursive: true, force: true })
+			)
 	);
 });
 

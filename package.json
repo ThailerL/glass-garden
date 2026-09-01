@@ -7,7 +7,7 @@
 		"node": ">=22.12.0"
 	},
 	"scripts": {
-		"vendor": "node scripts/vendor-assets.mjs",
+		"vendor": "node scripts/vendor-assets.mjs && node scripts/vendor-moto.mjs",
 		"predev": "npm run vendor",
 		"dev": "vite dev --port 3000",
 		"prebuild": "npm run vendor",
