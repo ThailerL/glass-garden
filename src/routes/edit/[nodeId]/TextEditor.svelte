@@ -6,10 +6,9 @@
 	import { json } from '@codemirror/lang-json';
 	import type { EditorView } from '@codemirror/view';
 	import { Vivari } from '@vivari/core';
-	import { getFileDraftState } from '$lib/file-draft-state.svelte';
+	import { getFileDraftState, getFileRefresh } from '$lib/files';
 	import { dracula } from '@uiw/codemirror-theme-dracula';
 	import { mode } from 'mode-watcher';
-	import { getFileRefresh } from '$lib/file-refresh.svelte';
 	import { requestPersistentStorage } from '$lib/container';
 	import { toast } from 'svelte-sonner';
 

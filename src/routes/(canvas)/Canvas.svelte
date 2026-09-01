@@ -78,11 +78,9 @@
 		edges.forEach((edge) => orchestrator.refresh(edge.source));
 	};
 
-	let selectedNodes: Node[] = $state.raw([]);
 	let selectedEdges: Edge[] = $state.raw([]);
 
 	useOnSelectionChange(({ nodes, edges }) => {
-		selectedNodes = nodes;
 		selectedEdges = edges;
 		graphState.selectedNodeId = nodes.length === 1 ? nodes[0].id : undefined;
 	});
@@ -91,7 +89,9 @@
 	const savedViewport = untrack(() => graphState.viewport);
 	if (restoredNodeId) graphState.select(restoredNodeId);
 
-	const showsInspector = $derived(selectedNodes.length === 1 && selectedEdges.length === 0);
+	// Read from the restored id rather than from the selection callback, which announces changes
+	// only: a return from the editor mounts the flow with its node already selected
+	const showsInspector = $derived(!!graphState.selectedNodeId && selectedEdges.length === 0);
 
 	// Once the panel is gone the next one is a fresh arrival rather than a swap, so it opens without the fade
 	$effect(() => {
@@ -184,10 +184,11 @@
 {/snippet}
 
 {#snippet inspector()}
-	{#key selectedNodes[0].id}
-		<!-- pass in a nodeId instead of node because selectedNodes is a snapshot that can get stale -->
-		<InspectorSidebar nodeId={selectedNodes[0].id} />
-	{/key}
+	{#if graphState.selectedNodeId}
+		{#key graphState.selectedNodeId}
+			<InspectorSidebar nodeId={graphState.selectedNodeId} />
+		{/key}
+	{/if}
 {/snippet}
 
 <OrchestratorControls />

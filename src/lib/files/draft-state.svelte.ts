@@ -1,7 +1,7 @@
 import { SvelteMap } from 'svelte/reactivity';
 import type { EditorState } from '@codemirror/state';
-import { createContext } from './context';
-import { isAtOrUnder } from './file-tree.svelte';
+import { createContext } from '../context';
+import { isAtOrUnder } from './tree.svelte';
 
 function moveKeys<T>(map: SvelteMap<string, T>, from: string, to: string) {
 	for (const [key, value] of [...map]) {

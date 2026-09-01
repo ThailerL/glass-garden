@@ -1,9 +1,9 @@
 import type { Vivari } from '@vivari/core';
 import type { DragDropState } from '@thisux/sveltednd';
 import { toast } from 'svelte-sonner';
-import { createContext } from './context';
-import { createFile, createFolder } from './file-tree.svelte';
-import type { FileRefresh } from './file-refresh.svelte';
+import { createContext } from '../context';
+import { createFile, createFolder } from './tree.svelte';
+import type { FileRefresh } from './refresh.svelte';
 
 export class FileTreeContext {
 	renamingPath = $state<string | undefined>();

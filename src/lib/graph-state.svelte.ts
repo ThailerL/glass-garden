@@ -4,7 +4,7 @@ import { getResourceDefinition, resourceDefinitions, type ResourceType } from '.
 import { requestPersistentStorage } from './container';
 import { createContext } from './context';
 import { keysWithPrefix, readByPrefix, readEntry } from './storage';
-import type { FileSetId } from './node-files';
+import type { FileSetId } from './files/node-files';
 
 export type NodeData = {
 	config: Record<string, unknown>;

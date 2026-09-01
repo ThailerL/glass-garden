@@ -8,8 +8,7 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
-	import { setFileDraftState } from '$lib/file-draft-state.svelte';
-	import { setFileRefresh } from '$lib/file-refresh.svelte';
+	import { setFileDraftState, setFileRefresh } from '$lib/files';
 
 	// Nothing inside the container announces what it writes, so the open listings re-read on
 	// a timer to catch the terminal, npm install, and running processes

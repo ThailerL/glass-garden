@@ -1,8 +1,8 @@
 import type { Node } from '@xyflow/svelte';
 import type { FileSystemTree } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
-import { getResourceDefinition } from './resources';
-import type { NodeData } from './graph-state.svelte';
+import { getResourceDefinition } from '../resources';
+import type { NodeData } from '../graph-state.svelte';
 
 export type FileSetId = keyof typeof resourceFiles.templates;
 

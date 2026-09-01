@@ -1,5 +1,5 @@
 import type { Vivari, DirEnt } from '@vivari/core';
-import { getFileRefresh } from './file-refresh.svelte';
+import { getFileRefresh } from './refresh.svelte';
 
 export function isAtOrUnder(path: string, ancestor: string) {
 	return path === ancestor || path.startsWith(`${ancestor}/`);

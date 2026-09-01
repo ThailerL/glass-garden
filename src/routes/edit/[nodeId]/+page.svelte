@@ -9,7 +9,7 @@
 	import { messageOf } from '$lib/errors';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
-	import { nodeFiles } from '$lib/node-files';
+	import { nodeFiles } from '$lib/files/node-files';
 
 	const { params }: PageProps = $props();
 

@@ -5,7 +5,7 @@
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import { setGraphState } from '$lib/graph-state.svelte';
-	import { anyDraftsDirty } from '$lib/file-draft-state.svelte';
+	import { anyDraftsDirty } from '$lib/files';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import type { LayoutProps } from './$types';

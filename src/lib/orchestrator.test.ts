@@ -16,7 +16,7 @@ vi.mock('$lib/container', () => ({
 	shutdownContainer: vi.fn(),
 	requestPersistentStorage: vi.fn()
 }));
-vi.mock('$lib/node-files', () => ({ nodeFiles: () => ({}) }));
+vi.mock('$lib/files/node-files', () => ({ nodeFiles: () => ({}) }));
 vi.mock('svelte-sonner', () => ({
 	toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() }
 }));

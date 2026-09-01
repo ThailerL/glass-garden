@@ -11,13 +11,8 @@ import {
 	type ResourceStatus,
 	type Upstream
 } from './resources';
-import {
-	ResourceController,
-	type ControllerServices,
-	type MetricStore,
-	type OutputLine,
-	type ResourceEvent
-} from './resource-controller.svelte';
+import { ResourceController, type ControllerServices } from './resource-controller.svelte';
+import type { MetricStore, OutputLine, ResourceEvent } from './resource-log.svelte';
 import { getContainer, removeNodeFiles, shutdownContainer } from './container';
 
 // IANA registered port range
@@ -125,15 +120,15 @@ export class Orchestrator {
 	}
 
 	getEvents(nodeId: string): ResourceEvent[] {
-		return this.#controllers.get(nodeId)?.events ?? [];
+		return this.#controllers.get(nodeId)?.log.events ?? [];
 	}
 
 	getOutput(nodeId: string): OutputLine[] {
-		return this.#controllers.get(nodeId)?.output ?? [];
+		return this.#controllers.get(nodeId)?.log.output ?? [];
 	}
 
 	getMetrics(nodeId: string): MetricStore {
-		return this.#controllers.get(nodeId)?.metrics ?? {};
+		return this.#controllers.get(nodeId)?.log.metrics ?? {};
 	}
 
 	getRestarts(nodeId: string): number {

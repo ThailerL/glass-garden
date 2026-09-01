@@ -3,22 +3,12 @@ import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
-import { nodeFiles } from './node-files';
+import { nodeFiles } from './files/node-files';
 import { nodeName } from './graph-state.svelte';
 import { messageOf } from './errors';
-import {
-	METRIC_SENTINEL,
-	newSeries,
-	parseMetricLine,
-	record,
-	type MetricReport,
-	type MetricSeries
-} from './metrics';
+import { ResourceLog } from './resource-log.svelte';
 
-const MAX_EVENTS = 50;
-const MAX_OUTPUT_LINES = 500;
 const MAX_FAILED_DEPLOYMENTS = 3;
-const MAX_METRIC_NAMES = 20;
 // Before a crashed instance is respawned
 const RESTART_DELAY_MS = 2000;
 
@@ -37,28 +27,6 @@ export function launchPlan(
 }
 
 type LaunchPlan = { config: unknown; stamp: string };
-
-// What produced an entry: an instance, named by its port, or 'resource' for the node's own work
-export type LogSource = number | 'resource';
-
-// Shared fields that let output and events sort into one stream and filter by one source
-type LogEntry = {
-	time: number;
-	source: LogSource;
-	text: string;
-};
-
-// A line a process printed
-export type OutputLine = LogEntry & { kind: 'output' };
-
-// Something the orchestrator did, which carries a severity printed output cannot
-export type ResourceEvent = LogEntry & { kind: 'event'; level: 'info' | 'warning' | 'error' };
-
-// What one source has reported, by metric name
-export type SourceMetrics = Partial<Record<string, MetricSeries>>;
-
-// A source appears only once it has reported something
-export type MetricStore = Partial<Record<LogSource, SourceMetrics>>;
 
 // The cross-node concerns a controller can't own itself: the graph, the shared
 // container, global port uniqueness and reaching other controllers
@@ -85,10 +53,7 @@ export class ResourceController {
 	instances = $state<Instance[]>([]);
 	// Auto-restarts since the last explicit start
 	restarts = $state(0);
-	// Both oldest first
-	events = $state<ResourceEvent[]>([]);
-	output = $state<OutputLine[]>([]);
-	metrics = $state<MetricStore>({});
+	readonly log = new ResourceLog();
 
 	#services: ControllerServices;
 	#dirty = false;
@@ -113,8 +78,6 @@ export class ResourceController {
 	#restartTimer = $state<ReturnType<typeof setTimeout> | undefined>(undefined);
 	#forgotten = false;
 	#abandoned = false;
-	// So a flood of new names does not fill the log with the complaint about it
-	#warnedNameCap = false;
 
 	constructor(nodeId: string, definition: ResourceDefinition, services: ControllerServices) {
 		this.nodeId = nodeId;
@@ -214,7 +177,7 @@ export class ResourceController {
 			// The pass is left where it stopped, so nothing moves until the next trigger
 			.catch((e) => {
 				toast.error(`${this.#nodeName()} stopped applying changes`);
-				this.#logEvent('resource', 'error', `Failed to apply changes, left as is: ${messageOf(e)}`);
+				this.log.event('resource', 'error', `Failed to apply changes, left as is: ${messageOf(e)}`);
 			})
 			.finally(() => (this.#converging = false));
 	}
@@ -249,7 +212,7 @@ export class ResourceController {
 		if (doomed.length > 0) {
 			// Otherwise the stops and starts that follow read exactly like a crash and restart
 			const stale = doomed.filter((instance) => instance.configStamp !== launch.stamp).length;
-			this.#logEvent(
+			this.log.event(
 				'resource',
 				'info',
 				stale > 0
@@ -279,7 +242,7 @@ export class ResourceController {
 					toast.error(`${this.#nodeName()} could not be reconfigured`);
 				}
 				this.#updateFailed = true;
-				this.#logEvent('resource', 'error', `Failed to update: ${messageOf(e)}`);
+				this.log.event('resource', 'error', `Failed to update: ${messageOf(e)}`);
 			}
 		}
 
@@ -339,7 +302,7 @@ export class ResourceController {
 			await mountNodeFiles(this.nodeId, nodeFiles(node), !this.#definition.hasEditableFiles);
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container, (output) =>
-				this.#capture('resource', output)
+				this.log.capture('resource', output)
 			);
 			await Promise.all(
 				pending.map((instance) =>
@@ -351,7 +314,7 @@ export class ResourceController {
 			// failures are recorded inside #spawnInstance
 			for (const instance of pending) instance.status = 'crashed';
 			this.#toastOnce(launch.stamp, `${this.#nodeName()} could not be set up`);
-			this.#logEvent('resource', 'error', `Failed to set up: ${messageOf(e)}`);
+			this.log.event('resource', 'error', `Failed to set up: ${messageOf(e)}`);
 		}
 	}
 
@@ -371,10 +334,10 @@ export class ResourceController {
 				launchConfig
 			);
 			instance.handle = handle;
-			if (handle.output) this.#capture(instance.port, handle.output);
+			if (handle.output) this.log.capture(instance.port, handle.output);
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
-			this.#logEvent(instance.port, 'info', 'Instance started');
+			this.log.event(instance.port, 'info', 'Instance started');
 			// A rejection means nothing will ever say whether the process is still alive, which is
 			// what 'unresponsive' is for: the slot and port stay held rather than respawned over it
 			handle.exited.then(
@@ -384,13 +347,13 @@ export class ResourceController {
 					if (instance.status === 'stopping') return;
 					instance.status = 'unresponsive';
 					toast.error(`Lost contact with an instance of ${this.#nodeName()}`);
-					this.#logEvent(instance.port, 'error', `Lost contact with instance: ${messageOf(e)}`);
+					this.log.event(instance.port, 'error', `Lost contact with instance: ${messageOf(e)}`);
 				}
 			);
 		} catch (e) {
 			instance.status = 'crashed';
 			this.#toastOnce(instance.configStamp, `${this.#nodeName()} could not be started`);
-			this.#logEvent(instance.port, 'error', `Instance failed to start: ${messageOf(e)}`);
+			this.log.event(instance.port, 'error', `Instance failed to start: ${messageOf(e)}`);
 		}
 	}
 
@@ -402,7 +365,7 @@ export class ResourceController {
 		const neverRan = instance.status === 'starting';
 		instance.status = 'crashed';
 		this.#lastCrashAt = Date.now();
-		this.#logEvent(instance.port, 'warning', `Instance crashed (exit ${code})`);
+		this.log.event(instance.port, 'warning', `Instance crashed (exit ${code})`);
 
 		// The rest of a deployment crashing tells us nothing new, so only its first
 		// casualty spends from the budget
@@ -414,7 +377,7 @@ export class ResourceController {
 
 		const capped = this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
 		if (firstOfDeployment && capped) {
-			this.#logEvent(
+			this.log.event(
 				'resource',
 				'error',
 				'Restarts paused - instances kept crashing before coming up'
@@ -462,13 +425,13 @@ export class ResourceController {
 				instance.status = 'unresponsive';
 				if (!this.#stopFailed) toast.error(`${this.#nodeName()} would not stop`);
 				this.#stopFailed = true;
-				this.#logEvent(instance.port, 'error', `Instance failed to stop: ${messageOf(e)}`);
+				this.log.event(instance.port, 'error', `Instance failed to stop: ${messageOf(e)}`);
 				return;
 			}
 		}
 		const index = this.instances.indexOf(instance);
 		if (index !== -1) this.instances.splice(index, 1);
-		if (handle) this.#logEvent(instance.port, 'info', 'Instance stopped');
+		if (handle) this.log.event(instance.port, 'info', 'Instance stopped');
 	}
 
 	// A spawned process is not a listening server, so this is the first point at which
@@ -483,7 +446,7 @@ export class ResourceController {
 			// the same config is news again
 			this.#failedDeployments = 0;
 			this.#toastedStamp = undefined;
-			this.#logEvent(port, 'info', 'Instance running');
+			this.log.event(port, 'info', 'Instance running');
 			this.schedule();
 		}
 		return true;
@@ -503,74 +466,6 @@ export class ResourceController {
 	#nodeName() {
 		const node = this.#services.getNode();
 		return node ? nodeName(node) : this.#definition.name;
-	}
-
-	// Chunks arrive at whatever size the stream hands over, so a partial line is carried
-	// until the rest of it turns up. Errors when the process is killed, which is not news
-	#capture(source: LogSource, output: ReadableStream<string>) {
-		let carry = '';
-		void output
-			.pipeTo(
-				new WritableStream({
-					write: (chunk) => {
-						const lines = (carry + chunk).split('\n');
-						carry = lines.pop() ?? '';
-						for (const line of lines) this.#routeLine(source, line.replace(/\r$/, ''));
-					},
-					close: () => {
-						if (carry) this.#routeLine(source, carry);
-					}
-				})
-			)
-			.catch(() => {});
-	}
-
-	// A captured line is either a metric report or something the process printed
-	#routeLine(source: LogSource, line: string) {
-		if (!line.startsWith(METRIC_SENTINEL)) {
-			this.#logOutput(source, line);
-			return;
-		}
-		const parsed = parseMetricLine(line);
-		if (!parsed.ok) {
-			this.#logOutput(source, line);
-			this.#logEvent(source, 'warning', `Ignored a metric line - it is ${parsed.reason}`);
-			return;
-		}
-		this.#recordMetric(source, parsed.report);
-	}
-
-	#recordMetric(source: LogSource, { name, value }: MetricReport) {
-		const now = Date.now();
-		this.metrics[source] ??= {};
-		// Read back rather than reuse: $state hands out a proxy of what we assigned
-		const bySource = this.metrics[source];
-		if (bySource[name] === undefined) {
-			// A name per request id is one typo away, so names are refused past the cap
-			if (Object.keys(bySource).length >= MAX_METRIC_NAMES) {
-				if (!this.#warnedNameCap) {
-					this.#warnedNameCap = true;
-					this.#logEvent(
-						source,
-						'warning',
-						`Reporting more than ${MAX_METRIC_NAMES} different metrics, so later ones are ignored`
-					);
-				}
-				return;
-			}
-			bySource[name] = newSeries(now);
-		}
-		record(bySource[name], now, value);
-	}
-
-	#logOutput(source: LogSource, text: string) {
-		this.output.push({ kind: 'output', time: Date.now(), source, text });
-		if (this.output.length > MAX_OUTPUT_LINES) this.output.shift();
-	}
-
-	#logEvent(source: LogSource, level: ResourceEvent['level'], text: string) {
-		this.events.push({ kind: 'event', time: Date.now(), source, level, text });
-		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 
 	// Interrupts once per launch config: a broken one is one piece of news however often it

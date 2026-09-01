@@ -3,15 +3,19 @@
 	import { draggable, droppable } from '@thisux/sveltednd';
 	import type { DirEnt } from '@vivari/core';
 	import UnsavedIcon from '@lucide/svelte/icons/circle-dashed';
-	import { directoryListing, isAtOrUnder, rebase } from '$lib/file-tree.svelte';
-	import { getFileTreeContext } from '$lib/file-tree-context.svelte';
+	import {
+		directoryListing,
+		isAtOrUnder,
+		rebase,
+		getFileTreeContext,
+		getFileDraftState,
+		getFileRefresh
+	} from '$lib/files';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import * as Rename from '$lib/components/ui/rename';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import FileTree from './FileTree.svelte';
-	import { getFileDraftState } from '$lib/file-draft-state.svelte';
-	import { getFileRefresh } from '$lib/file-refresh.svelte';
 	import { toast } from 'svelte-sonner';
 
 	let {

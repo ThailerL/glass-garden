@@ -1,4 +1,4 @@
-import { createContext } from './context';
+import { createContext } from '../context';
 
 // Each directory in the editor reads its own listing, but Vivari has no fs.watch and a drag
 // moves a file between two directories at once. Everything that writes to the container

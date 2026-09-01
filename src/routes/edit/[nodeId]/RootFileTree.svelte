@@ -7,11 +7,15 @@
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { cn } from '$lib/utils.js';
-	import { directoryListing, isAtOrUnder, rebase } from '$lib/file-tree.svelte';
-	import { setFileTreeContext } from '$lib/file-tree-context.svelte';
+	import {
+		directoryListing,
+		isAtOrUnder,
+		rebase,
+		setFileTreeContext,
+		getFileRefresh,
+		getFileDraftState
+	} from '$lib/files';
 	import FileTree from './FileTree.svelte';
-	import { getFileRefresh } from '$lib/file-refresh.svelte';
-	import { getFileDraftState } from '$lib/file-draft-state.svelte';
 	import { toast } from 'svelte-sonner';
 
 	let {

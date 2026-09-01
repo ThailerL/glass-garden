@@ -8,7 +8,7 @@ import { METRIC_SENTINEL } from '$lib/metrics';
 // The controller is tested through its ControllerServices seam; everything it reaches
 // past that seam is faked out so no container, graph or DOM is needed
 vi.mock('$lib/container', () => ({ mountNodeFiles: vi.fn() }));
-vi.mock('$lib/node-files', () => ({ nodeFiles: () => ({}) }));
+vi.mock('$lib/files/node-files', () => ({ nodeFiles: () => ({}) }));
 vi.mock('$lib/graph-state.svelte', () => ({
 	nodeName: (node: Node) => (node.data as { config: { name: string } }).config.name
 }));
@@ -154,7 +154,7 @@ describe('ResourceController', () => {
 		expect(definition.start).toHaveBeenCalledTimes(2);
 		// The bounced instance freed its reserved port, so the replacement takes it back
 		expect(controller.instances[0].port).toBe(originalPort);
-		expect(controller.events.some((event) => event.text.includes('Config changed'))).toBe(true);
+		expect(controller.log.events.some((event) => event.text.includes('Config changed'))).toBe(true);
 	});
 
 	it('scales down from the tail and back up with new instances', async () => {
@@ -300,7 +300,7 @@ describe('ResourceController', () => {
 		expect(definition.start).toHaveBeenCalledTimes(6);
 		expect(controller.status).toBe('crashed');
 		expect(
-			controller.events.some((event) => event.text.toLowerCase().includes('restarts paused'))
+			controller.log.events.some((event) => event.text.toLowerCase().includes('restarts paused'))
 		).toBe(true);
 
 		// Fixing the config recovers without an explicit start: the stale stamp drops the
@@ -377,8 +377,10 @@ describe('metric lines', () => {
 
 		await print(metric({ name: 'requests', value: 4 }));
 
-		expect(controller.metrics[3001]?.requests?.buckets).toEqual([{ n: 1, sum: 4, min: 4, max: 4 }]);
-		expect(controller.output).toHaveLength(0);
+		expect(controller.log.metrics[3001]?.requests?.buckets).toEqual([
+			{ n: 1, sum: 4, min: 4, max: 4 }
+		]);
+		expect(controller.log.output).toHaveLength(0);
 	});
 
 	it('leaves anything else as output', async () => {
@@ -386,8 +388,8 @@ describe('metric lines', () => {
 
 		await print('listening on 3001\n');
 
-		expect(controller.output.map((line) => line.text)).toEqual(['listening on 3001']);
-		expect(controller.metrics).toEqual({});
+		expect(controller.log.output.map((line) => line.text)).toEqual(['listening on 3001']);
+		expect(controller.log.metrics).toEqual({});
 	});
 
 	// A line meant as a metric that we cannot read is worth seeing rather than swallowing
@@ -396,9 +398,9 @@ describe('metric lines', () => {
 
 		await print(`${METRIC_SENTINEL}{oh dear\n`);
 
-		expect(controller.output).toHaveLength(1);
-		expect(controller.metrics).toEqual({});
-		const warnings = controller.events.filter((event) => event.level === 'warning');
+		expect(controller.log.output).toHaveLength(1);
+		expect(controller.log.metrics).toEqual({});
+		const warnings = controller.log.events.filter((event) => event.level === 'warning');
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0].text).toContain('not valid JSON');
 	});
@@ -408,10 +410,10 @@ describe('metric lines', () => {
 		const line = metric({ name: 'requests', value: 4 });
 
 		await print(line.slice(0, 6));
-		expect(controller.metrics).toEqual({});
+		expect(controller.log.metrics).toEqual({});
 
 		await print(line.slice(6));
-		expect(controller.metrics[3001]?.requests?.buckets[0].sum).toBe(4);
+		expect(controller.log.metrics[3001]?.requests?.buckets[0].sum).toBe(4);
 	});
 
 	// A name per request id is one typo away, and each costs a series and a chart
@@ -420,8 +422,8 @@ describe('metric lines', () => {
 
 		for (let i = 0; i < 25; i++) await print(metric({ name: `request-${i}`, value: 1 }));
 
-		expect(Object.keys(controller.metrics[3001] ?? {})).toHaveLength(20);
-		const warnings = controller.events.filter((event) => event.level === 'warning');
+		expect(Object.keys(controller.log.metrics[3001] ?? {})).toHaveLength(20);
+		const warnings = controller.log.events.filter((event) => event.level === 'warning');
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0].text).toContain('ignored');
 	});
@@ -433,12 +435,12 @@ describe('metric lines', () => {
 		await print(metric({ name: 'requests', value: 5 }));
 		await print(metric({ name: 'latency', value: 12 }));
 
-		expect(controller.metrics[3001]?.requests?.buckets[0]).toEqual({
+		expect(controller.log.metrics[3001]?.requests?.buckets[0]).toEqual({
 			n: 2,
 			sum: 6,
 			min: 1,
 			max: 5
 		});
-		expect(controller.metrics[3001]?.latency?.buckets[0].n).toBe(1);
+		expect(controller.log.metrics[3001]?.latency?.buckets[0].n).toBe(1);
 	});
 });
