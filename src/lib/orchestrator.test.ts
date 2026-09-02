@@ -29,6 +29,9 @@ vi.mock('$lib/resources', async () => {
 	const definition = {
 		name: 'Test resource',
 		ownsStoredData: false,
+		// buildTopology asks every node whether it can call AWS
+		provides: [],
+		consumes: [],
 		configSchema: z.object({
 			name: z.string().default('Test resource'),
 			instanceCount: z.number().default(1),

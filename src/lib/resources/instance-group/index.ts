@@ -5,11 +5,10 @@ import ServerIcon from '@lucide/svelte/icons/server';
 import * as resourceFiles from 'virtual:resource-files';
 import InstanceGroupConfig from './InstanceGroupConfig.svelte';
 import type { ResourceDefinition, ConnectedNode } from '../types';
-import { getResourceDefinition, upstreamsProviding } from '../index';
-import { envSlug, npmInstall, processHandle } from '../shared';
+import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
-import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
-import { awsEnv } from '$lib/aws-topology';
+import { nodeConfig } from '$lib/graph-state.svelte';
+import { consumerEnv } from '../env';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
@@ -19,44 +18,10 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-const variableName = (node: Node) => `${envSlug(node)}_URL`;
-
-// A variable per upstream that advertises a connection URL, named after it so an app
-// wired to several datastores gets meaningful names. Sorted so the set - and with it the
-// configStamp - never depends on edge insertion order
-function connectionEnv(upstreams: readonly ConnectedNode[]): Record<string, string> {
-	const connections = upstreamsProviding(upstreams, 'sql')
-		.flatMap(({ node, reservedPorts }) => {
-			const { connectionUrl } = getResourceDefinition(node.type);
-			// Not a live instance's port, so the stamp survives the upstream restarting
-			const [port] = reservedPorts;
-			return connectionUrl && port !== undefined ? [{ node, url: connectionUrl(node, port) }] : [];
-		})
-		.sort(
-			(a, b) =>
-				nodeName(a.node).localeCompare(nodeName(b.node)) || a.node.id.localeCompare(b.node.id)
-		);
-
-	const env: Record<string, string> = {};
-	for (const { node, url } of connections) {
-		const base = variableName(node);
-		let name = base;
-		for (let suffix = 2; name in env; suffix++) name = `${base}_${suffix}`;
-		env[name] = url;
-	}
-	// The single-database case gets the conventional name too
-	if (connections.length === 1) env.DATABASE_URL ??= connections[0].url;
-	return env;
-}
-
 function launchConfig(node: Node, upstreams: readonly ConnectedNode[]) {
-	const awsTargets = upstreamsProviding(upstreams, 'aws').map(({ node: target }) => target);
 	return {
 		command: nodeConfig<Config>(node).command,
-		env: {
-			...connectionEnv(upstreams),
-			...awsEnv(node, awsTargets)
-		}
+		env: consumerEnv(node, upstreams)
 	};
 }
 

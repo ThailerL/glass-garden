@@ -97,9 +97,10 @@ export type ResourceDefinition = {
 	// Everything an instance is launched with that requires relaunching it when it changes:
 	// the node's own config, plus what upstreams hand down. Omitted when nothing does
 	launchConfig?: (node: Node, upstreams: readonly ConnectedNode[]) => unknown;
-	// How a dependent reaches one of this resource's instances, so nothing downstream has
-	// to know which engine is behind the port
-	connectionUrl?: (node: Node, port: number) => string;
+	// What a consumer connected to this resource finds in its environment. The suffix is
+	// appended to the consumer-facing slug of this node's name; soleName is the conventional
+	// variable, used only when this is the one resource of its kind connected
+	supplies?: (node: Node, port: number) => { suffix: string; value: string; soleName: string };
 	prepare?: (node: Node, container: Vivari, capture: Capture) => Promise<void>;
 	start: (
 		node: Node,

@@ -48,6 +48,11 @@ export const s3Bucket = {
 	instanceCount: () => 1,
 	runsProcesses: false,
 	launchConfig,
+	supplies: (node: Node) => ({
+		suffix: 'BUCKET',
+		value: bucketNameOf(node),
+		soleName: 'S3_BUCKET'
+	}),
 	// A bucket is not a process. Provisioning it is the whole of starting it, so there is no
 	// server to wait for and the region reports what the bucket holds on the node's behalf
 	readyOnStart: true,
