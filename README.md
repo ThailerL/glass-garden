@@ -1,6 +1,6 @@
 # Glass Garden
 
-[Try it live](https://glass.garden/) - a 60-second guided tour starts you off
+[Try it live](https://glass.garden/) - a two-minute guided tour starts you off
 
 Build cloud architecture by dragging load balancers, compute instances, and AWS services onto a canvas. Press play and watch real traffic move through it, right in your browser.
 
