@@ -1,7 +1,7 @@
 import {
-	METRIC_SENTINEL,
+	looksLikeEmf,
 	newSeries,
-	parseMetricLine,
+	parseEmfLine,
 	record,
 	type MetricDatum,
 	type MetricSeries
@@ -54,24 +54,25 @@ export class ResourceLog {
 		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 
-	// A captured line is either a metric report or something the process printed
+	// A captured line is either an Embedded Metric Format line or something the process
+	// printed. Metric lines stay out of the log: one JSON blob per request would bury it
 	#routeLine(source: LogSource, line: string) {
-		if (!line.startsWith(METRIC_SENTINEL)) {
+		if (!looksLikeEmf(line)) {
 			this.#logOutput(source, line);
 			return;
 		}
-		const parsed = parseMetricLine(line);
+		const parsed = parseEmfLine(line);
 		if (!parsed.ok) {
 			this.#logOutput(source, line);
 			this.event(source, 'warning', `Ignored a metric line - it is ${parsed.reason}`);
 			return;
 		}
-		this.putMetric(source, parsed.report);
+		for (const datum of parsed.data) this.putMetric(source, datum);
 	}
 
 	// Public because the region reports a resource's own measurements over its event
 	// channel rather than through captured output
-	putMetric(source: LogSource, { name, value }: MetricDatum) {
+	putMetric(source: LogSource, { name, value, unit }: MetricDatum) {
 		const now = Date.now();
 		this.metrics[source] ??= {};
 		// Read back rather than reuse: $state hands out a proxy of what we assigned
@@ -89,7 +90,7 @@ export class ResourceLog {
 				}
 				return;
 			}
-			bySource[name] = newSeries(now);
+			bySource[name] = newSeries(now, unit);
 		}
 		record(bySource[name], now, value);
 	}

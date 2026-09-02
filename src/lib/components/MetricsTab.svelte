@@ -4,6 +4,7 @@
 	import { getResourceDefinition, type Instance } from '$lib/resources';
 	import { STATUS_TEXT, uptimeText } from '$lib/status';
 	import { METRIC_WINDOWS, metricsView } from '$lib/metrics-view.svelte';
+	import { defaultStatisticFor, unitOf } from '$lib/metrics';
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
@@ -49,10 +50,11 @@
 		].sort()
 	);
 
-	// A resource says how its own metrics are read; anything else sums, since the avg of a count
-	// reported as 1 per event is 1 by construction, which draws a flat line
+	// A resource says how its own metrics are read; otherwise the unit decides
 	const statFor = (name: string) =>
-		metricsView.stat(type, name) ?? definition?.metricDefaults?.[name] ?? 'Sum';
+		metricsView.stat(type, name) ??
+		definition?.metricDefaults?.[name] ??
+		defaultStatisticFor(unitOf(linesFor(name)));
 
 	// Keyed on the port's place among every reserved port, so narrowing the selection does not
 	// repaint the survivors

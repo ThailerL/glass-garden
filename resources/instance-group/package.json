@@ -2,7 +2,8 @@
   "name": "instance-group",
   "type": "module",
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "@aws-lambda-powertools/metrics": "^2.35.0"
   },
   "scripts": {
     "start": "node server.js"

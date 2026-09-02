@@ -35,8 +35,9 @@ async def gg_start():
     return json.dumps({"stateFiles": state_files, "deferred": DEFERRED, "failed": FAILED})
 
 
-# What each resource is holding, for the metrics its node shows. Read off the backends rather
-# than through the data plane, so sampling never counts as traffic the user caused. The
+# What each resource is holding, for the metrics its node shows, as [value, unit] pairs. Read
+# off the backends rather than through the data plane, so sampling never counts as traffic
+# the user caused. The
 # module-level stores are private to ministack, like the persistence call above: a release
 # could move them
 async def gg_stats():
@@ -48,7 +49,7 @@ async def gg_stats():
     for name, bucket in _buckets.items():
         objects = bucket.get("objects") or {}
         total = sum(entry.get("size", 0) for entry in objects.values())
-        buckets[name] = {"objects": len(objects), "size (MB)": total / 1e6}
+        buckets[name] = {"objects": [len(objects), "Count"], "size": [total / 1e6, "Megabytes"]}
 
     # A message is in flight once it has been received and its visibility timeout has not
     # yet lapsed; until then it is waiting to be picked up
@@ -60,8 +61,8 @@ async def gg_stats():
             1 for m in messages if m.get("receipt_handle") and m.get("visible_at", 0) > now
         )
         queues[queue["name"]] = {
-            "messages": len(messages) - in_flight,
-            "in flight": in_flight,
+            "messages": [len(messages) - in_flight, "Count"],
+            "in flight": [in_flight, "Count"],
         }
 
     # items is keyed by partition value, then by sort value, so the item count is the sum of
@@ -69,7 +70,7 @@ async def gg_stats():
     tables = {}
     for name, table in _tables.items():
         items = table.get("items") or {}
-        tables[name] = {"items": sum(len(rows) for rows in items.values())}
+        tables[name] = {"items": [sum(len(rows) for rows in items.values()), "Count"]}
 
     return json.dumps({"s3": buckets, "sqs": queues, "dynamodb": tables})
 

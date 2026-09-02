@@ -4,8 +4,6 @@
 export const PERIOD_MS = 1000;
 export const MAX_DATAPOINTS = 900;
 
-export const METRIC_SENTINEL = 'gg:metric/1 ';
-
 // One datapoint, as CloudWatch stores one: not the observations but their summary
 export type StatisticSet = {
 	sampleCount: number;
@@ -18,6 +16,8 @@ export type MetricSeries = {
 	// Start of datapoints[0]. Datapoint i covers [start + i * PERIOD, start + (i + 1) * PERIOD)
 	start: number;
 	datapoints: StatisticSet[];
+	// As CloudWatch names them: Count, Milliseconds, Bytes. Fixed by the first report
+	unit?: string;
 };
 
 // CloudWatch's five statistics, named as its API names them. Listed as well as typed, so a
@@ -38,9 +38,20 @@ export const READING_TEXT: Record<ChartReading, string> = {
 	RunningSum: 'Running sum'
 };
 
-export type MetricDatum = { name: string; value: number };
+export type MetricDatum = { name: string; value: number; unit?: string };
 
-export type ParsedLine = { ok: true; report: MetricDatum } | { ok: false; reason: string };
+export type ParsedLine = { ok: true; data: MetricDatum[] } | { ok: false; reason: string };
+
+// Cheap enough to run on every captured line, so ordinary JSON output is never parsed twice
+export function looksLikeEmf(line: string) {
+	return line.startsWith('{') && line.includes('"_aws"');
+}
+
+// A count sums and a measurement averages: the average of a count reported as 1 per event
+// is 1 by construction, which draws a flat line
+export function defaultStatisticFor(unit: string | undefined): MetricStatistic {
+	return unit === undefined || unit === 'Count' || unit === 'None' ? 'Sum' : 'Average';
+}
 
 export function periodStart(time: number) {
 	return Math.floor(time / PERIOD_MS) * PERIOD_MS;
@@ -61,8 +72,8 @@ function fold(target: StatisticSet, part: StatisticSet) {
 	target.sum += part.sum;
 }
 
-export function newSeries(time: number): MetricSeries {
-	return { start: periodStart(time), datapoints: [emptySet()] };
+export function newSeries(time: number, unit?: string): MetricSeries {
+	return { start: periodStart(time), datapoints: [emptySet()], unit };
 }
 
 // Grows to reach `time`, zero-filling the silence, then trims the front past capacity
@@ -79,26 +90,51 @@ function datapointFor(series: MetricSeries, time: number): StatisticSet {
 	return series.datapoints[wanted - over];
 }
 
-export function parseMetricLine(line: string): ParsedLine {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === 'object' && value !== null && !Array.isArray(value);
+
+// The Embedded Metric Format: a JSON line whose _aws block declares which top-level fields
+// are metrics. Real CloudWatch extracts these from a log stream; here the reader does it.
+// A metric declared under several dimension sets is one series, so it is read once
+export function parseEmfLine(line: string): ParsedLine {
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(line.slice(METRIC_SENTINEL.length));
+		parsed = JSON.parse(line);
 	} catch {
 		return { ok: false, reason: 'not valid JSON' };
 	}
-	if (typeof parsed !== 'object' || parsed === null) {
-		return { ok: false, reason: 'not a JSON object' };
+	if (!isRecord(parsed) || !isRecord(parsed._aws)) {
+		return { ok: false, reason: 'missing the _aws block' };
+	}
+	const blocks = parsed._aws.CloudWatchMetrics;
+	if (!Array.isArray(blocks) || blocks.length === 0) {
+		return { ok: false, reason: 'missing CloudWatchMetrics' };
 	}
 
-	// Unknown fields are ignored so a later addition cannot break an older reader
-	const { name, value } = parsed as Record<string, unknown>;
-	if (typeof name !== 'string' || name.length === 0) {
-		return { ok: false, reason: 'missing a name' };
+	const data: MetricDatum[] = [];
+	const seen = new Set<string>();
+	for (const block of blocks) {
+		if (!isRecord(block) || !Array.isArray(block.Metrics)) {
+			return { ok: false, reason: 'missing Metrics in a CloudWatchMetrics block' };
+		}
+		for (const metric of block.Metrics) {
+			if (!isRecord(metric) || typeof metric.Name !== 'string' || metric.Name.length === 0) {
+				return { ok: false, reason: 'a metric has no Name' };
+			}
+			if (seen.has(metric.Name)) continue;
+			seen.add(metric.Name);
+			const unit = typeof metric.Unit === 'string' ? metric.Unit : undefined;
+			const raw = parsed[metric.Name];
+			const values = Array.isArray(raw) ? raw : [raw];
+			for (const value of values) {
+				if (typeof value !== 'number' || !Number.isFinite(value)) {
+					return { ok: false, reason: `${metric.Name} is not a finite number` };
+				}
+				data.push({ name: metric.Name, value, unit });
+			}
+		}
 	}
-	if (typeof value !== 'number' || !Number.isFinite(value)) {
-		return { ok: false, reason: 'value is not a finite number' };
-	}
-	return { ok: true, report: { name, value } };
+	return { ok: true, data };
 }
 
 export function record(series: MetricSeries, time: number, value: number) {
@@ -126,6 +162,10 @@ export function statistic(set: StatisticSet, stat: MetricStatistic): number | un
 export type MetricSource = number | 'resource';
 // series is optional so an instance that has never reported this metric still holds its place
 export type MetricLine = { port: MetricSource; series?: MetricSeries };
+
+// Whichever line carries one: a unit is fixed per name, so the first is as good as any
+export const unitOf = (lines: readonly MetricLine[]) =>
+	lines.find((line) => line.series?.unit)?.series?.unit;
 // source: metric value, plus the same reading across every line at once
 export const ALL_LINES = 'all';
 export type MetricWindowRow = { time: Date; all: number | null } & Partial<

@@ -26,7 +26,8 @@ describe('consumerEnv', () => {
 			AWS_ENDPOINT_URL: 'http://localhost:52700',
 			AWS_REGION: 'us-east-1',
 			AWS_ACCESS_KEY_ID: accessKeyFor('a'),
-			AWS_SECRET_ACCESS_KEY: 'glass-garden'
+			AWS_SECRET_ACCESS_KEY: 'glass-garden',
+			POWERTOOLS_METRICS_NAMESPACE: 'glass-garden'
 		});
 	});
 

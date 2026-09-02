@@ -33,6 +33,8 @@ type LaunchPlan = { config: unknown; stamp: string };
 export type ControllerServices = {
 	getNode: () => Node | undefined;
 	getContainer: () => Promise<Vivari>;
+	// Resolves once the local AWS region answers, or at once if it could not start
+	regionReady: () => Promise<void>;
 	// A port for a new instance, free of whatever this node's live instances are on
 	takePort: () => number;
 	reconcileReservations: () => void;
@@ -299,6 +301,8 @@ export class ResourceController {
 
 		try {
 			const container = await this.#services.getContainer();
+			// Before anything this start captures, so no output exists that the region missed
+			await this.#services.regionReady();
 			await mountNodeFiles(this.nodeId, nodeFiles(node), !this.#definition.hasEditableFiles);
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container, (output) =>

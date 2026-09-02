@@ -41,7 +41,8 @@ const PYTHON_FILES = ['threads.py', 'helpers.py', 'api.py'];
 // The manager routes anything carrying a nodeId to that node and keeps the rest
 const emit = (event) => console.log(EVENT_PREFIX + JSON.stringify(event));
 const emitLog = (level, message, nodeId) => emit({ kind: 'log', level, message, nodeId });
-const putMetric = (nodeId, name, value) => emit({ kind: 'metric', nodeId, name, value });
+const putMetric = (nodeId, name, value, unit) =>
+  emit({ kind: 'metric', nodeId, name, value, unit });
 
 // Explicit try/catch around the whole boot: Vivari neither surfaces uncaught VM errors
 // nor implements the process-level error events
@@ -205,8 +206,8 @@ function runSave() {
 function reportRequest(owners, service, resourceName, method, pathname, status) {
   const nodeId = owners[service]?.[resourceName];
   if (!nodeId) return;
-  putMetric(nodeId, 'requests', 1);
-  if (status >= 400) putMetric(nodeId, 'errors', 1);
+  putMetric(nodeId, 'requests', 1, 'Count');
+  if (status >= 400) putMetric(nodeId, 'errors', 1, 'Count');
   emitLog('info', `${method} ${pathname} ${status}`, nodeId);
 }
 
@@ -228,7 +229,9 @@ async function sampleResources() {
     for (const [name, readings] of Object.entries(byName)) {
       const nodeId = owners[service]?.[name];
       if (!nodeId) continue;
-      for (const [metric, value] of Object.entries(readings)) putMetric(nodeId, metric, value);
+      for (const [metric, [value, unit]] of Object.entries(readings)) {
+        putMetric(nodeId, metric, value, unit);
+      }
     }
   }
 }

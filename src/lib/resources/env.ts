@@ -58,9 +58,10 @@ export function consumerEnv(
 		);
 
 	// Credentials come with being able to call AWS at all, not with any particular resource:
-	// code can reach CloudWatch with nothing connected, and gets a signpost error otherwise
+	// code can reach CloudWatch with nothing connected, and gets a signpost error otherwise.
+	// The namespace is read only by the metrics library, which warns on every line without one
 	const env: Record<string, string> = getResourceDefinition(consumer.type).consumes.includes('aws')
-		? awsCredentials(consumer)
+		? { ...awsCredentials(consumer), POWERTOOLS_METRICS_NAMESPACE: 'glass-garden' }
 		: {};
 
 	for (const { node, suffix, value } of supplied) {

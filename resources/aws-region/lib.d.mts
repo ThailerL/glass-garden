@@ -24,7 +24,7 @@ export type Decision = { allow: true } | Denial;
 // measurements for its metric store
 export type RegionEvent =
 	| { kind: 'log'; level: 'info' | 'error'; message: string; nodeId?: string }
-	| { kind: 'metric'; nodeId: string; name: string; value: number };
+	| { kind: 'metric'; nodeId: string; name: string; value: number; unit?: string };
 
 export const EVENT_PREFIX: string;
 export function emptyTopology(): Topology;

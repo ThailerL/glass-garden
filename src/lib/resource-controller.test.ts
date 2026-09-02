@@ -3,7 +3,6 @@ import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import type { InstanceHandle, ResourceDefinition } from '$lib/resources/types';
 import { ResourceController, type ControllerServices } from '$lib/resource-controller.svelte';
-import { METRIC_SENTINEL } from '$lib/metrics';
 
 // The controller is tested through its ControllerServices seam; everything it reaches
 // past that seam is faked out so no container, graph or DOM is needed
@@ -63,6 +62,7 @@ function makeServices(getNode: () => Node | undefined): ControllerServices {
 	return {
 		getNode,
 		getContainer: async () => ({}) as Vivari,
+		regionReady: async () => {},
 		takePort: vi.fn(),
 		reconcileReservations: vi.fn(),
 		getUpstreams: () => [],
@@ -370,7 +370,15 @@ describe('metric lines', () => {
 		return { controller, print: async (chunk: string) => (print(chunk), settle()) };
 	}
 
-	const metric = (body: unknown) => `${METRIC_SENTINEL}${JSON.stringify(body)}\n`;
+	// One Embedded Metric Format line, as the library prints it
+	const metric = ({ name, value }: { name: string; value: number }) =>
+		`${JSON.stringify({
+			_aws: {
+				Timestamp: 0,
+				CloudWatchMetrics: [{ Namespace: 'app', Dimensions: [[]], Metrics: [{ Name: name }] }]
+			},
+			[name]: value
+		})}\n`;
 
 	it('stores a metric line rather than logging it', async () => {
 		const { controller, print } = await setupPrinting();
@@ -396,7 +404,7 @@ describe('metric lines', () => {
 	it('logs a malformed metric line and warns once', async () => {
 		const { controller, print } = await setupPrinting();
 
-		await print(`${METRIC_SENTINEL}{oh dear\n`);
+		await print('{"_aws": oh dear\n');
 
 		expect(controller.log.output).toHaveLength(1);
 		expect(controller.log.metrics).toEqual({});

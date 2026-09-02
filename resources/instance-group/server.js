@@ -1,4 +1,5 @@
 import express from 'express';
+import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
 
 // Glass Garden gives every instance its own PORT, because they all share one machine here.
 // In a real deployment they would each be on their own machine, and could all listen on the same port.
@@ -7,12 +8,15 @@ if (!port) {
   throw new Error('PORT is not set');
 }
 
+// CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the
+// Metrics tab reads. Each addMetric is one observation, not a running total
+const metrics = new Metrics();
+
 const app = express();
 
 app.get('/', (req, res) => {
-  // This prefix sends a line to the Metrics tab instead of the Logs tab. The number is one
-  // observation, not a running total - print one per event and they are summed per second
-  console.log(`gg:metric/1 ${JSON.stringify({ name: 'requests', value: 1 })}`);
+  metrics.addMetric('requests', MetricUnit.Count, 1);
+  metrics.publishStoredMetrics();
 
   res.type('text/plain').send(`Hello from the instance on :${port}\n`);
 });

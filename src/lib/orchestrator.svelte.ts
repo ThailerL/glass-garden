@@ -263,6 +263,8 @@ export class Orchestrator {
 		return {
 			getNode: () => this.#graphState.getNode(nodeId),
 			getContainer: () => this.#getContainer(),
+			// A region that cannot start must not stop a canvas that never calls it
+			regionReady: () => ensureRegion().catch(() => {}),
 			takePort: () => this.#takePort(nodeId),
 			reconcileReservations: () => this.#reconcileReservations(nodeId),
 			getUpstreams: () => this.getUpstreams(nodeId),

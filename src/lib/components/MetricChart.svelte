@@ -14,6 +14,7 @@
 		READING_TEXT,
 		metricTotals,
 		metricWindow,
+		unitOf,
 		type ChartReading,
 		type MetricWindowRow
 	} from '$lib/metrics';
@@ -36,6 +37,9 @@
 
 	// A node-level measurement has no port to name it by
 	const sourceLabel = (source: MetricSource) => (source === 'resource' ? 'resource' : `:${source}`);
+
+	// A sample count has no unit to show
+	const unit = $derived(stat === 'SampleCount' ? undefined : unitOf(lines));
 
 	const series = $derived(
 		lines.map(({ port, color }) => ({
@@ -73,7 +77,9 @@
 <section class="space-y-1" aria-label={name}>
 	<!-- The legend drops to its own line when the instances outgrow the row -->
 	<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-		<span class="min-w-0 truncate text-xs text-muted-foreground">{name}</span>
+		<span class="min-w-0 truncate text-xs text-muted-foreground">
+			{name}{#if unit}<span class="ml-1 opacity-70">· {unit}</span>{/if}
+		</span>
 		<Select.Root type="single" bind:value={stat}>
 			<!-- Height needs the trigger's own data-size variant, or its h-9 wins -->
 			<Select.Trigger

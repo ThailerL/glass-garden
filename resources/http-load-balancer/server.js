@@ -16,8 +16,19 @@ const MAX_RETRIES = 3;
 
 let cursor = 0;
 
-function putMetric(name, value) {
-  console.log(`gg:metric/1 ${JSON.stringify({ name, value })}`);
+// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line
+function putMetric(name, value, unit) {
+  console.log(
+    JSON.stringify({
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [
+          { Namespace: 'glass-garden', Dimensions: [[]], Metrics: [{ Name: name, Unit: unit }] },
+        ],
+      },
+      [name]: value,
+    }),
+  );
 }
 
 async function readConfig() {
@@ -88,9 +99,9 @@ function forward(target, req, body) {
 const server = http.createServer(async (req, res) => {
   const started = Date.now();
   res.on('finish', () => {
-    putMetric('requests', 1);
-    putMetric('latency', Date.now() - started);
-    if (res.statusCode >= 500) putMetric('failures', 1);
+    putMetric('requests', 1, 'Count');
+    putMetric('latency', Date.now() - started, 'Milliseconds');
+    if (res.statusCode >= 500) putMetric('failures', 1, 'Count');
   });
 
   const chunks = [];

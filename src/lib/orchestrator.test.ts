@@ -21,6 +21,11 @@ vi.mock('$lib/container', () => ({
 	activeProjectDirectory: vi.fn(() => '/projects/test')
 }));
 vi.mock('$lib/files/node-files', () => ({ nodeFiles: () => ({}) }));
+// Every start now waits on the region; the real one would try to boot it
+vi.mock('$lib/aws-region', async (original) => ({
+	...(await original<typeof import('$lib/aws-region')>()),
+	ensureRegion: vi.fn(async () => {})
+}));
 vi.mock('svelte-sonner', () => ({
 	toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() }
 }));

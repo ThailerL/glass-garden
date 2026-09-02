@@ -105,6 +105,8 @@ export type ResourceDefinition = {
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
 	namedOnCreate?: NamedOnCreate;
+	// Only for a Count that is a level rather than a tally of events - connections, items -
+	// which the unit cannot tell apart; everything else the unit decides
 	metricDefaults?: Partial<Record<string, ChartReading>>;
 	instanceCount: (node: Node) => number;
 	// Whether an instance is a real process. A resource served by the AWS region still has one

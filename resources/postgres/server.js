@@ -20,8 +20,19 @@ await server.start();
 
 console.log(`Postgres running on localhost:${port}`);
 
-function putMetric(name, value) {
-  console.log(`gg:metric/1 ${JSON.stringify({ name, value })}`);
+// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line
+function putMetric(name, value, unit) {
+  console.log(
+    JSON.stringify({
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [
+          { Namespace: 'glass-garden', Dimensions: [[]], Metrics: [{ Name: name, Unit: unit }] },
+        ],
+      },
+      [name]: value,
+    }),
+  );
 }
 
 // Sampled on a timer rather than reported per event: these describe the database as it
@@ -29,9 +40,9 @@ function putMetric(name, value) {
 let sampleFailed = false;
 setInterval(async () => {
   try {
-    putMetric('connections', server.getStats().activeConnections);
+    putMetric('connections', server.getStats().activeConnections, 'Count');
     const size = await db.query('SELECT pg_database_size(current_database()) AS bytes');
-    putMetric('database size (MB)', Number(size.rows[0].bytes) / 1e6);
+    putMetric('database size', Number(size.rows[0].bytes) / 1e6, 'Megabytes');
     sampleFailed = false;
   } catch (error) {
     // Once rather than every second, so a lasting failure does not bury the log

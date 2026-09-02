@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
 	PERIOD_MS,
 	MAX_DATAPOINTS,
-	METRIC_SENTINEL,
 	CHART_READINGS,
 	METRIC_STATISTICS,
 	READING_TEXT,
@@ -10,7 +9,9 @@ import {
 	metricTotals,
 	metricWindow,
 	newSeries,
-	parseMetricLine,
+	parseEmfLine,
+	defaultStatisticFor,
+	looksLikeEmf,
 	record,
 	statistic,
 	type MetricStatistic
@@ -19,32 +20,97 @@ import {
 // Divisible by PERIOD_MS, so it is itself the start of a period
 const t0 = 1_700_000_000_000;
 
-const line = (body: unknown) => `${METRIC_SENTINEL}${JSON.stringify(body)}`;
+// One EMF line as aws-embedded-metrics prints it, with the values it declares
+const emf = (
+	metrics: { Name: string; Unit?: string }[],
+	values: Record<string, unknown>,
+	extra: { Namespace?: string; Dimensions?: string[][] } = {}
+) =>
+	JSON.stringify({
+		_aws: {
+			Timestamp: t0,
+			CloudWatchMetrics: [{ Namespace: 'app', Dimensions: [[]], ...extra, Metrics: metrics }]
+		},
+		...values
+	});
 
-describe('parseMetricLine', () => {
-	it('reads a name and a value', () => {
-		expect(parseMetricLine(line({ name: 'requests', value: 7 }))).toEqual({
+describe('parseEmfLine', () => {
+	it('reads every declared metric with its unit', () => {
+		const parsed = parseEmfLine(
+			emf(
+				[
+					{ Name: 'requests', Unit: 'Count' },
+					{ Name: 'latency', Unit: 'Milliseconds' }
+				],
+				{
+					requests: 1,
+					latency: 12.5
+				}
+			)
+		);
+		expect(parsed).toMatchObject({
 			ok: true,
-			report: { name: 'requests', value: 7 }
+			data: [
+				{ name: 'requests', value: 1, unit: 'Count' },
+				{ name: 'latency', value: 12.5, unit: 'Milliseconds' }
+			]
 		});
 	});
 
-	it('ignores fields it does not know, so a later addition cannot break it', () => {
-		expect(parseMetricLine(line({ name: 'latency', value: 3, kind: 'gauge', unit: 'ms' }))).toEqual(
-			{ ok: true, report: { name: 'latency', value: 3 } }
-		);
+	it('reads an array of values as one observation each', () => {
+		const parsed = parseEmfLine(emf([{ Name: 'latency' }], { latency: [3, 5] }));
+		expect(parsed).toMatchObject({
+			ok: true,
+			data: [
+				{ name: 'latency', value: 3 },
+				{ name: 'latency', value: 5 }
+			]
+		});
+	});
+
+	it('reads a metric declared under several dimension sets once, since the store keys on name', () => {
+		const line = JSON.stringify({
+			_aws: {
+				Timestamp: t0,
+				CloudWatchMetrics: [
+					{ Namespace: 'app', Dimensions: [['route']], Metrics: [{ Name: 'requests' }] },
+					{ Namespace: 'app', Dimensions: [[]], Metrics: [{ Name: 'requests' }] }
+				]
+			},
+			route: '/',
+			requests: 1
+		});
+		const parsed = parseEmfLine(line);
+		expect(parsed.ok && parsed.data).toEqual([{ name: 'requests', value: 1, unit: undefined }]);
 	});
 
 	it.each([
-		['not JSON at all', `${METRIC_SENTINEL}{oh dear`],
-		['JSON that is not an object', line(42)],
-		['a missing name', line({ value: 1 })],
-		['an empty name', line({ name: '', value: 1 })],
-		['a missing value', line({ name: 'requests' })],
-		['a value that is not a number', line({ name: 'requests', value: 'lots' })],
-		['a value that is not finite', line({ name: 'requests', value: null })]
-	])('refuses %s', (_reason, text) => {
-		expect(parseMetricLine(text).ok).toBe(false);
+		['not JSON at all', '{oh dear'],
+		['no _aws block', JSON.stringify({ requests: 1 })],
+		['no CloudWatchMetrics', JSON.stringify({ _aws: { Timestamp: t0 } })],
+		['a metric without a name', emf([{ Unit: 'Count' } as never], { requests: 1 })],
+		['a missing value', emf([{ Name: 'requests' }], {})],
+		['a non-finite value', emf([{ Name: 'requests' }], { requests: 'many' })]
+	])('refuses %s', (_, text) => {
+		expect(parseEmfLine(text).ok).toBe(false);
+	});
+});
+
+describe('looksLikeEmf', () => {
+	it('picks out EMF without parsing ordinary JSON output', () => {
+		expect(looksLikeEmf(emf([{ Name: 'requests' }], { requests: 1 }))).toBe(true);
+		expect(looksLikeEmf(JSON.stringify({ level: 'info', message: 'hello' }))).toBe(false);
+		expect(looksLikeEmf('Server running on http://localhost:3000')).toBe(false);
+	});
+});
+
+describe('defaultStatisticFor', () => {
+	it('sums counts and averages measurements', () => {
+		expect(defaultStatisticFor(undefined)).toBe('Sum');
+		expect(defaultStatisticFor('Count')).toBe('Sum');
+		expect(defaultStatisticFor('None')).toBe('Sum');
+		expect(defaultStatisticFor('Milliseconds')).toBe('Average');
+		expect(defaultStatisticFor('Megabytes')).toBe('Average');
 	});
 });
 

@@ -1,11 +1,16 @@
 import express from 'express';
 import pg from 'pg';
+import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
 import { readFile } from 'node:fs/promises';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
   throw new Error('DATABASE_URL is not set. Connect this instance group to one database node.');
 }
+
+// CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the
+// Metrics tab reads
+const metrics = new Metrics();
 
 // Glass Garden gives every instance its own PORT, because they all share one machine here.
 // In a real deployment they would each be on their own machine, and could all listen on the same port.
@@ -69,10 +74,11 @@ app.get('/', async (req, res) => {
     console.error('database unavailable:', error.message);
     res.status(503).type('text/plain').send(`Database unavailable: ${error.message}\n`);
   } finally {
-    // The two shapes a metric takes: a count of something, and a measurement of it. Reported
+    // The two shapes a metric takes: a count of something, and a measurement of it. Put
     // here so a request the database refused still counts
-    console.log(`gg:metric/1 ${JSON.stringify({ name: 'requests', value: 1 })}`);
-    console.log(`gg:metric/1 ${JSON.stringify({ name: 'response ms', value: Date.now() - started })}`);
+    metrics.addMetric('requests', MetricUnit.Count, 1);
+    metrics.addMetric('response time', MetricUnit.Milliseconds, Date.now() - started);
+    metrics.publishStoredMetrics();
   }
 });
 
