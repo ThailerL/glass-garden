@@ -20,7 +20,7 @@ await server.start();
 
 console.log(`Postgres running on localhost:${port}`);
 
-function emitMetric(name, value) {
+function putMetric(name, value) {
   console.log(`gg:metric/1 ${JSON.stringify({ name, value })}`);
 }
 
@@ -29,9 +29,9 @@ function emitMetric(name, value) {
 let sampleFailed = false;
 setInterval(async () => {
   try {
-    emitMetric('connections', server.getStats().activeConnections);
+    putMetric('connections', server.getStats().activeConnections);
     const size = await db.query('SELECT pg_database_size(current_database()) AS bytes');
-    emitMetric('database size (MB)', Number(size.rows[0].bytes) / 1e6);
+    putMetric('database size (MB)', Number(size.rows[0].bytes) / 1e6);
     sampleFailed = false;
   } catch (error) {
     // Once rather than every second, so a lasting failure does not bury the log

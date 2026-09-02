@@ -377,8 +377,8 @@ describe('metric lines', () => {
 
 		await print(metric({ name: 'requests', value: 4 }));
 
-		expect(controller.log.metrics[3001]?.requests?.buckets).toEqual([
-			{ n: 1, sum: 4, min: 4, max: 4 }
+		expect(controller.log.metrics[3001]?.requests?.datapoints).toEqual([
+			{ sampleCount: 1, sum: 4, minimum: 4, maximum: 4 }
 		]);
 		expect(controller.log.output).toHaveLength(0);
 	});
@@ -413,7 +413,7 @@ describe('metric lines', () => {
 		expect(controller.log.metrics).toEqual({});
 
 		await print(line.slice(6));
-		expect(controller.log.metrics[3001]?.requests?.buckets[0].sum).toBe(4);
+		expect(controller.log.metrics[3001]?.requests?.datapoints[0].sum).toBe(4);
 	});
 
 	// A name per request id is one typo away, and each costs a series and a chart
@@ -435,12 +435,12 @@ describe('metric lines', () => {
 		await print(metric({ name: 'requests', value: 5 }));
 		await print(metric({ name: 'latency', value: 12 }));
 
-		expect(controller.log.metrics[3001]?.requests?.buckets[0]).toEqual({
-			n: 2,
+		expect(controller.log.metrics[3001]?.requests?.datapoints[0]).toEqual({
+			sampleCount: 2,
 			sum: 6,
-			min: 1,
-			max: 5
+			minimum: 1,
+			maximum: 5
 		});
-		expect(controller.log.metrics[3001]?.latency?.buckets[0].n).toBe(1);
+		expect(controller.log.metrics[3001]?.latency?.datapoints[0].sampleCount).toBe(1);
 	});
 });

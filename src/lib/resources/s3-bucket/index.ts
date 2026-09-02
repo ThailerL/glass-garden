@@ -70,7 +70,7 @@ export const s3Bucket = {
 			}
 		]
 	},
-	metricDefaults: { objects: 'avg', 'size (MB)': 'avg', requests: 'sum', errors: 'sum' },
+	metricDefaults: { objects: 'Average', 'size (MB)': 'Average', requests: 'Sum', errors: 'Sum' },
 	instanceCount: () => 1,
 	runsProcesses: false,
 	launchConfig,

@@ -39,7 +39,7 @@ export const instanceGroup = {
 	configComponent: InstanceGroupConfig,
 	configSchema,
 	// The names the examples report. A user's own metric falls back to the default
-	metricDefaults: { requests: 'sum', 'response ms': 'avg' },
+	metricDefaults: { requests: 'Sum', 'response ms': 'Average' },
 	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,
 	runsProcesses: true,
 	launchConfig,

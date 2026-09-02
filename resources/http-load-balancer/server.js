@@ -16,7 +16,7 @@ const MAX_RETRIES = 3;
 
 let cursor = 0;
 
-function emitMetric(name, value) {
+function putMetric(name, value) {
   console.log(`gg:metric/1 ${JSON.stringify({ name, value })}`);
 }
 
@@ -88,9 +88,9 @@ function forward(target, req, body) {
 const server = http.createServer(async (req, res) => {
   const started = Date.now();
   res.on('finish', () => {
-    emitMetric('requests', 1);
-    emitMetric('latency', Date.now() - started);
-    if (res.statusCode >= 500) emitMetric('failures', 1);
+    putMetric('requests', 1);
+    putMetric('latency', Date.now() - started);
+    if (res.statusCode >= 500) putMetric('failures', 1);
   });
 
   const chunks = [];

@@ -1,79 +1,82 @@
-// Aligned to absolute time rather than to a series' first sample, so series from different
-// instances share bucket boundaries and aggregate by index
-export const BASE_INTERVAL_MS = 1000;
-export const MAX_BUCKETS = 900;
+// CloudWatch's period: one datapoint per second, aligned to absolute time rather than to a
+// series' first sample, so series from different instances share boundaries and aggregate by
+// index
+export const PERIOD_MS = 1000;
+export const MAX_DATAPOINTS = 900;
 
 export const METRIC_SENTINEL = 'gg:metric/1 ';
 
-export type MetricBucket = {
-	n: number;
+// One datapoint, as CloudWatch stores one: not the observations but their summary
+export type StatisticSet = {
+	sampleCount: number;
 	sum: number;
-	min: number;
-	max: number;
+	minimum: number;
+	maximum: number;
 };
 
 export type MetricSeries = {
-	// Start of buckets[0]. Bucket i covers [start + i * BASE, start + (i + 1) * BASE)
+	// Start of datapoints[0]. Datapoint i covers [start + i * PERIOD, start + (i + 1) * PERIOD)
 	start: number;
-	buckets: MetricBucket[];
+	datapoints: StatisticSet[];
 };
 
-// Listed as well as typed, so a picker cannot miss a field added to MetricBucket. avg is
-// the one that is derived rather than stored
-export const METRIC_STATISTICS = ['avg', 'n', 'sum', 'min', 'max'] as const;
+// CloudWatch's five statistics, named as its API names them. Listed as well as typed, so a
+// picker cannot miss one; Average is the one derived rather than stored
+export const METRIC_STATISTICS = ['Average', 'SampleCount', 'Sum', 'Minimum', 'Maximum'] as const;
 export type MetricStatistic = (typeof METRIC_STATISTICS)[number];
 
-export const CHART_READINGS = [...METRIC_STATISTICS, 'cumsum'] as const;
+// Plus metric math's RUNNING_SUM, which a chart wants and a datapoint cannot hold
+export const CHART_READINGS = [...METRIC_STATISTICS, 'RunningSum'] as const;
 export type ChartReading = (typeof CHART_READINGS)[number];
 
-// Sum rather than Total, which would suggest a running figure rather than one interval's
 export const READING_TEXT: Record<ChartReading, string> = {
-	avg: 'Average',
-	n: 'Samples',
-	sum: 'Sum',
-	min: 'Lowest',
-	max: 'Highest',
-	cumsum: 'Running total'
+	Average: 'Average',
+	SampleCount: 'Sample count',
+	Sum: 'Sum',
+	Minimum: 'Minimum',
+	Maximum: 'Maximum',
+	RunningSum: 'Running sum'
 };
 
-export type MetricReport = { name: string; value: number };
+export type MetricDatum = { name: string; value: number };
 
-export type ParsedLine = { ok: true; report: MetricReport } | { ok: false; reason: string };
+export type ParsedLine = { ok: true; report: MetricDatum } | { ok: false; reason: string };
 
-export function bucketStart(time: number) {
-	return Math.floor(time / BASE_INTERVAL_MS) * BASE_INTERVAL_MS;
+export function periodStart(time: number) {
+	return Math.floor(time / PERIOD_MS) * PERIOD_MS;
 }
 
-// Zero is a placeholder in min and max: every read skips n === 0 rather than trusting them
-function emptyBucket(): MetricBucket {
-	return { n: 0, sum: 0, min: 0, max: 0 };
+// Zero is a placeholder in minimum and maximum: every read skips sampleCount === 0 rather
+// than trusting them
+function emptySet(): StatisticSet {
+	return { sampleCount: 0, sum: 0, minimum: 0, maximum: 0 };
 }
 
 // Empty parts carry those placeholders, so they are skipped rather than folded in
-function fold(target: MetricBucket, part: MetricBucket) {
-	if (part.n === 0) return;
-	target.min = target.n === 0 ? part.min : Math.min(target.min, part.min);
-	target.max = target.n === 0 ? part.max : Math.max(target.max, part.max);
-	target.n += part.n;
+function fold(target: StatisticSet, part: StatisticSet) {
+	if (part.sampleCount === 0) return;
+	target.minimum = target.sampleCount === 0 ? part.minimum : Math.min(target.minimum, part.minimum);
+	target.maximum = target.sampleCount === 0 ? part.maximum : Math.max(target.maximum, part.maximum);
+	target.sampleCount += part.sampleCount;
 	target.sum += part.sum;
 }
 
 export function newSeries(time: number): MetricSeries {
-	return { start: bucketStart(time), buckets: [emptyBucket()] };
+	return { start: periodStart(time), datapoints: [emptySet()] };
 }
 
 // Grows to reach `time`, zero-filling the silence, then trims the front past capacity
-function bucketFor(series: MetricSeries, time: number): MetricBucket {
-	const wanted = (bucketStart(time) - series.start) / BASE_INTERVAL_MS;
+function datapointFor(series: MetricSeries, time: number): StatisticSet {
+	const wanted = (periodStart(time) - series.start) / PERIOD_MS;
 	// Only a clock moving backwards produces this
-	if (wanted < 0) return series.buckets[0];
-	while (series.buckets.length <= wanted) series.buckets.push(emptyBucket());
+	if (wanted < 0) return series.datapoints[0];
+	while (series.datapoints.length <= wanted) series.datapoints.push(emptySet());
 
-	const over = series.buckets.length - MAX_BUCKETS;
-	if (over <= 0) return series.buckets[wanted];
-	series.buckets.splice(0, over);
-	series.start += over * BASE_INTERVAL_MS;
-	return series.buckets[wanted - over];
+	const over = series.datapoints.length - MAX_DATAPOINTS;
+	if (over <= 0) return series.datapoints[wanted];
+	series.datapoints.splice(0, over);
+	series.start += over * PERIOD_MS;
+	return series.datapoints[wanted - over];
 }
 
 export function parseMetricLine(line: string): ParsedLine {
@@ -99,22 +102,23 @@ export function parseMetricLine(line: string): ParsedLine {
 }
 
 export function record(series: MetricSeries, time: number, value: number) {
-	fold(bucketFor(series, time), { n: 1, sum: value, min: value, max: value });
+	fold(datapointFor(series, time), { sampleCount: 1, sum: value, minimum: value, maximum: value });
 }
 
-export function mergeBuckets(buckets: readonly MetricBucket[]): MetricBucket {
-	const merged = emptyBucket();
-	for (const bucket of buckets) fold(merged, bucket);
+export function mergeStatistics(sets: readonly StatisticSet[]): StatisticSet {
+	const merged = emptySet();
+	for (const set of sets) fold(merged, set);
 	return merged;
 }
 
 // undefined where the statistic describes nothing, so a caller shows a dash rather than a
 // zero that would read as a measurement
-export function statistic(bucket: MetricBucket, stat: MetricStatistic): number | undefined {
-	if (stat === 'n') return bucket.n;
-	if (stat === 'sum') return bucket.sum;
-	if (bucket.n === 0) return undefined;
-	return stat === 'avg' ? bucket.sum / bucket.n : bucket[stat];
+export function statistic(set: StatisticSet, stat: MetricStatistic): number | undefined {
+	if (stat === 'SampleCount') return set.sampleCount;
+	if (stat === 'Sum') return set.sum;
+	if (set.sampleCount === 0) return undefined;
+	if (stat === 'Average') return set.sum / set.sampleCount;
+	return stat === 'Minimum' ? set.minimum : set.maximum;
 }
 
 // An instance, named by its port, or the node itself: the region reports what a resource
@@ -136,51 +140,51 @@ function windowEnd(now: number, gridMs: number) {
 	return Math.floor(now / gridMs) * gridMs + gridMs;
 }
 
-// The stored buckets covering [from, to). Out-of-range ends just shorten the slice
-function bucketsIn(series: MetricSeries, from: number, to: number): MetricBucket[] {
-	const first = (bucketStart(from) - series.start) / BASE_INTERVAL_MS;
-	const count = (to - from) / BASE_INTERVAL_MS;
-	return series.buckets.slice(Math.max(0, first), Math.max(0, first + count));
+// The stored datapoints covering [from, to). Out-of-range ends just shorten the slice
+function datapointsIn(series: MetricSeries, from: number, to: number): StatisticSet[] {
+	const first = (periodStart(from) - series.start) / PERIOD_MS;
+	const count = (to - from) / PERIOD_MS;
+	return series.datapoints.slice(Math.max(0, first), Math.max(0, first + count));
 }
 
 // One row per interval, so every line is read at the same instant and a gap stays a gap.
 // Anchored to the clock and always the full window, so the scale does not shift as samples
-// land. Folding several base buckets into a row keeps a wide window readable. A fold of nothing
+// land. Folding several base periods into a row keeps a wide window readable. A fold of nothing
 // counts zero but cannot be averaged, so counts run along the bottom where the rest leave a gap
 export function metricWindow(
 	lines: readonly MetricLine[],
 	reading: ChartReading,
 	now: number,
 	windowMs: number,
-	intervalMs: number = BASE_INTERVAL_MS,
+	intervalMs: number = PERIOD_MS,
 	// The grid the window ends on, which is the row width unless a caller folds the whole
 	// window into one point and still wants the span the chart beside it covers
 	gridMs: number = intervalMs
 ): MetricWindowRow[] {
-	// A running total accumulates each interval's sum, so that is what every row holds first
-	const stat = reading === 'cumsum' ? 'sum' : reading;
+	// A running sum accumulates each period's sum, so that is what every row holds first
+	const stat = reading === 'RunningSum' ? 'Sum' : reading;
 	const end = windowEnd(now, gridMs);
 	const rows: MetricWindowRow[] = [];
 	const running: Record<MetricSource | string, number> = {};
 	// Anchored to the left edge of the window rather than to the series
-	const read = (key: MetricSource | typeof ALL_LINES, bucket: MetricBucket) => {
-		const value = statistic(bucket, stat) ?? null;
-		if (reading !== 'cumsum') return value;
+	const read = (key: MetricSource | typeof ALL_LINES, set: StatisticSet) => {
+		const value = statistic(set, stat) ?? null;
+		if (reading !== 'RunningSum') return value;
 		running[key] = (running[key] ?? 0) + (value ?? 0);
 		return running[key];
 	};
 
 	for (let time = end - windowMs; time < end; time += intervalMs) {
 		const row: MetricWindowRow = { time: new Date(time), all: null };
-		const across: MetricBucket[] = [];
+		const across: StatisticSet[] = [];
 		for (const { port, series } of lines) {
-			const merged = mergeBuckets(series ? bucketsIn(series, time, time + intervalMs) : []);
+			const merged = mergeStatistics(series ? datapointsIn(series, time, time + intervalMs) : []);
 			across.push(merged);
 			row[port] = read(port, merged);
 		}
 		// The same associative fold as over time, so the statistic keeps its meaning: a sum
-		// totals the group, an average weights by sample count, min and max name an instance
-		row.all = read(ALL_LINES, mergeBuckets(across));
+		// totals the group, an average weights by sample count, minimum and maximum name an instance
+		row.all = read(ALL_LINES, mergeStatistics(across));
 		rows.push(row);
 	}
 	return rows;
@@ -194,7 +198,7 @@ export function metricTotals(
 	reading: ChartReading,
 	now: number,
 	windowMs: number,
-	intervalMs: number = BASE_INTERVAL_MS
+	intervalMs: number = PERIOD_MS
 ): MetricWindowRow {
 	return metricWindow(lines, reading, now, windowMs, windowMs, intervalMs)[0];
 }

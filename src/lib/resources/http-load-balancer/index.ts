@@ -43,7 +43,7 @@ export const httpLoadBalancer = {
 	consumes: ['http'],
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,
-	metricDefaults: { requests: 'sum', failures: 'sum', latency: 'avg' },
+	metricDefaults: { requests: 'Sum', failures: 'Sum', latency: 'Average' },
 	instanceCount: () => 1,
 	runsProcesses: true,
 	start: async (

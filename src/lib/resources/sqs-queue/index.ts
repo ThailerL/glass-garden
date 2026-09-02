@@ -75,7 +75,7 @@ export const sqsQueue = {
 			}
 		]
 	},
-	metricDefaults: { messages: 'avg', 'in flight': 'avg', requests: 'sum', errors: 'sum' },
+	metricDefaults: { messages: 'Average', 'in flight': 'Average', requests: 'Sum', errors: 'Sum' },
 	instanceCount: () => 1,
 	runsProcesses: false,
 	launchConfig,

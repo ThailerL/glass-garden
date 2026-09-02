@@ -52,7 +52,7 @@
 	// A resource says how its own metrics are read; anything else sums, since the avg of a count
 	// reported as 1 per event is 1 by construction, which draws a flat line
 	const statFor = (name: string) =>
-		metricsView.stat(type, name) ?? definition?.metricDefaults?.[name] ?? 'sum';
+		metricsView.stat(type, name) ?? definition?.metricDefaults?.[name] ?? 'Sum';
 
 	// Keyed on the port's place among every reserved port, so narrowing the selection does not
 	// repaint the survivors

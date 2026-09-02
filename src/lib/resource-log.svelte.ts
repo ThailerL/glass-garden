@@ -3,7 +3,7 @@ import {
 	newSeries,
 	parseMetricLine,
 	record,
-	type MetricReport,
+	type MetricDatum,
 	type MetricSeries
 } from './metrics';
 
@@ -66,12 +66,12 @@ export class ResourceLog {
 			this.event(source, 'warning', `Ignored a metric line - it is ${parsed.reason}`);
 			return;
 		}
-		this.recordMetric(source, parsed.report);
+		this.putMetric(source, parsed.report);
 	}
 
 	// Public because the region reports a resource's own measurements over its event
 	// channel rather than through captured output
-	recordMetric(source: LogSource, { name, value }: MetricReport) {
+	putMetric(source: LogSource, { name, value }: MetricDatum) {
 		const now = Date.now();
 		this.metrics[source] ??= {};
 		// Read back rather than reuse: $state hands out a proxy of what we assigned

@@ -83,7 +83,7 @@ export const dynamodbTable = {
 			}
 		]
 	},
-	metricDefaults: { items: 'avg', requests: 'sum', errors: 'sum' },
+	metricDefaults: { items: 'Average', requests: 'Sum', errors: 'Sum' },
 	instanceCount: () => 1,
 	runsProcesses: false,
 	launchConfig,
