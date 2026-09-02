@@ -26,6 +26,17 @@ class MetricsView {
 		this.#stats[`${type}:${name}`] = reading;
 	}
 
+	// Which dimension a metric is broken down by; undefined until chosen, so the tab can default
+	#breakdowns = $state<Partial<Record<string, string>>>({});
+
+	breakdown(type: string, name: string) {
+		return this.#breakdowns[`${type}:${name}`];
+	}
+
+	setBreakdown(type: string, name: string, dimension: string) {
+		this.#breakdowns[`${type}:${name}`] = dimension;
+	}
+
 	// By width, since that is what a select can carry: the interval it folds to travels with it
 	setWindow(ms: number) {
 		const chosen = METRIC_WINDOWS.find((option) => option.ms === ms);

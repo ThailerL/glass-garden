@@ -385,7 +385,7 @@ describe('metric lines', () => {
 
 		await print(metric({ name: 'requests', value: 4 }));
 
-		expect(controller.log.metrics[3001]?.requests?.datapoints).toEqual([
+		expect(controller.log.metrics.requests?.['']?.datapoints).toEqual([
 			{ sampleCount: 1, sum: 4, minimum: 4, maximum: 4 }
 		]);
 		expect(controller.log.output).toHaveLength(0);
@@ -421,7 +421,7 @@ describe('metric lines', () => {
 		expect(controller.log.metrics).toEqual({});
 
 		await print(line.slice(6));
-		expect(controller.log.metrics[3001]?.requests?.datapoints[0].sum).toBe(4);
+		expect(controller.log.metrics.requests?.['']?.datapoints[0].sum).toBe(4);
 	});
 
 	// A name per request id is one typo away, and each costs a series and a chart
@@ -430,7 +430,7 @@ describe('metric lines', () => {
 
 		for (let i = 0; i < 25; i++) await print(metric({ name: `request-${i}`, value: 1 }));
 
-		expect(Object.keys(controller.log.metrics[3001] ?? {})).toHaveLength(20);
+		expect(Object.keys(controller.log.metrics)).toHaveLength(20);
 		const warnings = controller.log.events.filter((event) => event.level === 'warning');
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0].text).toContain('ignored');
@@ -443,12 +443,12 @@ describe('metric lines', () => {
 		await print(metric({ name: 'requests', value: 5 }));
 		await print(metric({ name: 'latency', value: 12 }));
 
-		expect(controller.log.metrics[3001]?.requests?.datapoints[0]).toEqual({
+		expect(controller.log.metrics.requests?.['']?.datapoints[0]).toEqual({
 			sampleCount: 2,
 			sum: 6,
 			minimum: 1,
 			maximum: 5
 		});
-		expect(controller.log.metrics[3001]?.latency?.datapoints[0].sampleCount).toBe(1);
+		expect(controller.log.metrics.latency?.['']?.datapoints[0].sampleCount).toBe(1);
 	});
 });

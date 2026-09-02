@@ -11,6 +11,9 @@ if (!url) {
 // CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the
 // Metrics tab reads
 const metrics = new Metrics();
+// What tells one instance's numbers from another's, here and in CloudWatch: a dimension the
+// code declares. Remove it and the instances' lines merge into one
+metrics.setDefaultDimensions({ instance: String(port) });
 
 // Glass Garden gives every instance its own PORT, because they all share one machine here.
 // In a real deployment they would each be on their own machine, and could all listen on the same port.

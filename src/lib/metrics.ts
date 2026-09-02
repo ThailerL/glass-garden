@@ -18,7 +18,19 @@ export type MetricSeries = {
 	datapoints: StatisticSet[];
 	// As CloudWatch names them: Count, Milliseconds, Bytes. Fixed by the first report
 	unit?: string;
+	dimensions: Dimensions;
 };
+
+// The name/value pairs a series was published under, which with the name make its identity
+export type Dimensions = Record<string, string>;
+
+// A dimension set as a key, in a fixed order so {a, b} and {b, a} are one series; '' for none
+export function dimensionKey(dimensions: Dimensions) {
+	return Object.keys(dimensions)
+		.sort()
+		.map((name) => `${name}=${dimensions[name]}`)
+		.join('\u001f');
+}
 
 // CloudWatch's five statistics, named as its API names them. Listed as well as typed, so a
 // picker cannot miss one; Average is the one derived rather than stored
@@ -38,7 +50,7 @@ export const READING_TEXT: Record<ChartReading, string> = {
 	RunningSum: 'Running sum'
 };
 
-export type MetricDatum = { name: string; value: number; unit?: string };
+export type MetricDatum = { name: string; value: number; unit?: string; dimensions: Dimensions };
 
 export type ParsedLine = { ok: true; data: MetricDatum[] } | { ok: false; reason: string };
 
@@ -72,8 +84,8 @@ function fold(target: StatisticSet, part: StatisticSet) {
 	target.sum += part.sum;
 }
 
-export function newSeries(time: number, unit?: string): MetricSeries {
-	return { start: periodStart(time), datapoints: [emptySet()], unit };
+export function newSeries(time: number, unit?: string, dimensions: Dimensions = {}): MetricSeries {
+	return { start: periodStart(time), datapoints: [emptySet()], unit, dimensions };
 }
 
 // Grows to reach `time`, zero-filling the silence, then trims the front past capacity
@@ -94,8 +106,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 // The Embedded Metric Format: a JSON line whose _aws block declares which top-level fields
-// are metrics. Real CloudWatch extracts these from a log stream; here the reader does it.
-// A metric declared under several dimension sets is one series, so it is read once
+// are metrics and which are dimensions. Real CloudWatch extracts these from a log stream; here
+// the reader does it. A metric declared under several dimension sets is a series per set, as
+// CloudWatch has it - one reading each, so a set listed twice is not counted twice
 export function parseEmfLine(line: string): ParsedLine {
 	let parsed: unknown;
 	try {
@@ -117,20 +130,39 @@ export function parseEmfLine(line: string): ParsedLine {
 		if (!isRecord(block) || !Array.isArray(block.Metrics)) {
 			return { ok: false, reason: 'missing Metrics in a CloudWatchMetrics block' };
 		}
+		// Dimension names, whose values sit beside the metrics at the top level. A name with no
+		// value there is dropped rather than refused, as CloudWatch does
+		const declared =
+			Array.isArray(block.Dimensions) && block.Dimensions.length > 0 ? block.Dimensions : [[]];
+		const sets: Dimensions[] = [];
+		for (const names of declared) {
+			if (!Array.isArray(names)) continue;
+			const dimensions: Dimensions = {};
+			for (const name of names) {
+				const value = parsed[String(name)];
+				if (value !== undefined && value !== null) dimensions[String(name)] = String(value);
+			}
+			sets.push(dimensions);
+		}
 		for (const metric of block.Metrics) {
 			if (!isRecord(metric) || typeof metric.Name !== 'string' || metric.Name.length === 0) {
 				return { ok: false, reason: 'a metric has no Name' };
 			}
-			if (seen.has(metric.Name)) continue;
-			seen.add(metric.Name);
 			const unit = typeof metric.Unit === 'string' ? metric.Unit : undefined;
 			const raw = parsed[metric.Name];
-			const values = Array.isArray(raw) ? raw : [raw];
-			for (const value of values) {
+			const values: number[] = [];
+			// Every value before any datum, so a bad one fails the line rather than half of it
+			for (const value of Array.isArray(raw) ? raw : [raw]) {
 				if (typeof value !== 'number' || !Number.isFinite(value)) {
 					return { ok: false, reason: `${metric.Name} is not a finite number` };
 				}
-				data.push({ name: metric.Name, value, unit });
+				values.push(value);
+			}
+			for (const dimensions of sets) {
+				const identity = `${metric.Name}\u0000${dimensionKey(dimensions)}`;
+				if (seen.has(identity)) continue;
+				seen.add(identity);
+				for (const value of values) data.push({ name: metric.Name, value, unit, dimensions });
 			}
 		}
 	}
@@ -157,20 +189,66 @@ export function statistic(set: StatisticSet, stat: MetricStatistic): number | un
 	return stat === 'Minimum' ? set.minimum : set.maximum;
 }
 
-// An instance, named by its port, or the node itself: the region reports what a resource
-// holds for the whole node, with no process behind it
-export type MetricSource = number | 'resource';
-// series is optional so an instance that has never reported this metric still holds its place
-export type MetricLine = { port: MetricSource; series?: MetricSeries };
+// One line on a chart: the stored series folded into it - several, when a breakdown groups
+// them by one dimension and folds the rest - keyed by what tells it from its neighbours
+export type MetricLine = { key: string; series: readonly MetricSeries[] };
 
-// Whichever line carries one: a unit is fixed per name, so the first is as good as any
-export const unitOf = (lines: readonly MetricLine[]) =>
-	lines.find((line) => line.series?.unit)?.series?.unit;
-// source: metric value, plus the same reading across every line at once
+// Whichever series carries one: a unit is fixed per name, so the first is as good as any
+export const unitOf = (series: readonly MetricSeries[]) => series.find((s) => s.unit)?.unit;
+
 export const ALL_LINES = 'all';
-export type MetricWindowRow = { time: Date; all: number | null } & Partial<
-	Record<MetricSource, number | null>
->;
+export const NO_BREAKDOWN = '';
+// Past this a chart is hairlines; the legend counts what it does not draw
+export const MAX_LINES = 5;
+
+// The dimensions worth breaking a metric down by: those with more than one value across its
+// series. One every series shares - the metrics library's `service` - separates nothing
+export function breakdownOptions(series: readonly MetricSeries[]): string[] {
+	const values = new Map<string, Set<string>>();
+	for (const s of series) {
+		for (const [name, value] of Object.entries(s.dimensions)) {
+			if (!values.has(name)) values.set(name, new Set());
+			values.get(name)!.add(value);
+		}
+	}
+	return [...values]
+		.filter(([, seen]) => seen.size > 1)
+		.map(([name]) => name)
+		.sort();
+}
+
+// One line per value of the chosen dimension with the other dimensions folded in, or one line
+// for the whole metric. A series with no dimensions is the publisher's own total, so where one
+// exists it is the whole rather than a fold that would count it twice.
+// `hidden` is the lines past the cap: not drawn, but still the metric, so a reader that totals
+// every line gets the whole of it rather than the whole of what fitted
+export function breakDown(
+	series: readonly MetricSeries[],
+	dimension: string
+): { lines: MetricLine[]; hidden: MetricLine[] } {
+	if (dimension === NO_BREAKDOWN) {
+		const totals = series.filter((s) => Object.keys(s.dimensions).length === 0);
+		return { lines: [{ key: ALL_LINES, series: totals.length > 0 ? totals : series }], hidden: [] };
+	}
+	const byValue = new Map<string, MetricSeries[]>();
+	for (const s of series) {
+		const value = s.dimensions[dimension];
+		if (value === undefined) continue;
+		if (!byValue.has(value)) byValue.set(value, []);
+		byValue.get(value)!.push(s);
+	}
+	const lines = [...byValue]
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([key, grouped]) => ({ key, series: grouped }));
+	return { lines: lines.slice(0, MAX_LINES), hidden: lines.slice(MAX_LINES) };
+}
+
+// One value per line, keyed as the line is, plus the same reading across every line at once
+export type MetricWindowRow = {
+	time: Date;
+	all: number | null;
+	values: Record<string, number | null>;
+};
 
 // Rows sit on a fixed grid rather than being measured back from the clock, so a row keeps its
 // value once the clock is past it. Anchored to `now`, every boundary slides a second at a time
@@ -205,9 +283,9 @@ export function metricWindow(
 	const stat = reading === 'RunningSum' ? 'Sum' : reading;
 	const end = windowEnd(now, gridMs);
 	const rows: MetricWindowRow[] = [];
-	const running: Record<MetricSource | string, number> = {};
+	const running: Record<string, number> = {};
 	// Anchored to the left edge of the window rather than to the series
-	const read = (key: MetricSource | typeof ALL_LINES, set: StatisticSet) => {
+	const read = (key: string, set: StatisticSet) => {
 		const value = statistic(set, stat) ?? null;
 		if (reading !== 'RunningSum') return value;
 		running[key] = (running[key] ?? 0) + (value ?? 0);
@@ -215,12 +293,14 @@ export function metricWindow(
 	};
 
 	for (let time = end - windowMs; time < end; time += intervalMs) {
-		const row: MetricWindowRow = { time: new Date(time), all: null };
+		const row: MetricWindowRow = { time: new Date(time), all: null, values: {} };
 		const across: StatisticSet[] = [];
-		for (const { port, series } of lines) {
-			const merged = mergeStatistics(series ? datapointsIn(series, time, time + intervalMs) : []);
+		for (const { key, series } of lines) {
+			const merged = mergeStatistics(
+				series.flatMap((s) => datapointsIn(s, time, time + intervalMs))
+			);
 			across.push(merged);
-			row[port] = read(port, merged);
+			row.values[key] = read(key, merged);
 		}
 		// The same associative fold as over time, so the statistic keeps its meaning: a sum
 		// totals the group, an average weights by sample count, minimum and maximum name an instance

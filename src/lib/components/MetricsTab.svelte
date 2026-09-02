@@ -4,17 +4,20 @@
 	import { getResourceDefinition, type Instance } from '$lib/resources';
 	import { STATUS_TEXT, uptimeText } from '$lib/status';
 	import { METRIC_WINDOWS, metricsView } from '$lib/metrics-view.svelte';
-	import { defaultStatisticFor, unitOf } from '$lib/metrics';
+	import {
+		NO_BREAKDOWN,
+		breakDown,
+		breakdownOptions,
+		defaultStatisticFor,
+		unitOf
+	} from '$lib/metrics';
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
-	import MetricChart, { type ChartLine } from '$lib/components/MetricChart.svelte';
+	import MetricChart from '$lib/components/MetricChart.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
 	const graphState = getGraphState();
-
-	let selected = $state<number | 'all'>('all');
 
 	const node = $derived(graphState.getNode(nodeId));
 	const type = $derived(node?.type ?? '');
@@ -22,9 +25,6 @@
 	const ports = $derived(orchestrator.getReservedPorts(nodeId));
 	const runsProcesses = $derived(definition?.runsProcesses ?? true);
 	const instancePorts = $derived(runsProcesses ? ports : []);
-	const shown = $derived(
-		selected === 'all' ? instancePorts : instancePorts.filter((port) => port === selected)
-	);
 
 	const instances = $derived(orchestrator.getInstances(nodeId));
 	const metrics = $derived(orchestrator.getMetrics(nodeId));
@@ -36,43 +36,34 @@
 		return () => clearInterval(clock);
 	});
 
-	// What the region reports for the node as a whole, which has no instance behind it
-	const resourceMetrics = $derived(metrics.resource ?? {});
+	const metricNames = $derived(Object.keys(metrics).sort());
 
-	// The union across every reserved port and the node itself, so narrowing the selection
-	// keeps the set
-	const metricNames = $derived(
-		[
-			...new Set([
-				...Object.keys(resourceMetrics),
-				...ports.flatMap((port) => Object.keys(metrics[port] ?? {}))
-			])
-		].sort()
-	);
+	// Every series a name has been published under, whatever its dimensions
+	const seriesOf = (name: string) => Object.values(metrics[name] ?? {});
 
 	// A resource says how its own metrics are read; otherwise the unit decides
 	const statFor = (name: string) =>
 		metricsView.stat(type, name) ??
 		definition?.metricDefaults?.[name] ??
-		defaultStatisticFor(unitOf(linesFor(name)));
+		defaultStatisticFor(unitOf(seriesOf(name)));
 
-	// Keyed on the port's place among every reserved port, so narrowing the selection does not
-	// repaint the survivors
-	const colorOf = (port: number) => `var(--chart-${(ports.indexOf(port) % 5) + 1})`;
-
-	// Every shown instance, reporting this metric or not, so a chart's legend never changes
-	// under the reader. A node-level reading belongs to no instance, so it is drawn whatever
-	// the selection narrows to
-	function linesFor(name: string): ChartLine[] {
-		const lines: ChartLine[] = shown.map((port) => ({
-			port,
-			color: colorOf(port),
-			series: metrics[port]?.[name]
-		}));
-		if (resourceMetrics[name]) {
-			lines.unshift({ port: 'resource', color: 'var(--chart-1)', series: resourceMetrics[name] });
-		}
-		return lines;
+	function chartFor(name: string) {
+		const series = seriesOf(name);
+		const options = breakdownOptions(series);
+		// The choice made, while it still names a dimension the metric has; else the first that
+		// separates anything, which lands the default app on its instances without naming them
+		const chosen = metricsView.breakdown(type, name);
+		const breakdown =
+			chosen === NO_BREAKDOWN || (chosen !== undefined && options.includes(chosen))
+				? chosen
+				: (options[0] ?? NO_BREAKDOWN);
+		const { lines, hidden } = breakDown(series, breakdown);
+		return {
+			options,
+			breakdown,
+			hidden,
+			lines: lines.map((line, index) => ({ ...line, color: `var(--chart-${(index % 5) + 1})` }))
+		};
 	}
 
 	function statusLabel(instance: Instance | undefined) {
@@ -86,24 +77,6 @@
 </script>
 
 <div class="flex h-full flex-col gap-3">
-	<div class="flex gap-2">
-		<Select.Root
-			type="single"
-			value={String(metricsView.window.ms)}
-			onValueChange={(value) => metricsView.setWindow(Number(value))}
-		>
-			<Select.Trigger class="w-24 shrink-0 text-xs" aria-label="How far back the charts reach">
-				{metricsView.window.label}
-			</Select.Trigger>
-			<Select.Content>
-				{#each METRIC_WINDOWS as option (option.ms)}
-					<Select.Item value={String(option.ms)}>{option.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
-		<InstanceSelect {nodeId} bind:selected all />
-	</div>
-
 	<dl class="flex gap-2 text-sm">
 		<dt class="text-muted-foreground">Restarts</dt>
 		<dd class="tabular-nums">{orchestrator.getRestarts(nodeId)}</dd>
@@ -127,7 +100,7 @@
 					{/if}
 				</li>
 			{/if}
-			{#each shown as port (port)}
+			{#each instancePorts as port (port)}
 				{@const instance = instances.find((candidate) => candidate.port === port)}
 				{@const instanceStatus = instance?.status ?? 'stopped'}
 				{@const url = definition?.hasPreview ? instance?.previewUrl : undefined}
@@ -163,14 +136,37 @@
 			</p>
 		{:else}
 			<div class="mt-4 space-y-3 border-t pt-3" data-tour="metrics-charts">
+				<!-- With the charts it governs rather than above the statuses, which it does not -->
+				<Select.Root
+					type="single"
+					value={String(metricsView.window.ms)}
+					onValueChange={(value) => metricsView.setWindow(Number(value))}
+				>
+					<Select.Trigger class="w-28 shrink-0 text-xs" aria-label="How far back the charts reach">
+						Last {metricsView.window.label}
+					</Select.Trigger>
+					<Select.Content>
+						{#each METRIC_WINDOWS as option (option.ms)}
+							<Select.Item value={String(option.ms)}>{option.label}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+
 				{#each metricNames as name (name)}
+					{@const chart = chartFor(name)}
 					<MetricChart
 						{name}
-						lines={linesFor(name)}
+						lines={chart.lines}
+						hidden={chart.hidden}
+						dimensions={chart.options}
+						canAddDimensions={definition?.hasEditableFiles ?? false}
 						windowMs={metricsView.window.ms}
 						intervalMs={metricsView.window.intervalMs}
 						{now}
 						bind:stat={() => statFor(name), (value) => metricsView.setStat(type, name, value)}
+						bind:breakdown={
+							() => chart.breakdown, (value) => metricsView.setBreakdown(type, name, value)
+						}
 					/>
 				{/each}
 			</div>

@@ -11,6 +11,9 @@ if (!port) {
 // CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the
 // Metrics tab reads. Each addMetric is one observation, not a running total
 const metrics = new Metrics();
+// What tells one instance's numbers from another's, here and in CloudWatch: a dimension the
+// code declares. Remove it and the instances' lines merge into one
+metrics.setDefaultDimensions({ instance: String(port) });
 
 const app = express();
 

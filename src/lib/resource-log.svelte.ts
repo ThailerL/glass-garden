@@ -1,4 +1,5 @@
 import {
+	dimensionKey,
 	looksLikeEmf,
 	newSeries,
 	parseEmfLine,
@@ -10,6 +11,8 @@ import {
 const MAX_EVENTS = 50;
 const MAX_OUTPUT_LINES = 500;
 const MAX_METRIC_NAMES = 20;
+// A request id in a dimension mints a series per request; real CloudWatch bills for the same
+const MAX_SERIES_PER_NAME = 20;
 
 // What produced an entry: an instance, named by its port, or 'resource' for the node's own work
 export type LogSource = number | 'resource';
@@ -27,11 +30,9 @@ export type OutputLine = LogEntry & { kind: 'output' };
 // Something the orchestrator did, which carries a severity printed output cannot
 export type ResourceEvent = LogEntry & { kind: 'event'; level: 'info' | 'warning' | 'error' };
 
-// What one source has reported, by metric name
-export type SourceMetrics = Partial<Record<string, MetricSeries>>;
-
-// A source appears only once it has reported something
-export type MetricStore = Partial<Record<LogSource, SourceMetrics>>;
+// By metric name, then by dimension set: what separates two series is what the publisher
+// declared, not which process printed the line
+export type MetricStore = Partial<Record<string, Record<string, MetricSeries>>>;
 
 // Everything one node has said: what its processes printed, what the reconciler did to it and
 // what it reported as metrics. Write-only from the reconciler's side, which never reads these
@@ -44,6 +45,7 @@ export class ResourceLog {
 
 	// So a flood of new names does not fill the log with the complaint about it
 	#warnedNameCap = false;
+	#warnedSeriesCap = false;
 
 	capture(source: LogSource, output: ReadableStream<string>) {
 		captureLines(output, (line) => this.#routeLine(source, line));
@@ -71,15 +73,13 @@ export class ResourceLog {
 	}
 
 	// Public because the region reports a resource's own measurements over its event
-	// channel rather than through captured output
-	putMetric(source: LogSource, { name, value, unit }: MetricDatum) {
+	// channel rather than through captured output. The source only names where a complaint
+	// goes: a metric belongs to the node, and its dimensions say the rest
+	putMetric(source: LogSource, { name, value, unit, dimensions }: MetricDatum) {
 		const now = Date.now();
-		this.metrics[source] ??= {};
-		// Read back rather than reuse: $state hands out a proxy of what we assigned
-		const bySource = this.metrics[source];
-		if (bySource[name] === undefined) {
+		if (this.metrics[name] === undefined) {
 			// A name per request id is one typo away, so names are refused past the cap
-			if (Object.keys(bySource).length >= MAX_METRIC_NAMES) {
+			if (Object.keys(this.metrics).length >= MAX_METRIC_NAMES) {
 				if (!this.#warnedNameCap) {
 					this.#warnedNameCap = true;
 					this.event(
@@ -90,9 +90,26 @@ export class ResourceLog {
 				}
 				return;
 			}
-			bySource[name] = newSeries(now, unit);
+			this.metrics[name] = {};
 		}
-		record(bySource[name], now, value);
+		// Read back rather than reuse: $state hands out a proxy of what we assigned
+		const byDimensions = this.metrics[name]!;
+		const key = dimensionKey(dimensions);
+		if (byDimensions[key] === undefined) {
+			if (Object.keys(byDimensions).length >= MAX_SERIES_PER_NAME) {
+				if (!this.#warnedSeriesCap) {
+					this.#warnedSeriesCap = true;
+					this.event(
+						source,
+						'warning',
+						`"${name}" is reported under more than ${MAX_SERIES_PER_NAME} dimension combinations, so later ones are ignored`
+					);
+				}
+				return;
+			}
+			byDimensions[key] = newSeries(now, unit, dimensions);
+		}
+		record(byDimensions[key], now, value);
 	}
 
 	#logOutput(source: LogSource, text: string) {

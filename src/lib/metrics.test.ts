@@ -9,6 +9,11 @@ import {
 	metricTotals,
 	metricWindow,
 	newSeries,
+	dimensionKey,
+	breakdownOptions,
+	breakDown,
+	NO_BREAKDOWN,
+	MAX_LINES,
 	parseEmfLine,
 	defaultStatisticFor,
 	looksLikeEmf,
@@ -68,20 +73,34 @@ describe('parseEmfLine', () => {
 		});
 	});
 
-	it('reads a metric declared under several dimension sets once, since the store keys on name', () => {
+	it('reads a metric declared under several dimension sets as one series per set', () => {
 		const line = JSON.stringify({
 			_aws: {
 				Timestamp: t0,
 				CloudWatchMetrics: [
-					{ Namespace: 'app', Dimensions: [['route']], Metrics: [{ Name: 'requests' }] },
-					{ Namespace: 'app', Dimensions: [[]], Metrics: [{ Name: 'requests' }] }
+					{ Namespace: 'app', Dimensions: [['route'], []], Metrics: [{ Name: 'requests' }] },
+					{ Namespace: 'app', Dimensions: [['route']], Metrics: [{ Name: 'requests' }] }
 				]
 			},
 			route: '/',
 			requests: 1
 		});
 		const parsed = parseEmfLine(line);
-		expect(parsed.ok && parsed.data).toEqual([{ name: 'requests', value: 1, unit: undefined }]);
+		expect(parsed.ok && parsed.data).toEqual([
+			{ name: 'requests', value: 1, unit: undefined, dimensions: { route: '/' } },
+			{ name: 'requests', value: 1, unit: undefined, dimensions: {} }
+		]);
+	});
+
+	it('takes dimension values from the top level and drops a name with no value there', () => {
+		const parsed = parseEmfLine(
+			emf(
+				[{ Name: 'requests' }],
+				{ requests: 1, instance: 3000 },
+				{ Dimensions: [['instance', 'route']] }
+			)
+		);
+		expect(parsed.ok && parsed.data[0].dimensions).toEqual({ instance: '3000' });
 	});
 
 	it.each([
@@ -234,19 +253,85 @@ describe('METRIC_STATISTICS', () => {
 	});
 });
 
+describe('dimensionKey', () => {
+	it('is the same whichever order the dimensions came in, and empty for none', () => {
+		expect(dimensionKey({ a: '1', b: '2' })).toBe(dimensionKey({ b: '2', a: '1' }));
+		expect(dimensionKey({ a: '1' })).not.toBe(dimensionKey({ a: '2' }));
+		expect(dimensionKey({})).toBe('');
+	});
+});
+
+describe('breakdown', () => {
+	const at = (dimensions: Record<string, string>, value: number) => {
+		const series = newSeries(t0, 'Count', dimensions);
+		record(series, t0, value);
+		return series;
+	};
+	// Three instances, two routes, one series per pair
+	const grid = [
+		at({ instance: 'a', route: '/' }, 1),
+		at({ instance: 'a', route: '/x' }, 2),
+		at({ instance: 'b', route: '/' }, 4),
+		at({ instance: 'b', route: '/x' }, 8)
+	];
+
+	it('offers only the dimensions that separate something', () => {
+		expect(breakdownOptions(grid)).toEqual(['instance', 'route']);
+		expect(breakdownOptions([at({ service: 'app' }, 1), at({ service: 'app' }, 2)])).toEqual([]);
+		expect(breakdownOptions([at({}, 1)])).toEqual([]);
+	});
+
+	it('groups by the chosen dimension and folds the rest into each line', () => {
+		const { lines, hidden } = breakDown(grid, 'instance');
+		expect(hidden).toEqual([]);
+		expect(lines.map((line) => line.key)).toEqual(['a', 'b']);
+		const rows = metricWindow(lines, 'Sum', t0, PERIOD_MS);
+		expect(rows[0].values).toEqual({ a: 3, b: 12 });
+		expect(rows[0].all).toBe(15);
+	});
+
+	it('folds everything into one line for no breakdown', () => {
+		const { lines } = breakDown(grid, NO_BREAKDOWN);
+		expect(lines).toHaveLength(1);
+		expect(metricWindow(lines, 'Sum', t0, PERIOD_MS)[0].values.all).toBe(15);
+	});
+
+	// The publisher's own dimensionless series is already the whole; folding it in with the
+	// per-instance ones would count every observation twice
+	it('prefers a dimensionless series as the whole over a fold of the rest', () => {
+		const { lines } = breakDown([...grid, at({}, 15)], NO_BREAKDOWN);
+		expect(metricWindow(lines, 'Sum', t0, PERIOD_MS)[0].values.all).toBe(15);
+	});
+
+	it('draws the first values of a breakdown and hands back the rest', () => {
+		const many = Array.from({ length: MAX_LINES + 3 }, (_, i) => at({ id: String(i) }, 1));
+		const { lines, hidden } = breakDown(many, 'id');
+		expect(lines).toHaveLength(MAX_LINES);
+		expect(hidden).toHaveLength(3);
+	});
+
+	// Otherwise the legend reads a total of what fitted beside a count of what did not
+	it('totals every line, drawn or not', () => {
+		const many = Array.from({ length: MAX_LINES + 3 }, (_, i) => at({ id: String(i) }, 1));
+		const { lines, hidden } = breakDown(many, 'id');
+		expect(metricWindow(lines, 'Sum', t0, PERIOD_MS)[0].all).toBe(MAX_LINES);
+		expect(metricWindow([...lines, ...hidden], 'Sum', t0, PERIOD_MS)[0].all).toBe(MAX_LINES + 3);
+	});
+});
+
 describe('metricWindow', () => {
-	const port = 3000;
+	const key = '3000';
 	// The window ends at the datapoint after `now`, so this is its last column
 	const now = t0 + 5 * PERIOD_MS;
 	const windowMs = 4 * PERIOD_MS;
 
 	function column(rows: ReturnType<typeof metricWindow>, offset: number) {
-		return rows.find((row) => row.time.getTime() === now + offset * PERIOD_MS)?.[port];
+		return rows.find((row) => row.time.getTime() === now + offset * PERIOD_MS)?.values[key];
 	}
 
 	it('spans the full window whatever the series holds', () => {
 		const series = newSeries(now);
-		const rows = metricWindow([{ port, series }], 'Sum', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'Sum', now, windowMs);
 
 		expect(rows).toHaveLength(4);
 		expect(rows[0].time.getTime()).toBe(now - 3 * PERIOD_MS);
@@ -261,28 +346,28 @@ describe('metricWindow', () => {
 
 		const rows = metricWindow(
 			[
-				{ port: 3000, series: early },
-				{ port: 3001, series: late }
+				{ key: '3000', series: [early] },
+				{ key: '3001', series: [late] }
 			],
 			'Sum',
 			now,
 			windowMs
 		);
 
-		expect(rows[0][3000]).toBe(4);
+		expect(rows[0].values['3000']).toBe(4);
 		// It had counted nothing yet, which is zero rather than unknown
-		expect(rows[0][3001]).toBe(0);
-		expect(rows[3][3000]).toBe(0);
-		expect(rows[3][3001]).toBe(9);
+		expect(rows[0].values['3001']).toBe(0);
+		expect(rows[3].values['3000']).toBe(0);
+		expect(rows[3].values['3001']).toBe(9);
 	});
 
 	// Otherwise an instance that has served nothing reads differently from one that has been
 	// idle a minute, though both counted nothing just now
 	it('counts zero for a line that has never reported', () => {
-		const rows = metricWindow([{ port }], 'Sum', now, windowMs);
+		const rows = metricWindow([{ key, series: [] }], 'Sum', now, windowMs);
 
 		expect(rows).toHaveLength(4);
-		expect(rows.every((row) => row[port] === 0)).toBe(true);
+		expect(rows.every((row) => row.values[key] === 0)).toBe(true);
 	});
 
 	// The fold is associative, so a coarser interval must give the same answer over fewer
@@ -300,7 +385,7 @@ describe('metricWindow', () => {
 			record(series, t0 + offset * PERIOD_MS, value);
 		}
 		const coarse = (stat: MetricStatistic) =>
-			metricWindow([{ port, series }], stat, last, windowMs, windowMs)[0][port];
+			metricWindow([{ key, series: [series] }], stat, last, windowMs, windowMs)[0].values[key];
 
 		expect(coarse('SampleCount')).toBe(4);
 		expect(coarse('Sum')).toBe(20);
@@ -316,10 +401,10 @@ describe('metricWindow', () => {
 		record(series, now - PERIOD_MS, 3);
 		record(series, now, 5);
 
-		const rows = metricWindow([{ port, series }], 'RunningSum', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'RunningSum', now, windowMs);
 
 		// Climbs and never falls, holding its level through the silent interval
-		expect(rows.map((row) => row[port])).toEqual([2, 2, 5, 10]);
+		expect(rows.map((row) => row.values[key])).toEqual([2, 2, 5, 10]);
 	});
 
 	// Anchored to the range shown, so it answers "how many over this window" rather than
@@ -329,9 +414,9 @@ describe('metricWindow', () => {
 		record(series, now - 3 * PERIOD_MS, 2);
 		record(series, now, 5);
 
-		const narrow = metricWindow([{ port, series }], 'RunningSum', now, 2 * PERIOD_MS);
+		const narrow = metricWindow([{ key, series: [series] }], 'RunningSum', now, 2 * PERIOD_MS);
 
-		expect(narrow.map((row) => row[port])).toEqual([0, 5]);
+		expect(narrow.map((row) => row.values[key])).toEqual([0, 5]);
 	});
 
 	it('totals every line for a sum', () => {
@@ -341,7 +426,11 @@ describe('metricWindow', () => {
 		for (const value of [3, 5]) record(two, now, value);
 
 		const rows = metricWindow(
-			[{ port: 3000, series: one }, { port: 3001, series: two }, { port: 3002 }],
+			[
+				{ key: '3000', series: [one] },
+				{ key: '3001', series: [two] },
+				{ key: '3002', series: [] }
+			],
 			'Sum',
 			now,
 			windowMs
@@ -360,8 +449,8 @@ describe('metricWindow', () => {
 
 		const rows = metricWindow(
 			[
-				{ port: 3000, series: one },
-				{ port: 3001, series: two }
+				{ key: '3000', series: [one] },
+				{ key: '3001', series: [two] }
 			],
 			'Average',
 			now,
@@ -377,8 +466,8 @@ describe('metricWindow', () => {
 		const series = newSeries(t0);
 		for (const at of [2_000, 3_500, 9_000, 21_000]) record(series, t0 + at, 7);
 		const drawn = (clock: number) =>
-			metricWindow([{ port, series }], 'Average', clock, 60_000, 5_000)
-				.filter((row) => row[port] !== null)
+			metricWindow([{ key, series: [series] }], 'Average', clock, 60_000, 5_000)
+				.filter((row) => row.values[key] !== null)
 				.map((row) => row.time.getTime());
 
 		const settled = drawn(t0 + 30_000);
@@ -393,8 +482,8 @@ describe('metricWindow', () => {
 		record(series, now - PERIOD_MS, 3);
 		record(series, now, 5);
 
-		expect(metricTotals([{ port }], 'Sum', now, windowMs)[port]).toBe(0);
-		expect(metricTotals([{ port, series }], 'Sum', now, windowMs)[port]).toBe(10);
+		expect(metricTotals([{ key, series: [] }], 'Sum', now, windowMs).values[key]).toBe(0);
+		expect(metricTotals([{ key, series: [series] }], 'Sum', now, windowMs).values[key]).toBe(10);
 	});
 
 	// The readout is folded from the same datapoints as the chart, so it cannot contradict it:
@@ -403,18 +492,18 @@ describe('metricWindow', () => {
 		const series = newSeries(now - 3 * PERIOD_MS);
 		record(series, now - 3 * PERIOD_MS, 2);
 		record(series, now, 5);
-		const lines = [{ port, series }];
+		const lines = [{ key, series: [series] }];
 
 		const drawn = metricWindow(lines, 'RunningSum', now, windowMs);
-		expect(metricTotals(lines, 'RunningSum', now, windowMs)[port]).toBe(
-			drawn[drawn.length - 1][port]
+		expect(metricTotals(lines, 'RunningSum', now, windowMs).values[key]).toBe(
+			drawn[drawn.length - 1].values[key]
 		);
 	});
 
 	it('draws silence either side of a count as zero', () => {
 		const series = newSeries(now - PERIOD_MS);
 		record(series, now - PERIOD_MS, 2);
-		const rows = metricWindow([{ port, series }], 'SampleCount', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'SampleCount', now, windowMs);
 
 		expect(column(rows, -3)).toBe(0);
 		expect(column(rows, -1)).toBe(1);
@@ -424,7 +513,7 @@ describe('metricWindow', () => {
 	it('leaves a gap either side for a statistic nothing can be averaged into', () => {
 		const series = newSeries(now - PERIOD_MS);
 		record(series, now - PERIOD_MS, 2);
-		const rows = metricWindow([{ port, series }], 'Average', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'Average', now, windowMs);
 
 		expect(column(rows, -3)).toBeNull();
 		expect(column(rows, -1)).toBe(2);

@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { MetricLine, MetricSource } from '$lib/metrics';
+	import type { MetricLine } from '$lib/metrics';
 
 	// Colour comes from the tab, so every chart agrees on it
 	export type ChartLine = MetricLine & { color: string };
@@ -10,7 +10,9 @@
 	import * as Chart from '$lib/components/ui/chart';
 	import * as Select from '$lib/components/ui/select';
 	import {
+		ALL_LINES,
 		CHART_READINGS,
+		NO_BREAKDOWN,
 		READING_TEXT,
 		metricTotals,
 		metricWindow,
@@ -22,6 +24,10 @@
 	let {
 		name,
 		lines,
+		hidden,
+		dimensions,
+		canAddDimensions,
+		breakdown = $bindable(),
 		stat = $bindable(),
 		windowMs,
 		intervalMs,
@@ -29,24 +35,37 @@
 	}: {
 		name: string;
 		lines: ChartLine[];
+		// Lines past the cap: counted in the legend and totalled with the rest, but not drawn
+		hidden: MetricLine[];
+		// What the metric can be broken down by. Empty leaves the picker in place but disabled,
+		// so a metric whose code declares no dimensions still shows that it could
+		dimensions: string[];
+		// Whether the reader could add one: a resource whose code they cannot open has no
+		// dimensions to gain, so the picker goes rather than sitting there disabled
+		canAddDimensions: boolean;
+		breakdown: string;
 		stat: ChartReading;
 		windowMs: number;
 		intervalMs: number;
 		now: number;
 	} = $props();
 
-	// A node-level measurement has no port to name it by
-	const sourceLabel = (source: MetricSource) => (source === 'resource' ? 'resource' : `:${source}`);
+	// A select cannot carry an empty value, so none travels under a name of its own
+	const NONE = '(none)';
 
 	// A sample count has no unit to show
-	const unit = $derived(stat === 'SampleCount' ? undefined : unitOf(lines));
+	const unit = $derived(
+		stat === 'SampleCount' ? undefined : unitOf(lines.flatMap((l) => l.series))
+	);
 
+	// The one line of an un-broken-down metric is the metric, so the tooltip names it that
+	// rather than "all", which here would be the whole of nothing in particular
 	const series = $derived(
-		lines.map(({ port, color }) => ({
-			key: String(port),
-			label: sourceLabel(port),
+		lines.map(({ key, color }) => ({
+			key,
+			label: key === ALL_LINES ? name : key,
 			color,
-			value: (row: MetricWindowRow) => row[port] ?? null
+			value: (row: MetricWindowRow) => row.values[key] ?? null
 		}))
 	);
 
@@ -68,18 +87,18 @@
 
 	const rows = $derived(metricWindow(lines, stat, now, windowMs, intervalMs));
 
-	// The whole window rather than its last point, which the end of the line already shows
-	const total = $derived(metricTotals(lines, stat, now, windowMs, intervalMs));
+	// The whole window rather than its last point, which the end of the line already shows.
+	// Over every line including the undrawn ones, so "all" is the metric and not the legend
+	const total = $derived(metricTotals([...lines, ...hidden], stat, now, windowMs, intervalMs));
 </script>
 
 <!-- A section rather than a figure: a figcaption has to be a figure's immediate child, and
-     the name shares its row with the picker -->
+     the name shares its row with the pickers -->
 <section class="space-y-1" aria-label={name}>
-	<!-- The legend drops to its own line when the instances outgrow the row -->
+	<!-- Reads as a phrase - "Sum requests · Count by instance" - so the header states the
+	     statistic, the metric and what its lines are, in that order. The legend drops to its
+	     own line when the lines outgrow the row -->
 	<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-		<span class="min-w-0 truncate text-xs text-muted-foreground">
-			{name}{#if unit}<span class="ml-1 opacity-70">· {unit}</span>{/if}
-		</span>
 		<Select.Root type="single" bind:value={stat}>
 			<!-- Height needs the trigger's own data-size variant, or its h-9 wins -->
 			<Select.Trigger
@@ -94,23 +113,57 @@
 				{/each}
 			</Select.Content>
 		</Select.Root>
+		<span class="min-w-0 truncate text-xs">
+			{name}{#if unit}<span class="ml-1 text-muted-foreground">· {unit}</span>{/if}
+		</span>
+		{#if dimensions.length > 0 || canAddDimensions}
+			<Select.Root
+				type="single"
+				value={breakdown === NO_BREAKDOWN ? NONE : breakdown}
+				onValueChange={(value) => (breakdown = value === NONE ? NO_BREAKDOWN : value)}
+			>
+				<Select.Trigger
+					class="shrink-0 py-0 pr-1 pl-2 text-xs data-[size=default]:h-6"
+					aria-label="What {name} is broken down by"
+					disabled={dimensions.length === 0}
+					title={dimensions.length === 0
+						? 'Add a dimension to this metric in your code to break it down'
+						: undefined}
+				>
+					by {breakdown === NO_BREAKDOWN ? 'none' : breakdown}
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value={NONE}>none</Select.Item>
+					{#each dimensions as dimension (dimension)}
+						<Select.Item value={dimension}>{dimension}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		{/if}
 
 		<!-- The legend carries the value, so identifying a line and reading it are one thing -->
 		<ul class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-			{#each lines as { port, color } (port)}
+			{#each lines as { key, color } (key)}
 				<li class="flex items-center gap-1.5">
 					<span class="size-2.5 rounded-xs" style="background-color: {color}"></span>
-					<span class="font-mono text-muted-foreground tabular-nums">{sourceLabel(port)}</span>
-					<span class="tabular-nums">{format(total[port])}</span>
+					<!-- Named only where the name tells it from another line: the single line of a
+					     metric with no breakdown is just the metric, and the swatch is enough -->
+					{#if key !== ALL_LINES}
+						<span class="font-mono text-muted-foreground tabular-nums">{key}</span>
+					{/if}
+					<span class="tabular-nums">{format(total.values[key])}</span>
 				</li>
 			{/each}
 			<!-- The group as a whole, which the chart deliberately does not draw: a line above
 			     every other one would flatten the comparison they are here for -->
-			{#if lines.length > 1}
+			{#if lines.length + hidden.length > 1}
 				<li class="flex items-center gap-1.5 border-l pl-2">
 					<span class="text-muted-foreground">all</span>
 					<span class="tabular-nums">{format(total.all)}</span>
 				</li>
+			{/if}
+			{#if hidden.length > 0}
+				<li class="text-muted-foreground">{hidden.length} more not drawn</li>
 			{/if}
 		</ul>
 	</div>

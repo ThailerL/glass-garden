@@ -44,7 +44,8 @@ export class Orchestrator {
 		onRegionEvent((event) => {
 			const log = event.nodeId ? this.#controllers.get(event.nodeId)?.log : undefined;
 			if (!log) return;
-			if (event.kind === 'metric') log.putMetric('resource', event);
+			// The region observes a resource whole, so its readings carry no dimensions
+			if (event.kind === 'metric') log.putMetric('resource', { ...event, dimensions: {} });
 			else log.event('resource', event.level, event.message);
 		});
 		this.reconcileAllReservations();
