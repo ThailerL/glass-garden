@@ -24,6 +24,14 @@ export function getContainer() {
 	return containerPromise;
 }
 
+// Run before teardown so state can be flushed while processes are still alive; bounded,
+// so a hung task cannot block the next boot
+const shutdownTasks: (() => Promise<void>)[] = [];
+
+export function onContainerShutdown(task: () => Promise<void>) {
+	shutdownTasks.push(task);
+}
+
 export function shutdownContainer() {
 	const booted = containerPromise;
 	containerPromise = undefined;
@@ -31,7 +39,13 @@ export function shutdownContainer() {
 	if (!booted) return;
 	// A failed boot has nothing to tear down, and must not hold up the next one
 	teardownComplete = booted.then(
-		(container) => container.teardown(),
+		async (container) => {
+			await Promise.race([
+				Promise.allSettled(shutdownTasks.map((task) => task())),
+				new Promise((resolve) => setTimeout(resolve, 5000))
+			]);
+			container.teardown();
+		},
 		() => {}
 	);
 }
@@ -49,9 +63,13 @@ export function projectDirectory(projectId: string) {
 	return `${PROJECTS_ROOT}/${projectId}`;
 }
 
-export function nodeDirectory(nodeId: string) {
+export function activeProjectDirectory() {
 	if (!activeProjectId) throw new Error('No active project');
-	return `${projectDirectory(activeProjectId)}/nodes/${nodeId}`;
+	return projectDirectory(activeProjectId);
+}
+
+export function nodeDirectory(nodeId: string) {
+	return `${activeProjectDirectory()}/nodes/${nodeId}`;
 }
 
 let persistence: Promise<boolean> | undefined;

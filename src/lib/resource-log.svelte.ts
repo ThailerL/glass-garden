@@ -45,24 +45,8 @@ export class ResourceLog {
 	// So a flood of new names does not fill the log with the complaint about it
 	#warnedNameCap = false;
 
-	// Chunks arrive at whatever size the stream hands over, so a partial line is carried
-	// until the rest of it turns up. Errors when the process is killed, which is not news
 	capture(source: LogSource, output: ReadableStream<string>) {
-		let carry = '';
-		void output
-			.pipeTo(
-				new WritableStream({
-					write: (chunk) => {
-						const lines = (carry + chunk).split('\n');
-						carry = lines.pop() ?? '';
-						for (const line of lines) this.#routeLine(source, line.replace(/\r$/, ''));
-					},
-					close: () => {
-						if (carry) this.#routeLine(source, carry);
-					}
-				})
-			)
-			.catch(() => {});
+		captureLines(output, (line) => this.#routeLine(source, line));
 	}
 
 	event(source: LogSource, level: ResourceEvent['level'], text: string) {
@@ -112,4 +96,24 @@ export class ResourceLog {
 		this.output.push({ kind: 'output', time: Date.now(), source, text });
 		if (this.output.length > MAX_OUTPUT_LINES) this.output.shift();
 	}
+}
+
+// Chunks arrive at whatever size the stream hands over, so a partial line is carried
+// until the rest of it turns up. Errors when the process is killed, which is not news
+export function captureLines(output: ReadableStream<string>, onLine: (line: string) => void) {
+	let carry = '';
+	void output
+		.pipeTo(
+			new WritableStream({
+				write: (chunk) => {
+					const lines = (carry + chunk).split('\n');
+					carry = lines.pop() ?? '';
+					for (const line of lines) onLine(line.replace(/\r$/, ''));
+				},
+				close: () => {
+					if (carry) onLine(carry);
+				}
+			})
+		)
+		.catch(() => {});
 }

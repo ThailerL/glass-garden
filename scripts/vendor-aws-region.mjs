@@ -1,10 +1,10 @@
-// Generates static/vendor/moto/: the pinned Pyodide runtime plus every wheel moto[server]
-// needs, so the in-VM region boots entirely from this origin. The set is resolved by
-// really installing moto under the pinned Pyodide and freezing the environment.
+// Generates static/vendor/aws-region/: the pinned Pyodide runtime plus every wheel the
+// emulator needs, so the in-VM region boots entirely from this origin. The set is resolved
+// by really installing it under the pinned Pyodide and freezing the environment.
 //
-// Bumping PYODIDE_VERSION or MOTO_SPEC is a deliberate release act: the region's pickle
-// snapshots only load on an exact moto version match, and user data crosses versions via
-// its logical snapshot. Never let these pins drift.
+// Bumping PYODIDE_VERSION or EMULATOR_SPEC is a deliberate release act: ministack stamps a
+// format version on each service's state file and starts that service empty when the
+// stamps disagree, so a bump can cost user data. Never let these pins drift.
 //
 // Requires network and a host npm. Idempotent - a no-op unless the pins changed or
 // --force is passed.
@@ -17,7 +17,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const PYODIDE_VERSION = '314.0.6';
-const MOTO_SPEC = 'moto[server]==5.2.3';
+const EMULATOR_SPEC = 'ministack==1.5.5';
+const EMULATOR_NAME = EMULATOR_SPEC.split('==')[0];
 
 const RUNTIME_FILES = [
 	'package.json',
@@ -29,11 +30,11 @@ const RUNTIME_FILES = [
 ];
 
 const ROOT = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
-const OUTPUT_DIRECTORY = path.join(ROOT, 'static', 'vendor', 'moto');
+const OUTPUT_DIRECTORY = path.join(ROOT, 'static', 'vendor', 'aws-region');
 const METADATA_FILE = path.join(OUTPUT_DIRECTORY, 'meta.json');
 
 const force = process.argv.includes('--force');
-const log = (message) => process.stderr.write(`[vendor-moto] ${message}\n`);
+const log = (message) => process.stderr.write(`[vendor-aws-region] ${message}\n`);
 
 function fail(message) {
 	log(message);
@@ -51,14 +52,14 @@ function canonical(name) {
 
 if (!force && fs.existsSync(METADATA_FILE)) {
 	const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf8'));
-	if (metadata.pyodideVersion === PYODIDE_VERSION && metadata.motoSpec === MOTO_SPEC) {
-		log(`up to date - pyodide ${PYODIDE_VERSION}, ${MOTO_SPEC} (--force to rebuild)`);
+	if (metadata.pyodideVersion === PYODIDE_VERSION && metadata.emulatorSpec === EMULATOR_SPEC) {
+		log(`up to date - pyodide ${PYODIDE_VERSION}, ${EMULATOR_SPEC} (--force to rebuild)`);
 		process.exit(0);
 	}
 	log(`pins changed: regenerating`);
 }
 
-const work = fs.mkdtempSync(path.join(os.tmpdir(), 'moto-vendor-'));
+const work = fs.mkdtempSync(path.join(os.tmpdir(), 'aws-region-vendor-'));
 try {
 	log(`installing pyodide@${PYODIDE_VERSION} (needs network + host npm)`);
 	try {
@@ -83,7 +84,7 @@ const py = await loadPyodide();
 await py.loadPackage('micropip');
 const result = await py.runPythonAsync(\`
 import json, micropip
-await micropip.install(${JSON.stringify(MOTO_SPEC)})
+await micropip.install(${JSON.stringify(EMULATOR_SPEC)})
 json.dumps({
     "installed": [{"name": p.name, "version": p.version, "source": p.source}
                   for p in micropip.list().values()],
@@ -93,15 +94,15 @@ json.dumps({
 fs.writeFileSync(${JSON.stringify(listFile)}, result);
 `
 	);
-	log(`resolving the wheel set for ${MOTO_SPEC}`);
+	log(`resolving the wheel set for ${EMULATOR_SPEC}`);
 	execFileSync(process.execPath, [listScript], {
 		cwd: work,
 		stdio: ['ignore', 'ignore', 'inherit']
 	});
 	// list() names what is actually installed; freeze() knows each PyPI wheel's URL
 	const { installed: packages, lock } = JSON.parse(fs.readFileSync(listFile, 'utf8'));
-	const moto = packages.find((entry) => entry.name === 'moto');
-	if (!moto) fail('install did not include moto');
+	const emulator = packages.find((entry) => entry.name === EMULATOR_NAME);
+	if (!emulator) fail(`install did not include ${EMULATOR_NAME}`);
 	const indexByName = (entries) =>
 		new Map(Object.values(entries ?? {}).map((entry) => [canonical(entry.name), entry]));
 	const frozenEntries = indexByName(lock.packages);
@@ -122,9 +123,13 @@ fs.writeFileSync(${JSON.stringify(listFile)}, result);
 	const distPackages = [];
 	const pypiWheels = [];
 	const downloads = [];
+	// Every relative path and size in the tree, so the page can copy it into the VM
+	// without directory listings and the region can verify the copy
+	const files = [];
 	let totalBytes = 0;
 	const writeWheel = (file, bytes) => {
 		fs.writeFileSync(path.join(wheelsDir, file), bytes);
+		files.push({ path: `wheels/${file}`, bytes: bytes.length });
 		totalBytes += bytes.length;
 	};
 	for (const entry of packages) {
@@ -162,6 +167,7 @@ fs.writeFileSync(${JSON.stringify(listFile)}, result);
 		const stats = fs.statSync(source, { throwIfNoEntry: false });
 		if (!stats) fail(`pyodide runtime file missing: ${file}`);
 		fs.copyFileSync(source, path.join(runtimeDir, file));
+		files.push({ path: `pyodide/${file}`, bytes: stats.size });
 		totalBytes += stats.size;
 	}
 
@@ -171,17 +177,20 @@ fs.writeFileSync(${JSON.stringify(listFile)}, result);
 		`${JSON.stringify(
 			{
 				pyodideVersion: PYODIDE_VERSION,
-				motoSpec: MOTO_SPEC,
-				motoVersion: moto.version,
+				emulatorSpec: EMULATOR_SPEC,
+				ministackVersion: emulator.version,
 				distPackages,
 				pypiWheels,
+				files: files.sort((a, b) => a.path.localeCompare(b.path)),
 				megabytes: Number(megabytes)
 			},
 			null,
 			2
 		)}\n`
 	);
-	log(`wrote ${packages.length} wheels + runtime - ${megabytes} MB, moto ${moto.version}`);
+	log(
+		`wrote ${packages.length} wheels + runtime - ${megabytes} MB, ${EMULATOR_NAME} ${emulator.version}`
+	);
 } finally {
 	fs.rmSync(work, { recursive: true, force: true });
 }

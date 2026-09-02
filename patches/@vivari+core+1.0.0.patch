@@ -188,3 +188,54 @@ index a00b16a..82c766c 100644
  //#region \0rolldown/runtime.js
  var __defProp = Object.defineProperty;
  var __exportAll = (all, no_symbols) => {
+diff --git a/node_modules/@vivari/core/dist/fs.d.ts b/node_modules/@vivari/core/dist/fs.d.ts
+index 9ad1506..2d8d33e 100644
+--- a/node_modules/@vivari/core/dist/fs.d.ts
++++ b/node_modules/@vivari/core/dist/fs.d.ts
+@@ -8,6 +8,14 @@ export declare class FileSystemAPI {
+     readFile(path: string): Promise<Uint8Array>;
+     /** Write a file (parent directories are created as needed). */
+     writeFile(path: string, contents: string | Uint8Array): Promise<void>;
++    /**
++     * Added by patch-package (see dist/index.js). Writes a whole tree in one message,
++     * with no 1 MiB per-file ceiling. Paths are relative to `dir`.
++     */
++    writeTree(dir: string, files: {
++        path: string;
++        bytes: Uint8Array;
++    }[]): Promise<number>;
+     /** List a directory. With `{ withFileTypes: true }` you get {@link DirEnt}s. */
+     readdir(path: string): Promise<string[]>;
+     readdir(path: string, options: {
+diff --git a/node_modules/@vivari/core/dist/index.js b/node_modules/@vivari/core/dist/index.js
+index d183516..bcda75c 100644
+--- a/node_modules/@vivari/core/dist/index.js
++++ b/node_modules/@vivari/core/dist/index.js
+@@ -210,6 +210,27 @@ var FileSystemAPI = class {
+ 		};
+ 		unwrap(await this.bridge.request("vv-write", payload));
+ 	}
++	/**
++	 * Added to @vivari/core by patch-package; this patch is the only copy, so to change it
++	 * edit node_modules/@vivari/core/dist/index.js (and dist/fs.d.ts) and re-run
++	 * `npx patch-package @vivari/core`. Upstream: maitrungduc1410/vivari#2.
++	 *
++	 * `writeFile` and `mount` route through the kernel's `vv-write`, which crosses to the
++	 * FS worker in a 1 MiB SharedArrayBuffer: a larger payload throws inside the handler,
++	 * which logs and then replies `ok: true` anyway, so the file is silently missing. The
++	 * kernel already answers `vv-import-tree` correctly - it batches the files into one
++	 * transferred ArrayBuffer with no size ceiling, creates parent dirs, and reports real
++	 * errors - but nothing in the public API ever sends it. This exposes it rather than
++	 * changing the capped path, so the existing behaviour of every other write is untouched.
++	 *
++	 * `files` are `{ path, bytes }` with paths relative to `dir`. Returns the count written.
++	 */
++	async writeTree(dir, files) {
++		return unwrap(await this.bridge.request("vv-import-tree", {
++			dir,
++			files
++		})).count;
++	}
+ 	async readdir(path, options) {
+ 		const entries = unwrap(await this.bridge.request("vv-readdir", { path })).entries || [];
+ 		if (options?.withFileTypes) return entries.map((e) => ({
