@@ -3,6 +3,7 @@
 import glob
 import html
 import re
+import time
 
 from pyodide.ffi import to_js
 
@@ -35,17 +36,42 @@ async def gg_start():
 
 
 # What each resource is holding, for the metrics its node shows. Read off the backends rather
-# than through the data plane, so sampling never counts as traffic the user caused.
-# _buckets is private to ministack, like the persistence call above: a release could move it
+# than through the data plane, so sampling never counts as traffic the user caused. The
+# module-level stores are private to ministack, like the persistence call above: a release
+# could move them
 async def gg_stats():
     from ministack.services.s3 import _buckets
+    from ministack.services.sqs import _queues
+    from ministack.services.dynamodb import _tables
 
     buckets = {}
     for name, bucket in _buckets.items():
         objects = bucket.get("objects") or {}
         total = sum(entry.get("size", 0) for entry in objects.values())
         buckets[name] = {"objects": len(objects), "size (MB)": total / 1e6}
-    return json.dumps({"s3": buckets})
+
+    # A message is in flight once it has been received and its visibility timeout has not
+    # yet lapsed; until then it is waiting to be picked up
+    now = time.time()
+    queues = {}
+    for queue in _queues.values():
+        messages = queue.get("messages") or []
+        in_flight = sum(
+            1 for m in messages if m.get("receipt_handle") and m.get("visible_at", 0) > now
+        )
+        queues[queue["name"]] = {
+            "messages": len(messages) - in_flight,
+            "in flight": in_flight,
+        }
+
+    # items is keyed by partition value, then by sort value, so the item count is the sum of
+    # the inner maps rather than the size of the outer one
+    tables = {}
+    for name, table in _tables.items():
+        items = table.get("items") or {}
+        tables[name] = {"items": sum(len(rows) for rows in items.values())}
+
+    return json.dumps({"s3": buckets, "sqs": queues, "dynamodb": tables})
 
 
 # Lifespan shutdown persists on its way out; the bridge copies the files afterwards
@@ -64,13 +90,23 @@ async def gg_provision(service, name, config_json):
             raise RuntimeError(f"CreateBucket answered {created.status}")
         return json.dumps({"bucket": name})
     if service == "sqs":
-        body = {"QueueName": name}
-        if config.get("attributes"):
-            body["Attributes"] = {k: str(v) for k, v in config["attributes"].items()}
-        status, created = await json_api("sqs", "AmazonSQS.CreateQueue", body)
+        # Created bare and then configured, rather than created with its attributes: a
+        # CreateQueue naming attributes that differ from an existing queue is an error, and
+        # provisioning runs again every time the node starts with edited settings
+        status, created = await json_api("sqs", "AmazonSQS.CreateQueue", {"QueueName": name})
         if status != 200:
             raise RuntimeError(f"CreateQueue failed: {created}")
-        return json.dumps({"queueUrl": created.get("QueueUrl")})
+        url = created.get("QueueUrl")
+        attributes = config.get("attributes") or {}
+        if attributes:
+            status, updated = await json_api(
+                "sqs",
+                "AmazonSQS.SetQueueAttributes",
+                {"QueueUrl": url, "Attributes": {k: str(v) for k, v in attributes.items()}},
+            )
+            if status != 200:
+                raise RuntimeError(f"SetQueueAttributes failed: {updated}")
+        return json.dumps({"queueUrl": url})
     if service == "dynamodb":
         status, created = await json_api(
             "dynamodb",

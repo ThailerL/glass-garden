@@ -38,8 +38,8 @@ describe('consumerEnv', () => {
 
 	it('names a database the same way, from the provider rather than the consumer', () => {
 		const env = consumerEnv(web, [upstream(database('p1', 'Orders'), 5433)]);
-		expect(env.ORDERS_URL).toContain('5433');
-		expect(env.DATABASE_URL).toBe(env.ORDERS_URL);
+		expect(env.ORDERS_DATABASE_URL).toContain('5433');
+		expect(env.DATABASE_URL).toBe(env.ORDERS_DATABASE_URL);
 	});
 
 	it('mixes providers of different kinds in one environment', () => {

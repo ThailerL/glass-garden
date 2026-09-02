@@ -82,6 +82,7 @@ export type NamedOnCreate = {
 		emphasis?: string;
 		// Fills this field from another until the user edits it
 		derive?: { from: string; value: (source: string) => string };
+		initial?: string;
 		// Refused when a node of the same type on this canvas already uses the value
 		unique?: boolean;
 	}[];

@@ -14,6 +14,12 @@ export const REGION_PORT = 52700;
 // How code inside the VM reaches the region
 export const regionEndpointUrl = `http://localhost:${REGION_PORT}`;
 
+// The emulator mints queue URLs in this shape, and the AWS SDK dials the URL it is handed
+// rather than the endpoint, so a consumer's variable has to match it exactly. The account
+// is the emulator's own default: our access keys are node ids, not the 12-digit numbers it
+// reads an account from
+export const queueUrlFor = (queueName: string) => `${regionEndpointUrl}/000000000000/${queueName}`;
+
 const OUTPUT_LIMIT = 500;
 const CONTROL_TIMEOUT_MS = 10_000;
 const READY_TIMEOUT_MS = 120_000;

@@ -55,8 +55,13 @@
 
 		ask(options: ResourceNameOptions) {
 			this.options = options;
-			this.values = Object.fromEntries(options.fields.map(({ field }) => [field, '']));
-			this.touched = {};
+			this.values = Object.fromEntries(
+				options.fields.map(({ field, initial }) => [field, initial ?? ''])
+			);
+			// A seeded field is already its own, so a later edit elsewhere cannot overwrite it
+			this.touched = Object.fromEntries(
+				options.fields.flatMap(({ field, initial }) => (initial ? [[field, true]] : []))
+			);
 			this.open = true;
 			return new Promise<Record<string, string> | undefined>((resolve) => (this.#settle = resolve));
 		}
@@ -139,7 +144,7 @@
 					{:else if description}
 						{@const text = parts(description, emphasis)}
 						<p class="text-sm text-muted-foreground">
-							{text.before}<strong class="font-medium text-destructive">{text.mark}</strong
+							{text.before}<strong class="font-medium text-foreground">{text.mark}</strong
 							>{text.after}
 						</p>
 					{/if}

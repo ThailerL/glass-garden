@@ -39,7 +39,7 @@ export const postgres = {
 	instanceCount: () => 1,
 	runsProcesses: true,
 	supplies: (_node: Node, port: number) => ({
-		suffix: 'URL',
+		suffix: 'DATABASE_URL',
 		value: connectionUrl(port),
 		soleName: 'DATABASE_URL'
 	}),

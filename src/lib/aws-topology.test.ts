@@ -7,6 +7,10 @@ const node = (id: string, type: string, config: Record<string, unknown>): Node =
 
 const bucket = (id: string, name: string, bucketName: string) =>
 	node(id, 's3Bucket', { name, bucketName });
+const queue = (id: string, name: string, queueName: string) =>
+	node(id, 'sqsQueue', { name, queueName, visibilityTimeout: 30 });
+const table = (id: string, name: string, tableName: string) =>
+	node(id, 'dynamodbTable', { name, tableName, partitionKey: 'pk' });
 const app = (id: string, name: string) =>
 	node(id, 'instanceGroup', { name, instanceCount: 1, command: 'npm start' });
 const edge = (source: string, target: string): Edge => ({
@@ -29,6 +33,18 @@ describe('buildTopology', () => {
 			name: 'Web',
 			resources: { s3: ['assets'], sqs: [], dynamodb: [] }
 		});
+	});
+
+	it('grants each service separately, so one edge does not unlock the others', () => {
+		const nodes = [app('a', 'Web'), queue('q1', 'Orders', 'orders'), table('t1', 'Users', 'users')];
+		const topology = buildTopology(nodes, [edge('a', 'q1')]);
+		expect(topology.services).toEqual(['dynamodb', 'sqs']);
+		expect(topology.principals[accessKeyFor('a')].resources).toEqual({
+			s3: [],
+			sqs: ['orders'],
+			dynamodb: []
+		});
+		expect(topology.owners).toEqual({ s3: {}, sqs: { orders: 'q1' }, dynamodb: { users: 't1' } });
 	});
 
 	it('gives a resource node no principal of its own: it runs no code and gets no credentials', () => {

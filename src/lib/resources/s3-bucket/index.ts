@@ -90,7 +90,6 @@ export const s3Bucket = {
 		const death = regionExit();
 		return { exited: death.exited, stop: async () => death.cancel() };
 	},
-	// Deleting the bucket needs the emulator
 	remove: async (node: Node) => {
 		await ensureRegion();
 		await deprovisionResource('s3', bucketNameOf(node));

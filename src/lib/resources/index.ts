@@ -4,6 +4,8 @@ import { instanceGroup } from './instance-group';
 import { httpLoadBalancer } from './http-load-balancer';
 import { postgres } from './postgres';
 import { s3Bucket } from './s3-bucket';
+import { sqsQueue } from './sqs-queue';
+import { dynamodbTable } from './dynamodb-table';
 
 export * from './types';
 
@@ -11,7 +13,9 @@ export const resourceDefinitions = {
 	instanceGroup,
 	httpLoadBalancer,
 	postgres,
-	s3Bucket
+	s3Bucket,
+	sqsQueue,
+	dynamodbTable
 } satisfies Record<string, ResourceDefinition>;
 
 export type ResourceType = keyof typeof resourceDefinitions;

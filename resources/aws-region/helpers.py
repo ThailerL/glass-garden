@@ -23,6 +23,9 @@ os.environ.update(
     STATE_DIR=STATE_DIR,
     S3_PERSIST="1",
     S3_DATA_DIR=S3_DATA_DIR,
+    # The queue URLs the emulator mints are dialled directly by the AWS SDK, so they have
+    # to name the port the bridge actually listens on
+    GATEWAY_PORT=str(REGION_PORT),
 )
 
 # Each service reads its own state file as it imports, so this line is the restore

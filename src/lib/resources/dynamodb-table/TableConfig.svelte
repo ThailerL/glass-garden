@@ -12,11 +12,20 @@
 
 <ConfigField
 	{form}
-	name="bucketName"
-	label="Bucket Name"
+	name="tableName"
+	label="Table Name"
 	readonly
 	description="The name your code passes to the AWS SDK."
-	bind:value={$formData.bucketName}
+	bind:value={$formData.tableName}
 />
 
-<AccessSummary {nodeId} noun="bucket" verb="read and write objects" />
+<ConfigField
+	{form}
+	name="partitionKey"
+	label="Partition Key"
+	readonly
+	description="The string attribute every item is found by."
+	bind:value={$formData.partitionKey}
+/>
+
+<AccessSummary {nodeId} noun="table" verb="read and write items" />

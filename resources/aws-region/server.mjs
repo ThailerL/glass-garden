@@ -121,6 +121,8 @@ copyDiskToMemfs(DATA_DIR, STATE_ROOT);
 const wheels = meta.pypiWheels.map((file) => `'emfs:/wheels/${file}'`).join(', ');
 await py.runPythonAsync(`import micropip\nawait micropip.install([${wheels}], deps=False)`);
 py.globals.set('STATE_ROOT', STATE_ROOT);
+// Queue URLs are built from this, and the SDK dials the URL it is given
+py.globals.set('REGION_PORT', PORT);
 for (const file of PYTHON_FILES) {
   await py.runPythonAsync(fs.readFileSync(file, 'utf8'));
 }

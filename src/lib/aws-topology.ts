@@ -8,7 +8,9 @@ import type { Principal, Service, Topology } from '$lib/aws-region';
 // - a queue is enforced by name but addressed by URL - so the environment side lives on each
 // resource definition instead
 const AWS_SERVICES: Partial<Record<string, { service: Service; resourceKey: string }>> = {
-	s3Bucket: { service: 's3', resourceKey: 'bucketName' }
+	s3Bucket: { service: 's3', resourceKey: 'bucketName' },
+	sqsQueue: { service: 'sqs', resourceKey: 'queueName' },
+	dynamodbTable: { service: 'dynamodb', resourceKey: 'tableName' }
 };
 
 export type AwsResource = { service: Service; resourceName: string };
