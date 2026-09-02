@@ -1,14 +1,20 @@
 # Glass Garden
 
-[Try it live](https://glass.garden/)
+[Try it live](https://glass.garden/) - a 60-second guided tour starts you off
 
-A sandbox for experimenting with cloud infrastructure like load balancers, compute instances, and databases. Press play and watch it run, right in your browser.
+Build cloud architecture by dragging load balancers, compute instances, and AWS services onto a canvas. Press play and watch real traffic move through it, right in your browser.
 
-Everything on your canvas is running real code: your instances are real Node processes, your database is a real Postgres server speaking the wire protocol, and instance groups come with a full code editor so you can edit the actual app they're running.
+Everything on your canvas is running real code, and your app reaches it the way it would in production:
+
+- compute instances running real Node processes whose code you can edit
+- a real Postgres server you connect to with the ordinary `pg` client
+- an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK
+
+Click any resource to see its metrics, logs, and a live preview of what it's serving. The edges you draw are what grant access in real time.
 
 It's all inside a WebAssembly VM in the tab, so there's nothing to install and nothing to sign up for. All your data stays on your device, and the whole thing is easily self-hostable.
 
-## Setup
+## Self-hosting
 
 To self-host with Docker, use this `compose.yaml`
 
@@ -25,10 +31,10 @@ services:
 or run
 
 ```sh
-docker run -p 3000:3000  ghcr.io/thailerl/glass-garden:latest
+docker run -p 3000:3000 ghcr.io/thailerl/glass-garden:latest
 ```
 
-Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (i.e. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS as the app requires a secure context to work.
+Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (e.g. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS as the app requires a secure context to work.
 
 ## Developing
 
@@ -41,8 +47,10 @@ npm install
 npm run dev
 ```
 
-The in-browser container needs a secure context for `SharedArrayBuffer`, so it requires HTTPS if you are not accessing from `localhost`. If you are developing on a remote machine, you can get around this by running a browser in a container on the remote machine and accessing `localhost:3000` from inside of it:
+If developing on a remote machine, you can get around the HTTPS requirement by running a browser in a container on the remote machine:
 
 ```sh
-docker run -d --name=firefox --network host jlesage/firefox # Runs on port 5800
+docker run -d --name=firefox --network host jlesage/firefox
 ```
+
+Then open `http://<remote-host>:5800` and browse to `localhost:3000`.
