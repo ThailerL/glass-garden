@@ -28,7 +28,11 @@ export const templates = {
 		icon: DatabaseIcon,
 		build: (graph) => {
 			const balancer = graph.addNode('httpLoadBalancer', { x: -200, y: 0 });
-			const app = graph.addNode('instanceGroup', { x: 0, y: 0 }, 'postgres-app/instance-group');
+			const app = graph.addNode(
+				'instanceGroup',
+				{ x: 0, y: 0 },
+				{ files: 'postgres-app/instance-group' }
+			);
 			const db = graph.addNode('postgres', { x: 200, y: 0 });
 			graph.addEdge(balancer.id, app.id);
 			graph.addEdge(app.id, db.id);

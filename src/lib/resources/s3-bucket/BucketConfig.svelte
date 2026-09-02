@@ -20,7 +20,8 @@
 	{form}
 	name="bucketName"
 	label="Bucket Name"
-	description="The name your code passes to the AWS SDK. Follows S3's naming rules."
+	readonly
+	description="The name your code passes to the AWS SDK."
 	bind:value={$formData.bucketName}
 />
 

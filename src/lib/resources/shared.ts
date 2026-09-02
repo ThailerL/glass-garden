@@ -4,20 +4,29 @@ import type { Capture, InstanceHandle } from './types';
 import { nodeDirectory } from '../container';
 import { nodeName } from '../graph-state.svelte';
 
-// How a node's name becomes the prefix of the environment variables naming it, so a
-// consumer wired to several resources gets meaningful names. One convention across every
-// kind of variable - <SLUG>_URL, <SLUG>_BUCKET - and every kind of consumer.
-// "Bob's Orders DB" -> BOBS_ORDERS_DB. Apostrophes and accents are folded away rather
-// than becoming separators
-export function envSlug(node: Node) {
-	const cleaned = nodeName(node)
+// Apostrophes and accents are folded away rather than becoming separators, so
+// "Bob's Orders DB" reads as one word per word
+export function slugify(
+	text: string,
+	// Narrowed because the separator lands inside a RegExp character class
+	options: { separator: '-' | '_'; case: 'upper' | 'lower'; maxLength?: number }
+) {
+	const folded = text
 		.normalize('NFD')
 		.replace(/['\u2019]/g, '')
-		.replace(/\p{Diacritic}/gu, '')
-		.toUpperCase()
-		.replace(/[^A-Z0-9]+/g, '_')
-		.replace(/^_+|_+$/g, '');
-	return cleaned || 'RESOURCE';
+		.replace(/\p{Diacritic}/gu, '');
+	return (options.case === 'upper' ? folded.toUpperCase() : folded.toLowerCase())
+		.replace(/[^a-z0-9]+/gi, options.separator)
+		.replace(new RegExp(`^[${options.separator}]+`), '')
+		.slice(0, options.maxLength)
+		.replace(new RegExp(`[${options.separator}]+$`), '');
+}
+
+// How a node's name becomes the prefix of the environment variables naming it, so a
+// consumer wired to several resources gets meaningful names. One convention across every
+// kind of variable - <SLUG>_URL, <SLUG>_BUCKET - and every kind of consumer
+export function envSlug(node: Node) {
+	return slugify(nodeName(node), { separator: '_', case: 'upper' }) || 'RESOURCE';
 }
 
 export async function npmInstall(node: Node, container: Vivari, capture?: Capture) {

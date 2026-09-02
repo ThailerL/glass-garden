@@ -7,6 +7,7 @@
 	import type { FormPath, SuperForm } from 'sveltekit-superforms';
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
+	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 
 	let {
 		form,
@@ -14,6 +15,7 @@
 		label,
 		type = 'text',
 		description,
+		readonly = false,
 		value = $bindable()
 	}: {
 		form: SuperForm<T>;
@@ -22,19 +24,26 @@
 		type?: 'text' | 'number';
 		// Said under the field rather than in the label, for a constraint the name can't carry
 		description?: string;
+		// Shown as text rather than a disabled input: an input takes a cursor and looks
+		// editable, so it reads as a field that silently refuses typing
+		readonly?: boolean;
 		value: V;
 	} = $props();
 </script>
 
-<Form.Field {form} {name}>
-	<Form.Control>
-		{#snippet children({ props })}
-			<Form.Label>{label}</Form.Label>
-			<Input {...props} {type} bind:value />
-		{/snippet}
-	</Form.Control>
-	{#if description}
-		<Form.Description>{description}</Form.Description>
-	{/if}
-	<Form.FieldErrors />
-</Form.Field>
+{#if readonly}
+	<ReadOnlyValue {label} {value} {description} />
+{:else}
+	<Form.Field {form} {name}>
+		<Form.Control>
+			{#snippet children({ props })}
+				<Form.Label>{label}</Form.Label>
+				<Input {...props} {type} bind:value />
+			{/snippet}
+		</Form.Control>
+		{#if description}
+			<Form.Description>{description}</Form.Description>
+		{/if}
+		<Form.FieldErrors />
+	</Form.Field>
+{/if}

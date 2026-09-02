@@ -23,6 +23,8 @@
 		type ResourceType
 	} from '$lib/resources';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import { askResourceName } from '$lib/components/ResourceNameDialog.svelte';
+	import { buildNameValidator } from '$lib/resources/name-on-create';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import ResourceNode from './ResourceNode.svelte';
 	import ProjectsGroup from './ProjectsGroup.svelte';
@@ -103,7 +105,11 @@
 		pointerPosition = { x: e.clientX, y: e.clientY };
 	}
 
-	function onDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<ResourceType>) {
+	async function onDrop({
+		draggedItem,
+		sourceContainer,
+		targetContainer
+	}: DragDropState<ResourceType>) {
 		if (sourceContainer !== 'component-sidebar' || targetContainer !== 'canvas') {
 			return;
 		}
@@ -113,7 +119,19 @@
 			y: pointerPosition.y
 		});
 
-		const node = graphState.addNode(draggedItem, position);
+		// Named before it exists, so the node is only created once the values are settled
+		const { namedOnCreate } = getResourceDefinition(draggedItem);
+		let config: Record<string, unknown> | undefined;
+		if (namedOnCreate) {
+			config = await askResourceName({
+				...namedOnCreate,
+				validate: buildNameValidator(draggedItem, graphState.nodes)
+			});
+			// Backing out of the dialog is a decision not to add the node at all
+			if (!config) return;
+		}
+
+		const node = graphState.addNode(draggedItem, position, { config });
 		// Reserves the new node's ports before it first renders
 		orchestrator.refresh(node.id);
 	}

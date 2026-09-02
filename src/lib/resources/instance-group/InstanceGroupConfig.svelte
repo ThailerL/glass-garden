@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { SuperForm } from 'sveltekit-superforms';
 	import ConfigField from '$lib/components/ConfigField.svelte';
-	import { Label } from '$lib/components/ui/label';
+	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { consumerEnv, withheldConventionalNames } from '../env';
@@ -32,28 +32,19 @@
 />
 <ConfigField {form} name="command" label="Command" bind:value={$formData.command} />
 
-<div class="space-y-2">
-	<Label>Environment</Label>
-	<!-- Not Inputs: a textbox invites editing values that are only there to be read -->
-	<p class="rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs break-all select-all">
-		{#each lines as [name, value] (name)}
-			<span class="block">{name}={value}</span>
-		{/each}
-		<!-- Every other line is literally what the process receives; this one differs per
-		     instance, so only the value is prose - the name is as real as the rest -->
-		<span class="block"
-			>PORT=<span class="text-muted-foreground">&lt;assigned by Glass Garden&gt;</span></span
-		>
-		{#each withheld as name (name)}
-			<span class="block"
-				>{name}=<span class="text-muted-foreground">&lt;not set: more than one connected&gt;</span
-				></span
-			>
-		{/each}
-	</p>
-	<p class="text-sm text-muted-foreground">
-		Set from what this group is connected to. Draw an edge to a resource to add its variables. A
-		resource connected on its own is also set under the conventional name for its kind, so code
-		written for it elsewhere works unchanged.
-	</p>
-</div>
+<ReadOnlyValue
+	label="Environment"
+	description="Set by what this group is connected to. When only one of a resopurce type is connected, its value is also set under the name most code expects, such as DATABASE_URL."
+>
+	{#each lines as [name, value] (name)}
+		<span class="block">{name}={value}</span>
+	{/each}
+	<span class="block">
+		PORT=<span class="text-muted-foreground">&lt;assigned by Glass Garden&gt;</span></span
+	>
+	{#each withheld as name (name)}
+		<span class="block">
+			{name}=<span class="text-muted-foreground">&lt;not set: more than one connected&gt; </span>
+		</span>
+	{/each}
+</ReadOnlyValue>

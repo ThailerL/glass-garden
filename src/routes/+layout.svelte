@@ -4,6 +4,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
+	import ResourceNameDialog from '$lib/components/ResourceNameDialog.svelte';
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { anyDraftsDirty } from '$lib/files';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
@@ -36,6 +37,7 @@
 <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
 <!-- One instance for the whole app; confirmDelete() drives it from anywhere -->
 <ConfirmDeleteDialog />
+<ResourceNameDialog />
 <ModeWatcher />
 
 <Sidebar.Provider>

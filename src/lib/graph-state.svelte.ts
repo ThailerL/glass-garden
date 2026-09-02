@@ -93,13 +93,17 @@ export class GraphState {
 		return node;
 	}
 
-	addNode(type: ResourceType, position: { x: number; y: number }, files?: FileSetId) {
+	addNode(
+		type: ResourceType,
+		position: { x: number; y: number },
+		{ files, config }: { files?: FileSetId; config?: Record<string, unknown> } = {}
+	) {
 		const definition = getResourceDefinition(type);
 		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
 		if (definition.ownsStoredData) void requestPersistentStorage();
 		const data: NodeData = {
-			// Parsing an empty object yields the schema's defaults
-			config: definition.configSchema.parse({}),
+			// Anything not supplied falls back to the schema's default
+			config: definition.configSchema.parse(config ?? {}),
 			ports: [],
 			files
 		};

@@ -68,6 +68,25 @@ export type ConnectedNode = {
 	readonly reservedPorts: readonly number[];
 };
 
+// Config fields the user is asked for as the node is dropped, because the real service has
+// no rename: the name is part of the resource's identity, so the drop is the last moment it
+// is free. Validated against the resource's own configSchema
+export type NamedOnCreate = {
+	title: string;
+	description: string;
+	fields: {
+		field: string;
+		label: string;
+		description?: string;
+		// Singles out a phrase of the description, for a constraint worth noticing
+		emphasis?: string;
+		// Fills this field from another until the user edits it
+		derive?: { from: string; value: (source: string) => string };
+		// Refused when a node of the same type on this canvas already uses the value
+		unique?: boolean;
+	}[];
+};
+
 export type ResourceDefinition = {
 	name: string;
 	icon: LucideIcon;
@@ -84,6 +103,7 @@ export type ResourceDefinition = {
 	configComponent: Component<{ form: never; nodeId: string }>;
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
+	namedOnCreate?: NamedOnCreate;
 	metricDefaults?: Partial<Record<string, ChartReading>>;
 	instanceCount: (node: Node) => number;
 	// Whether an instance is a real process. A resource served by the AWS region still has one

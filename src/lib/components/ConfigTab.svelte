@@ -91,7 +91,7 @@
 	<!-- Spaced here so every config component stacks its fields the same way -->
 	<!-- The handler catches keystrokes from the fields; the form itself is not a control -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<form method="dialog" onsubmit={handleSubmit} onkeydown={handleKeydown} class="space-y-2">
+	<form method="POST" onsubmit={handleSubmit} onkeydown={handleKeydown} class="space-y-2">
 		<ConfigComponent {form} {nodeId} />
 	</form>
 </div>

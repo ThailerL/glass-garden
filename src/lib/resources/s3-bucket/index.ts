@@ -4,6 +4,7 @@ import { Vivari } from '@vivari/core';
 import BucketIcon from '@lucide/svelte/icons/archive';
 import BucketConfig from './BucketConfig.svelte';
 import type { ResourceDefinition } from '../types';
+import { slugify } from '../shared';
 import { nodeConfig } from '$lib/graph-state.svelte';
 import { deprovisionResource, ensureRegion, provisionResource, regionExit } from '$lib/aws-region';
 
@@ -17,6 +18,11 @@ export const bucketNameSchema = z
 	.refine((name) => !/\.\./.test(name) && !/^\d+(\.\d+){3}$/.test(name), {
 		message: 'Cannot contain ".." or look like an IP address'
 	});
+
+// Not guaranteed valid - "ab" is still too short - so the field still validates like any other
+export function toBucketName(displayName: string) {
+	return slugify(displayName, { separator: '-', case: 'lower', maxLength: 63 });
+}
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Bucket'),
@@ -44,6 +50,26 @@ export const s3Bucket = {
 	consumes: [],
 	configComponent: BucketConfig,
 	configSchema,
+	namedOnCreate: {
+		title: 'Add a bucket',
+		description: 'Name the node and the bucket it creates.',
+		fields: [
+			{
+				field: 'name',
+				label: 'Display name',
+				description: 'What this node is called on the canvas. You can change it later.'
+			},
+			{
+				field: 'bucketName',
+				label: 'Bucket name',
+				description:
+					'What your code passes to the AWS SDK. S3 has no rename, so this one is permanent. Lowercase letters, numbers, dots and hyphens.',
+				emphasis: 'permanent',
+				derive: { from: 'name', value: toBucketName },
+				unique: true
+			}
+		]
+	},
 	metricDefaults: { objects: 'avg', 'size (MB)': 'avg', requests: 'sum', errors: 'sum' },
 	instanceCount: () => 1,
 	runsProcesses: false,

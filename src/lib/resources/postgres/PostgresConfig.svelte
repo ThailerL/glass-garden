@@ -3,6 +3,7 @@
 	import type { SuperForm } from 'sveltekit-superforms';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import ConfigField from '$lib/components/ConfigField.svelte';
+	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Label } from '$lib/components/ui/label';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -56,17 +57,11 @@
 	bind:value={$formData.maxConnections}
 />
 
-<div class="space-y-2">
-	<Label>Connection String</Label>
-	{#if url}
-		<!-- Not an Input: a textbox invites editing a value that is only there to be read -->
-		<p class="rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs break-all select-all">
-			{url}
-		</p>
-	{:else}
-		<p class="text-sm text-muted-foreground">Available once the database has started.</p>
-	{/if}
-</div>
+<ReadOnlyValue
+	label="Connection String"
+	value={url}
+	empty="Available once the database has started."
+/>
 
 <div class="space-y-2">
 	<Label>Data</Label>
