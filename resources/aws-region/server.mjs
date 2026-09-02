@@ -8,6 +8,7 @@ import path from 'node:path';
 import {
   EVENT_PREFIX,
   decideRequest,
+  emptyTopology,
   denialResponse,
   extractResourceName,
   parseCredential,
@@ -23,6 +24,9 @@ if (!TOKEN) throw new Error('GG_CONTROL_TOKEN is not set');
 
 const CACHE_DIR = path.resolve('cache');
 const DATA_DIR = path.resolve('data');
+// The canvas, as the host last wrote it. A file rather than a control call so it is already
+// on disk before this process starts: a request can never be judged against an empty one
+const TOPOLOGY_FILE = path.resolve('topology.json');
 // The MEMFS staging dir for persistence; injected into Python, which names the files
 const STATE_ROOT = '/state';
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
@@ -141,7 +145,19 @@ const saveState = py.globals.get('save_state');
 const shutdownEmulator = py.globals.get('gg_stop');
 const readStats = py.globals.get('gg_stats');
 
-let topology = { services: [], principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
+// The one way to see the canvas, and it reads fresh every time: the host rewrites the
+// file whenever the graph changes, and an accessor makes holding a stale copy impossible
+// rather than merely discouraged. The file is a few hundred bytes
+function currentTopology() {
+  try {
+    return JSON.parse(fs.readFileSync(TOPOLOGY_FILE, 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      emitLog('error', `Could not read the canvas layout: ${error?.message || error}`);
+    }
+    return emptyTopology();
+  }
+}
 // Reported once rather than every tick, so a lasting failure does not bury the log
 let sampleFailed = false;
 
@@ -184,8 +200,8 @@ function runSave() {
 
 // A resource's own node hears about the traffic reaching it. Denials are reported against
 // the caller instead - that is who has to draw the edge - so they are not counted here
-function reportRequest(service, resourceName, method, pathname, status) {
-  const nodeId = topology.owners[service]?.[resourceName];
+function reportRequest(owners, service, resourceName, method, pathname, status) {
+  const nodeId = owners[service]?.[resourceName];
   if (!nodeId) return;
   emitMetric(nodeId, 'requests', 1);
   if (status >= 400) emitMetric(nodeId, 'errors', 1);
@@ -196,6 +212,7 @@ function reportRequest(service, resourceName, method, pathname, status) {
 // Read straight from the emulator rather than through the data plane, so the sampling does
 // not show up as traffic the user never caused
 async function sampleResources() {
+  const { owners } = currentTopology();
   let stats;
   try {
     stats = JSON.parse(await readStats());
@@ -207,7 +224,7 @@ async function sampleResources() {
   sampleFailed = false;
   for (const [service, byName] of Object.entries(stats)) {
     for (const [name, readings] of Object.entries(byName)) {
-      const nodeId = topology.owners[service]?.[name];
+      const nodeId = owners[service]?.[name];
       if (!nodeId) continue;
       for (const [metric, value] of Object.entries(readings)) emitMetric(nodeId, metric, value);
     }
@@ -224,10 +241,6 @@ async function handleControl(req, res, url, body) {
   if (req.headers['x-gg-token'] !== TOKEN) return json(res, 403, { message: 'bad token' });
   const route = `${req.method} ${url.pathname}`;
   if (route === 'GET /control/health') return json(res, 200, { status: 'ok', startup });
-  if (route === 'POST /control/topology') {
-    topology = JSON.parse(body.toString());
-    return json(res, 200, { services: topology.services });
-  }
   if (route === 'POST /control/provision') {
     const { service, name, config } = JSON.parse(body.toString());
     const result = await provision(service, name, JSON.stringify(config ?? {}));
@@ -258,6 +271,7 @@ async function handleControl(req, res, url, body) {
 }
 
 async function handleAws(req, res, url, body) {
+  const topology = currentTopology();
   const credential = parseCredential(req.headers.authorization);
   const service = credential?.service;
   const bodyText =
@@ -288,7 +302,7 @@ async function handleAws(req, res, url, body) {
   );
   res.writeHead(status, Object.fromEntries(JSON.parse(headersJson)));
   res.end(responseBody);
-  reportRequest(service, resourceName, req.method, url.pathname, status);
+  reportRequest(topology.owners, service, resourceName, req.method, url.pathname, status);
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
   if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') armSave();

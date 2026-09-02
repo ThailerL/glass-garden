@@ -27,6 +27,7 @@ export type RegionEvent =
 	| { kind: 'metric'; nodeId: string; name: string; value: number };
 
 export const EVENT_PREFIX: string;
+export function emptyTopology(): Topology;
 export function parseCredential(authorization: string | undefined): Credential | undefined;
 export function bucketFromPath(path: string): string | undefined;
 export function extractResourceName(

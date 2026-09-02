@@ -1,7 +1,7 @@
 import { toast } from 'svelte-sonner';
 import type { Vivari, VivariProcess } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
-import { EVENT_PREFIX } from '../../resources/aws-region/lib.mjs';
+import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.mjs';
 import type { RegionEvent, Service, Topology } from '../../resources/aws-region/lib.mjs';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
@@ -21,6 +21,7 @@ const READY_TIMEOUT_MS = 120_000;
 type Region = {
 	ready: Promise<void>;
 	process?: VivariProcess;
+	directory: string;
 	// The page cannot dial VM ports; control calls go through Vivari's preview route
 	previewUrl: string;
 	token: string;
@@ -29,11 +30,7 @@ type Region = {
 
 let region: Region | undefined;
 let output: string[] = [];
-let lastTopology: Topology = {
-	services: [],
-	principals: {},
-	owners: { s3: {}, sqs: {}, dynamodb: {} }
-};
+let lastTopology: Topology = emptyTopology();
 let consecutiveCrashes = 0;
 let onEvent: ((event: RegionEvent) => void) | undefined;
 
@@ -105,8 +102,26 @@ export function setRegionTopology(topology: Topology) {
 	const current = region;
 	if (!current) return;
 	void current.ready
-		.then(() => pushTopology(current))
+		.then(() => writeTopology(current.directory))
 		.catch(() => toast.error('The local AWS region did not pick up the new connections'));
+}
+
+// Written whole through a temporary name, so the region can never read half a canvas.
+// One write at a time: several refreshes can land in one tick - deleting a node refreshes
+// every edge - and interleaved writes would race each other for the temporary file
+let topologyWrite: Promise<void> = Promise.resolve();
+
+function writeTopology(directory: string): Promise<void> {
+	topologyWrite = topologyWrite
+		// The previous write's failure was its caller's to report; this one starts fresh
+		.catch(() => {})
+		.then(async () => {
+			const container = await getContainer();
+			const file = `${directory}/topology.json`;
+			await container.fs.writeFile(`${file}.tmp`, JSON.stringify(lastTopology));
+			await container.fs.rename(`${file}.tmp`, file);
+		});
+	return topologyWrite;
 }
 
 export async function provisionResource(
@@ -137,6 +152,7 @@ export async function deprovisionResource(service: Service, name: string) {
 function boot(): Region {
 	const created: Region = {
 		token: crypto.randomUUID(),
+		directory: '',
 		previewUrl: '',
 		stopping: false,
 		ready: Promise.resolve()
@@ -149,9 +165,13 @@ function boot(): Region {
 		}
 		const container = await getContainer();
 		const directory = `${activeProjectDirectory()}/aws-region`;
+		created.directory = directory;
 		await ensureCache(container, directory);
 		await container.fs.mkdir(directory, { recursive: true });
 		await container.mount(resourceFiles.awsRegion, { mountPoint: directory });
+		// Before the spawn: the bridge reads this before it listens, so no request is ever
+		// judged against a canvas it has not been told about
+		await writeTopology(directory);
 
 		// server-ready fires once the port listens and its preview relay is reachable, so
 		// control calls made after it cannot race the relay. Subscribed before the spawn;
@@ -183,7 +203,6 @@ function boot(): Region {
 			unsubscribe();
 		}
 		consecutiveCrashes = 0;
-		await pushTopology(created);
 	})();
 	created.ready.catch(() => {
 		if (region === created) region = undefined;
@@ -202,13 +221,6 @@ function onExit(exited: Region, code: number) {
 	for (const resolve of exitWaiters) resolve(code);
 	exitWaiters.clear();
 	toast.error('The local AWS region stopped unexpectedly; it restarts on next use');
-}
-
-async function pushTopology(current: Region) {
-	await control(current, 'control/topology', {
-		method: 'POST',
-		body: JSON.stringify(lastTopology)
-	});
 }
 
 async function control(current: Region, pathname: string, init?: RequestInit) {

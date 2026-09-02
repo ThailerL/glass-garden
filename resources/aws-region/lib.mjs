@@ -9,6 +9,11 @@ const noun = (service) => NODE_LABELS[service].toLowerCase();
 // The stdout line prefix for events the bridge reports and the host routes
 export const EVENT_PREFIX = 'gg:event ';
 
+// What every holder of a topology starts from, before the canvas has said anything
+export function emptyTopology() {
+  return { services: [], principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
+}
+
 // SigV4 credential scope: "AWS4-HMAC-SHA256 Credential=<key>/<date>/<region>/<service>/aws4_request, ..."
 // The emulator routes by the service in this scope, so enforcement keys on the same signal
 export function parseCredential(authorization) {
