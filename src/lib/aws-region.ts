@@ -6,7 +6,7 @@ import type { RegionEvent, Service, Topology } from '../../resources/aws-region/
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
 
-export type { RegionEvent, Service } from '../../resources/aws-region/lib.mjs';
+export type { Principal, RegionEvent, Service, Topology } from '../../resources/aws-region/lib.mjs';
 
 // Outside the orchestrator's minting range (1024-49151), so it can never collide with
 // an instance port
@@ -14,7 +14,6 @@ export const REGION_PORT = 52700;
 // How code inside the VM reaches the region
 export const regionEndpointUrl = `http://localhost:${REGION_PORT}`;
 
-const IDLE_STOP_MS = 30_000;
 const OUTPUT_LIMIT = 500;
 const CONTROL_TIMEOUT_MS = 10_000;
 const READY_TIMEOUT_MS = 120_000;
@@ -28,11 +27,13 @@ type Region = {
 	stopping: boolean;
 };
 
-const holders = new Set<string>();
 let region: Region | undefined;
-let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let output: string[] = [];
-let lastTopology: Topology = { services: [], principals: {} };
+let lastTopology: Topology = {
+	services: [],
+	principals: {},
+	owners: { s3: {}, sqs: {}, dynamodb: {} }
+};
 let consecutiveCrashes = 0;
 let onEvent: ((event: RegionEvent) => void) | undefined;
 
@@ -59,18 +60,24 @@ function record(line: string) {
 	}
 }
 
-export async function acquireRegion(nodeId: string): Promise<void> {
-	clearTimeout(idleTimer);
-	holders.add(nodeId);
+// Boots on first call and is awaited by every later one, so warming and a resource that
+// needs the region share a single boot. The region then lives as long as the container:
+// every node can emit CloudWatch, so there is no point at which nothing wants it
+export async function ensureRegion(): Promise<void> {
 	region ??= boot();
 	await region.ready;
 }
 
-export function releaseRegion(nodeId: string) {
-	holders.delete(nodeId);
-	if (holders.size > 0 || !region) return;
-	clearTimeout(idleTimer);
-	idleTimer = setTimeout(() => void stopRegion(), IDLE_STOP_MS);
+// A process-less node's stand-in for a process exit: the region is what it is really
+// running on, so an unexpected region death is that node crashing
+const exitWaiters = new Set<(code: number) => void>();
+
+export function regionExit(): { exited: Promise<number>; cancel: () => void } {
+	let waiter!: (code: number) => void;
+	// The executor runs before the constructor returns, so waiter is set by the next line
+	const exited = new Promise<number>((resolve) => (waiter = resolve));
+	exitWaiters.add(waiter);
+	return { exited, cancel: () => exitWaiters.delete(waiter) };
 }
 
 // Graceful: the bridge writes the emulator's state files before exiting
@@ -192,6 +199,8 @@ function onExit(exited: Region, code: number) {
 	region = undefined;
 	consecutiveCrashes += 1;
 	record(`Region process exited with code ${code}`);
+	for (const resolve of exitWaiters) resolve(code);
+	exitWaiters.clear();
 	toast.error('The local AWS region stopped unexpectedly; it restarts on next use');
 }
 
@@ -245,7 +254,5 @@ async function ensureCache(container: Vivari, directory: string) {
 }
 
 onContainerShutdown(async () => {
-	clearTimeout(idleTimer);
-	holders.clear();
 	await stopRegion();
 });

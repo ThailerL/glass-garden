@@ -1,7 +1,7 @@
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
-import type { Upstream, Instance, ResourceDefinition, ResourceStatus } from './resources';
+import type { ConnectedNode, Instance, ResourceDefinition, ResourceStatus } from './resources';
 import { mountNodeFiles } from './container';
 import { nodeFiles } from './files/node-files';
 import { nodeName } from './graph-state.svelte';
@@ -20,7 +20,7 @@ const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
 export function launchPlan(
 	definition: ResourceDefinition,
 	node: Node | undefined,
-	upstreams: readonly Upstream[]
+	upstreams: readonly ConnectedNode[]
 ): LaunchPlan {
 	const config = node ? definition.launchConfig?.(node, upstreams) : undefined;
 	return { config, stamp: stampOf(config) };
@@ -36,7 +36,7 @@ export type ControllerServices = {
 	// A port for a new instance, free of whatever this node's live instances are on
 	takePort: () => number;
 	reconcileReservations: () => void;
-	getUpstreams: () => readonly Upstream[];
+	getUpstreams: () => readonly ConnectedNode[];
 	scheduleDependents: () => void;
 	unregister: () => void;
 };
@@ -276,7 +276,7 @@ export class ResourceController {
 	async #spawnDeficit(
 		node: Node,
 		desired: number,
-		upstreams: readonly Upstream[],
+		upstreams: readonly ConnectedNode[],
 		launch: LaunchPlan,
 		replacing: boolean
 	) {
@@ -321,7 +321,7 @@ export class ResourceController {
 	async #spawnInstance(
 		node: Node,
 		container: Vivari,
-		upstreams: readonly Upstream[],
+		upstreams: readonly ConnectedNode[],
 		launchConfig: unknown,
 		instance: Instance
 	) {

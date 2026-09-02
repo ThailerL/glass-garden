@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { MetricLine } from '$lib/metrics';
+	import type { MetricLine, MetricSource } from '$lib/metrics';
 
 	// Colour comes from the tab, so every chart agrees on it
 	export type ChartLine = MetricLine & { color: string };
@@ -34,10 +34,13 @@
 		now: number;
 	} = $props();
 
+	// A node-level measurement has no port to name it by
+	const sourceLabel = (source: MetricSource) => (source === 'resource' ? 'resource' : `:${source}`);
+
 	const series = $derived(
 		lines.map(({ port, color }) => ({
 			key: String(port),
-			label: `:${port}`,
+			label: sourceLabel(port),
 			color,
 			value: (row: MetricWindowRow) => row[port] ?? null
 		}))
@@ -91,7 +94,7 @@
 			{#each lines as { port, color } (port)}
 				<li class="flex items-center gap-1.5">
 					<span class="size-2.5 rounded-xs" style="background-color: {color}"></span>
-					<span class="font-mono text-muted-foreground tabular-nums">:{port}</span>
+					<span class="font-mono text-muted-foreground tabular-nums">{sourceLabel(port)}</span>
 					<span class="tabular-nums">{format(total[port])}</span>
 				</li>
 			{/each}

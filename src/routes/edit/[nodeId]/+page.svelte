@@ -50,7 +50,7 @@ rendered either side of the boundary and stays in view for the whole wait -->
 			{#snippet mainContent()}
 				<div class="flex h-full items-center justify-center gap-2 text-muted-foreground">
 					<Spinner />
-					{orchestrator.restoringStoredData ? 'Restoring database files' : 'Booting the container'}
+					{orchestrator.restoringDatabase ? 'Restoring database files' : 'Booting'}
 				</div>
 			{/snippet}
 

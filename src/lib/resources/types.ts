@@ -59,9 +59,10 @@ export type Instance = {
 	startedAt: number;
 };
 
-// An outgoing edge's target with its current instances. The instances belong to another
+// The node at the other end of an edge, with its current instances - either direction, so
+// a resource can ask what it consumes or what consumes it. The instances belong to another
 // controller and are passed by reference, so they are read-only here
-export type Upstream = {
+export type ConnectedNode = {
 	readonly node: Node;
 	readonly instances: readonly Readonly<Instance>[];
 	readonly reservedPorts: readonly number[];
@@ -85,13 +86,17 @@ export type ResourceDefinition = {
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
 	metricDefaults?: Partial<Record<string, ChartReading>>;
 	instanceCount: (node: Node) => number;
+	// Whether an instance is a real process. A resource served by the AWS region still has one
+	// slot, but nothing listens on its port, so a port and a per-instance breakdown name
+	// nothing the user could act on
+	runsProcesses: boolean;
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a server-ready that
 	// never comes
 	readyOnStart?: boolean;
 	// Everything an instance is launched with that requires relaunching it when it changes:
 	// the node's own config, plus what upstreams hand down. Omitted when nothing does
-	launchConfig?: (node: Node, upstreams: readonly Upstream[]) => unknown;
+	launchConfig?: (node: Node, upstreams: readonly ConnectedNode[]) => unknown;
 	// How a dependent reaches one of this resource's instances, so nothing downstream has
 	// to know which engine is behind the port
 	connectionUrl?: (node: Node, port: number) => string;
@@ -100,13 +105,13 @@ export type ResourceDefinition = {
 		node: Node,
 		container: Vivari,
 		port: number,
-		upstreams: readonly Upstream[],
+		upstreams: readonly ConnectedNode[],
 		// What launchConfig returned, so an instance is guaranteed to run the config it is stamped with
 		launchConfig: unknown
 	) => Promise<InstanceHandle>;
 	// Called when something this resource points at changes, so it can rewrite whatever
 	// config its running process reads
-	update?: (node: Node, container: Vivari, upstreams: readonly Upstream[]) => Promise<void>;
+	update?: (node: Node, container: Vivari, upstreams: readonly ConnectedNode[]) => Promise<void>;
 	// Called when the node is deleted. For data that lives outside the node's directory
 	remove?: (node: Node, container: Vivari) => Promise<void>;
 };

@@ -4,11 +4,12 @@ import { Vivari } from '@vivari/core';
 import ServerIcon from '@lucide/svelte/icons/server';
 import * as resourceFiles from 'virtual:resource-files';
 import InstanceGroupConfig from './InstanceGroupConfig.svelte';
-import type { ResourceDefinition, Upstream } from '../types';
+import type { ResourceDefinition, ConnectedNode } from '../types';
 import { getResourceDefinition, upstreamsProviding } from '../index';
-import { npmInstall, processHandle } from '../shared';
+import { envSlug, npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
+import { awsEnv } from '$lib/aws-topology';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Instance Group'),
@@ -18,23 +19,12 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-// "Bob's Orders DB" -> BOBS_ORDERS_DB_URL. Apostrophes and accents are folded away
-// rather than becoming separators
-function variableName(node: Node) {
-	const slug = nodeName(node)
-		.normalize('NFD')
-		.replace(/['\u2019]/g, '')
-		.replace(/\p{Diacritic}/gu, '')
-		.toUpperCase()
-		.replace(/[^A-Z0-9]+/g, '_')
-		.replace(/^_+|_+$/g, '');
-	return `${slug || 'RESOURCE'}_URL`;
-}
+const variableName = (node: Node) => `${envSlug(node)}_URL`;
 
 // A variable per upstream that advertises a connection URL, named after it so an app
 // wired to several datastores gets meaningful names. Sorted so the set - and with it the
 // configStamp - never depends on edge insertion order
-function connectionEnv(upstreams: readonly Upstream[]): Record<string, string> {
+function connectionEnv(upstreams: readonly ConnectedNode[]): Record<string, string> {
 	const connections = upstreamsProviding(upstreams, 'sql')
 		.flatMap(({ node, reservedPorts }) => {
 			const { connectionUrl } = getResourceDefinition(node.type);
@@ -59,10 +49,14 @@ function connectionEnv(upstreams: readonly Upstream[]): Record<string, string> {
 	return env;
 }
 
-function launchConfig(node: Node, upstreams: readonly Upstream[]) {
+function launchConfig(node: Node, upstreams: readonly ConnectedNode[]) {
+	const awsTargets = upstreamsProviding(upstreams, 'aws').map(({ node: target }) => target);
 	return {
 		command: nodeConfig<Config>(node).command,
-		env: connectionEnv(upstreams)
+		env: {
+			...connectionEnv(upstreams),
+			...awsEnv(node, awsTargets)
+		}
 	};
 }
 
@@ -82,13 +76,14 @@ export const instanceGroup = {
 	// The names the examples report. A user's own metric falls back to the default
 	metricDefaults: { requests: 'sum', 'response ms': 'avg' },
 	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,
+	runsProcesses: true,
 	launchConfig,
 	prepare: npmInstall,
 	start: async (
 		node: Node,
 		container: Vivari,
 		port: number,
-		_upstreams: readonly Upstream[],
+		_upstreams: readonly ConnectedNode[],
 		config: unknown
 	) => {
 		const { command, env } = config as LaunchConfig;

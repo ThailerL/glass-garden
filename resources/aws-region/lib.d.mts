@@ -5,7 +5,13 @@ export type Principal = {
 	name: string;
 	resources: Record<Service, string[]>;
 };
-export type Topology = { services: string[]; principals: Record<string, Principal> };
+// owners maps a resource name back to the node serving it, so the bridge can attribute
+// what it observes about a resource to the node the user sees
+export type Topology = {
+	services: string[];
+	principals: Record<string, Principal>;
+	owners: Record<Service, Record<string, string>>;
+};
 export type Denial = {
 	allow: false;
 	status: number;
@@ -14,7 +20,11 @@ export type Denial = {
 	nodeId?: string;
 };
 export type Decision = { allow: true } | Denial;
-export type RegionEvent = { level: string; message: string; nodeId?: string };
+// Two things the bridge reports over one stdout channel: sentences for a node's log, and
+// measurements for its metric store
+export type RegionEvent =
+	| { kind: 'log'; level: 'info' | 'error'; message: string; nodeId?: string }
+	| { kind: 'metric'; nodeId: string; name: string; value: number };
 
 export const EVENT_PREFIX: string;
 export function parseCredential(authorization: string | undefined): Credential | undefined;

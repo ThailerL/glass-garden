@@ -19,7 +19,11 @@
 	const type = $derived(node?.type ?? '');
 	const definition = $derived(node && getResourceDefinition(node.type));
 	const ports = $derived(orchestrator.getReservedPorts(nodeId));
-	const shown = $derived(selected === 'all' ? ports : ports.filter((port) => port === selected));
+	const runsProcesses = $derived(definition?.runsProcesses ?? true);
+	const instancePorts = $derived(runsProcesses ? ports : []);
+	const shown = $derived(
+		selected === 'all' ? instancePorts : instancePorts.filter((port) => port === selected)
+	);
 
 	const instances = $derived(orchestrator.getInstances(nodeId));
 	const metrics = $derived(orchestrator.getMetrics(nodeId));
@@ -31,9 +35,18 @@
 		return () => clearInterval(clock);
 	});
 
-	// The union across every reserved port, so narrowing the selection keeps the set
+	// What the region reports for the node as a whole, which has no instance behind it
+	const resourceMetrics = $derived(metrics.resource ?? {});
+
+	// The union across every reserved port and the node itself, so narrowing the selection
+	// keeps the set
 	const metricNames = $derived(
-		[...new Set(ports.flatMap((port) => Object.keys(metrics[port] ?? {})))].sort()
+		[
+			...new Set([
+				...Object.keys(resourceMetrics),
+				...ports.flatMap((port) => Object.keys(metrics[port] ?? {}))
+			])
+		].sort()
 	);
 
 	// A resource says how its own metrics are read; anything else sums, since the avg of a count
@@ -46,9 +59,18 @@
 	const colorOf = (port: number) => `var(--chart-${(ports.indexOf(port) % 5) + 1})`;
 
 	// Every shown instance, reporting this metric or not, so a chart's legend never changes
-	// under the reader
+	// under the reader. A node-level reading belongs to no instance, so it is drawn whatever
+	// the selection narrows to
 	function linesFor(name: string): ChartLine[] {
-		return shown.map((port) => ({ port, color: colorOf(port), series: metrics[port]?.[name] }));
+		const lines: ChartLine[] = shown.map((port) => ({
+			port,
+			color: colorOf(port),
+			series: metrics[port]?.[name]
+		}));
+		if (resourceMetrics[name]) {
+			lines.unshift({ port: 'resource', color: 'var(--chart-1)', series: resourceMetrics[name] });
+		}
+		return lines;
 	}
 
 	function statusLabel(instance: Instance | undefined) {
@@ -93,6 +115,16 @@
 
 	<div class="min-h-0 flex-1 overflow-y-auto text-sm">
 		<ul>
+			{#if !runsProcesses}
+				{@const only = instances[0]}
+				<li class="flex items-center gap-2 border-b py-1.5 last:border-b-0">
+					<StatusDot status={only?.status ?? 'stopped'} />
+					<span class="text-muted-foreground">{statusLabel(only)}</span>
+					{#if uptimeText(only, now)}
+						<span class="text-xs text-muted-foreground tabular-nums">{uptimeText(only, now)}</span>
+					{/if}
+				</li>
+			{/if}
 			{#each shown as port (port)}
 				{@const instance = instances.find((candidate) => candidate.port === port)}
 				{@const instanceStatus = instance?.status ?? 'stopped'}
@@ -127,7 +159,7 @@
 			<p class="pt-2 text-xs text-muted-foreground">
 				No measurements yet. Resources report their own numbers as they run.
 			</p>
-		{:else if shown.length > 0}
+		{:else}
 			<div class="mt-4 space-y-3 border-t pt-3" data-tour="metrics-charts">
 				{#each metricNames as name (name)}
 					<MetricChart

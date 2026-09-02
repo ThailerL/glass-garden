@@ -20,7 +20,8 @@ const topology: Topology = {
 			name: 'Web App',
 			resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [] }
 		}
-	}
+	},
+	owners: { s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' }, dynamodb: {} }
 };
 
 describe('parseCredential', () => {
@@ -107,7 +108,8 @@ describe('decideRequest', () => {
 					name: 'Web App',
 					resources: { s3: ['assets'], sqs: [], dynamodb: [] }
 				}
-			}
+			},
+			owners: { s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' }, dynamodb: {} }
 		};
 		const decision = decideRequest(
 			{ credential: parseCredential(auth('sqs')), resourceName: 'jobs' },

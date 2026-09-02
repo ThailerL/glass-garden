@@ -4,7 +4,7 @@ import { Vivari } from '@vivari/core';
 import LoadBalancerIcon from './LoadBalancerIcon.svelte';
 import * as resourceFiles from 'virtual:resource-files';
 import HttpLoadBalancerConfig from './HttpLoadBalancerConfig.svelte';
-import type { Upstream, ResourceDefinition } from '../types';
+import type { ConnectedNode, ResourceDefinition } from '../types';
 import { upstreamsProviding } from '../index';
 import { processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
@@ -19,7 +19,7 @@ export type Config = z.infer<typeof configSchema>;
 
 // The targets and the algorithm travel in one file, so the running process can never read
 // a rotation that disagrees with the set it is rotating over
-async function updateConfig(node: Node, container: Vivari, upstreams: readonly Upstream[]) {
+async function updateConfig(node: Node, container: Vivari, upstreams: readonly ConnectedNode[]) {
 	const targets = upstreamsProviding(upstreams, 'http').flatMap(({ instances }) =>
 		instances.filter((instance) => instance.status === 'running').map((instance) => instance.port)
 	);
@@ -45,7 +45,13 @@ export const httpLoadBalancer = {
 	configSchema,
 	metricDefaults: { requests: 'sum', failures: 'sum', latency: 'avg' },
 	instanceCount: () => 1,
-	start: async (node: Node, container: Vivari, port: number, upstreams: readonly Upstream[]) => {
+	runsProcesses: true,
+	start: async (
+		node: Node,
+		container: Vivari,
+		port: number,
+		upstreams: readonly ConnectedNode[]
+	) => {
 		// Written before the process spawns so its first request already has the right targets
 		await updateConfig(node, container, upstreams);
 		const process = await container.spawn('node', ['server.js'], {

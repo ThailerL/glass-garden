@@ -1,15 +1,17 @@
 import type { Node } from '@xyflow/svelte';
-import type { Capability, ResourceDefinition, Upstream } from './types';
+import type { Capability, ResourceDefinition, ConnectedNode } from './types';
 import { instanceGroup } from './instance-group';
 import { httpLoadBalancer } from './http-load-balancer';
 import { postgres } from './postgres';
+import { s3Bucket } from './s3-bucket';
 
 export * from './types';
 
 export const resourceDefinitions = {
 	instanceGroup,
 	httpLoadBalancer,
-	postgres
+	postgres,
+	s3Bucket
 } satisfies Record<string, ResourceDefinition>;
 
 export type ResourceType = keyof typeof resourceDefinitions;
@@ -32,9 +34,9 @@ export function canConnect(source: Node, target: Node): boolean {
 // The upstreams a definition should actually read, so an edge that means nothing to it is
 // skipped rather than misread
 export function upstreamsProviding(
-	upstreams: readonly Upstream[],
+	upstreams: readonly ConnectedNode[],
 	capability: Capability
-): readonly Upstream[] {
+): readonly ConnectedNode[] {
 	return upstreams.filter(({ node }) =>
 		getResourceDefinition(node.type).provides.includes(capability)
 	);

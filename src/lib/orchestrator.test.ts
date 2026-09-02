@@ -15,7 +15,10 @@ vi.mock('$lib/container', () => ({
 	removeNodeFiles: vi.fn(),
 	shutdownContainer: vi.fn(),
 	requestPersistentStorage: vi.fn(),
-	setActiveProject: vi.fn()
+	setActiveProject: vi.fn(),
+	// The orchestrator reaches the AWS region, which registers a shutdown task as it loads
+	onContainerShutdown: vi.fn(),
+	activeProjectDirectory: vi.fn(() => '/projects/test')
 }));
 vi.mock('$lib/files/node-files', () => ({ nodeFiles: () => ({}) }));
 vi.mock('svelte-sonner', () => ({

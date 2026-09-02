@@ -34,6 +34,20 @@ async def gg_start():
     return json.dumps({"stateFiles": state_files, "deferred": DEFERRED, "failed": FAILED})
 
 
+# What each resource is holding, for the metrics its node shows. Read off the backends rather
+# than through the data plane, so sampling never counts as traffic the user caused.
+# _buckets is private to ministack, like the persistence call above: a release could move it
+async def gg_stats():
+    from ministack.services.s3 import _buckets
+
+    buckets = {}
+    for name, bucket in _buckets.items():
+        objects = bucket.get("objects") or {}
+        total = sum(entry.get("size", 0) for entry in objects.values())
+        buckets[name] = {"objects": len(objects), "size (MB)": total / 1e6}
+    return json.dumps({"s3": buckets})
+
+
 # Lifespan shutdown persists on its way out; the bridge copies the files afterwards
 async def gg_stop():
     await lifespan("shutdown")

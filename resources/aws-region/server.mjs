@@ -1,7 +1,7 @@
 // The region bridge. Owns the only socket (Python cannot listen under Pyodide), boots
 // the vendored Python runtime from ./cache, restores persisted state, then serves two
 // surfaces on one port: the AWS data plane (enforced against the topology, then handed
-// to the emulator in-process) and /control/* for the manager and agents (token-guarded).
+// to the emulator in-process) and /control/* for the host manager (token-guarded).
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -28,14 +28,16 @@ const STATE_ROOT = '/state';
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
 const SAVE_DEBOUNCE_MS = 500;
 const SAVE_MAX_WAIT_MS = 10_000;
+const SAMPLE_INTERVAL_MS = 1000;
 // Executed in this order into one shared global namespace; threads.py must land before
 // helpers.py imports the emulator, and api.py defines the gg_* functions the bridge calls
 const PYTHON_FILES = ['threads.py', 'helpers.py', 'api.py'];
 
 // Everything the bridge itself reports; bare stdout/stderr only relays Python output.
-// The manager routes events with a nodeId to that node's log and keeps the rest
-const emitEvent = (level, message, nodeId) =>
-  console.log(EVENT_PREFIX + JSON.stringify({ level, message, nodeId }));
+// The manager routes anything carrying a nodeId to that node and keeps the rest
+const emit = (event) => console.log(EVENT_PREFIX + JSON.stringify(event));
+const emitLog = (level, message, nodeId) => emit({ kind: 'log', level, message, nodeId });
+const emitMetric = (nodeId, name, value) => emit({ kind: 'metric', nodeId, name, value });
 
 // Explicit try/catch around the whole boot: Vivari neither surfaces uncaught VM errors
 // nor implements the process-level error events
@@ -122,13 +124,13 @@ for (const file of PYTHON_FILES) {
 const startup = JSON.parse(await py.runPythonAsync('await gg_start()'));
 // The emulator persists every service it implements, not just the three we serve, so this
 // counts files rather than listing them; /control/health carries the detail
-emitEvent(
+emitLog(
   'info',
   `Serving ministack ${meta.ministackVersion} with ${startup.stateFiles.length} state files,` +
     ` ${startup.deferred.length} background workers deferred`
 );
 if (startup.failed.length) {
-  emitEvent('error', `Background workers failed: ${startup.failed.join('; ')}`);
+  emitLog('error', `Background workers failed: ${startup.failed.join('; ')}`);
 }
 // Callable proxies to the Python functions: calling the emulator is a function call,
 // not a network hop
@@ -137,8 +139,11 @@ const provision = py.globals.get('gg_provision');
 const deprovision = py.globals.get('gg_deprovision');
 const saveState = py.globals.get('save_state');
 const shutdownEmulator = py.globals.get('gg_stop');
+const readStats = py.globals.get('gg_stats');
 
-let topology = { services: [], principals: {} };
+let topology = { services: [], principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
+// Reported once rather than every tick, so a lasting failure does not bury the log
+let sampleFailed = false;
 
 // Save on quiesce: every successful data-plane request re-arms a short debounce, with a
 // max wait so a sustained burst cannot hold the window open indefinitely
@@ -168,12 +173,44 @@ function runSave() {
     saveState();
     persistState();
   } catch (error) {
-    emitEvent('error', `Saving state failed: ${error?.message || error}`);
+    emitLog('error', `Saving state failed: ${error?.message || error}`);
   }
   saveRunning = false;
   if (savePending) {
     savePending = false;
     armSave();
+  }
+}
+
+// A resource's own node hears about the traffic reaching it. Denials are reported against
+// the caller instead - that is who has to draw the edge - so they are not counted here
+function reportRequest(service, resourceName, method, pathname, status) {
+  const nodeId = topology.owners[service]?.[resourceName];
+  if (!nodeId) return;
+  emitMetric(nodeId, 'requests', 1);
+  if (status >= 400) emitMetric(nodeId, 'errors', 1);
+  emitLog('info', `${method} ${pathname} ${status}`, nodeId);
+}
+
+// What a resource is holding, sampled on a timer because there is no request to hang it off.
+// Read straight from the emulator rather than through the data plane, so the sampling does
+// not show up as traffic the user never caused
+async function sampleResources() {
+  let stats;
+  try {
+    stats = JSON.parse(await readStats());
+  } catch (error) {
+    if (!sampleFailed) emitLog('error', `Could not read resource stats: ${error?.message || error}`);
+    sampleFailed = true;
+    return;
+  }
+  sampleFailed = false;
+  for (const [service, byName] of Object.entries(stats)) {
+    for (const [name, readings] of Object.entries(byName)) {
+      const nodeId = topology.owners[service]?.[name];
+      if (!nodeId) continue;
+      for (const [metric, value] of Object.entries(readings)) emitMetric(nodeId, metric, value);
+    }
   }
 }
 
@@ -211,7 +248,7 @@ async function handleControl(req, res, url, body) {
       await shutdownEmulator();
       persistState();
     } catch (error) {
-      emitEvent('error', `Final save failed: ${error?.message || error}`);
+      emitLog('error', `Final save failed: ${error?.message || error}`);
     }
     json(res, 200, { stopped: true });
     setTimeout(() => process.exit(0), 50);
@@ -228,7 +265,7 @@ async function handleAws(req, res, url, body) {
   const resourceName = extractResourceName(service, url.pathname, bodyText);
   const decision = decideRequest({ credential, resourceName }, topology);
   if (!decision.allow) {
-    emitEvent(
+    emitLog(
       'error',
       `Denied ${req.method} ${url.pathname}: ${decision.message}`,
       decision.nodeId
@@ -251,6 +288,7 @@ async function handleAws(req, res, url, body) {
   );
   res.writeHead(status, Object.fromEntries(JSON.parse(headersJson)));
   res.end(responseBody);
+  reportRequest(service, resourceName, req.method, url.pathname, status);
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
   if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') armSave();
@@ -262,7 +300,7 @@ const server = http.createServer((req, res) => {
   req.on('data', (chunk) => {
     size += chunk.length;
     if (size > MAX_BODY_BYTES) {
-      emitEvent('error', `Rejected ${req.method} ${req.url}: body larger than ${MAX_BODY_BYTES} bytes`);
+      emitLog('error', `Rejected ${req.method} ${req.url}: body larger than ${MAX_BODY_BYTES} bytes`);
       json(res, 413, { message: 'request body too large' });
       req.destroy();
       return;
@@ -274,7 +312,7 @@ const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const handler = url.pathname.startsWith('/control/') ? handleControl : handleAws;
     handler(req, res, url, body).catch((error) => {
-      emitEvent('error', `${req.method} ${url.pathname} failed: ${error.message}`);
+      emitLog('error', `${req.method} ${url.pathname} failed: ${error.message}`);
       if (!res.headersSent) json(res, 500, { message: 'internal error' });
     });
   });
@@ -283,6 +321,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`Region listening on port ${PORT}`);
 });
+setInterval(() => void sampleResources(), SAMPLE_INTERVAL_MS);
 } catch (error) {
   console.log(`Region failed to start: ${error?.stack ?? error}`);
   process.exit(1);

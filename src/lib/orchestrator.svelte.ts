@@ -2,18 +2,20 @@ import { SvelteMap } from 'svelte/reactivity';
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
-import { anyStoredDataNodes, GraphState, nodeName, nodePorts } from './graph-state.svelte';
+import { anyPostgresNodes, GraphState, nodeName, nodePorts } from './graph-state.svelte';
 import { createContext } from './context';
 import { messageOf } from './errors';
 import {
 	getResourceDefinition,
 	type Instance,
 	type ResourceStatus,
-	type Upstream
+	type ConnectedNode
 } from './resources';
 import { ResourceController, type ControllerServices } from './resource-controller.svelte';
 import type { MetricStore, OutputLine, ResourceEvent } from './resource-log.svelte';
 import { getContainer, removeNodeFiles, shutdownContainer } from './container';
+import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
+import { buildTopology } from './aws-topology';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -32,9 +34,19 @@ export class Orchestrator {
 	#containerError = $state<string | undefined>();
 	#slowBoot = $state(false);
 	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
+	#warmingRegion = $state(false);
 
 	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
+		// Both kinds carry the node they belong to: a denial names the code that was refused,
+		// so it reads in that node's log rather than somewhere the user would never look, and
+		// a measurement lands in that node's charts
+		onRegionEvent((event) => {
+			const log = event.nodeId ? this.#controllers.get(event.nodeId)?.log : undefined;
+			if (!log) return;
+			if (event.kind === 'metric') log.recordMetric('resource', event);
+			else log.event('resource', event.level, event.message);
+		});
 		this.reconcileAllReservations();
 	}
 
@@ -46,15 +58,29 @@ export class Orchestrator {
 		return this.#containerError;
 	}
 
-	// A slow boot is almost always a database restoring its files, so a canvas with one can say so
-	get restoringStoredData(): boolean {
-		return this.#slowBoot && !this.#containerReady && anyStoredDataNodes();
+	// Only Postgres restores enough at boot to be worth naming: it is the one resource whose
+	// files make the container's own boot slow
+	get restoringDatabase(): boolean {
+		return this.#slowBoot && !this.#containerReady && anyPostgresNodes();
+	}
+
+	// Named because it is a real wait: the region starts a Python runtime, and every node can
+	// emit CloudWatch through it. Not gating - a node that never calls AWS still runs, so a
+	// region that fails to start costs telemetry rather than the canvas
+	get warmingRegion(): boolean {
+		return this.#warmingRegion;
 	}
 
 	warmUp() {
 		// No node owns this failure, and nothing can run without it, so it is said once here
 		// rather than waiting for the first start to report it as a failed prepare
-		void this.#getContainer().catch(() => toast.error('Container failed to boot'));
+		void this.#getContainer()
+			.then(() => {
+				this.#warmingRegion = true;
+				return ensureRegion().finally(() => (this.#warmingRegion = false));
+			})
+			// ensureRegion already toasts; a start that needs the region reports it again
+			.catch(() => {});
 	}
 
 	reset() {
@@ -101,18 +127,31 @@ export class Orchestrator {
 		return nodePorts(node);
 	}
 
-	// Rebuilt per call rather than cached, so a definition always reads current edges
-	getUpstreams(nodeId: string): readonly Upstream[] {
+	// What this node points at: the resources it consumes. Rebuilt per call rather than
+	// cached, so a definition always reads current edges
+	getUpstreams(nodeId: string): readonly ConnectedNode[] {
+		return this.#linked(nodeId, 'source');
+	}
+
+	// What points at this node: the resources consuming it. The question a resource that only
+	// provides has to ask, since it has no upstreams of its own
+	getDependents(nodeId: string): readonly ConnectedNode[] {
+		return this.#linked(nodeId, 'target');
+	}
+
+	// Both directions read an edge the same way; only which end is matched differs
+	#linked(nodeId: string, end: 'source' | 'target'): readonly ConnectedNode[] {
+		const far = end === 'source' ? 'target' : 'source';
 		return this.#graphState.edges
-			.filter((edge) => edge.source === nodeId)
+			.filter((edge) => edge[end] === nodeId)
 			.flatMap((edge) => {
-				const node = this.#graphState.getNode(edge.target);
+				const node = this.#graphState.getNode(edge[far]);
 				return node
 					? [
 							{
 								node,
-								instances: this.getInstances(edge.target),
-								reservedPorts: this.getReservedPorts(edge.target)
+								instances: this.getInstances(node.id),
+								reservedPorts: this.getReservedPorts(node.id)
 							}
 						]
 					: [];
@@ -189,6 +228,7 @@ export class Orchestrator {
 	// Config or edges changed: resize the reservation (even while stopped) and reconcile
 	refresh(nodeId: string) {
 		this.#reconcileReservations(nodeId);
+		this.#pushTopology();
 		this.#controllers.get(nodeId)?.schedule();
 	}
 
@@ -197,6 +237,13 @@ export class Orchestrator {
 		for (const id of this.#graphState.nodes.map((node) => node.id)) {
 			this.#reconcileReservations(id);
 		}
+		this.#pushTopology();
+	}
+
+	// What the region enforces on: rebuilt from the graph whenever it changes, and a no-op
+	// while no region is running
+	#pushTopology() {
+		setRegionTopology(buildTopology(this.#graphState.nodes, this.#graphState.edges));
 	}
 
 	#controllerFor(node: Node): ResourceController {
@@ -320,9 +367,7 @@ export class Orchestrator {
 	}
 
 	#scheduleDependents(nodeId: string) {
-		for (const edge of this.#graphState.edges) {
-			if (edge.target === nodeId) this.#controllers.get(edge.source)?.schedule();
-		}
+		for (const { node } of this.getDependents(nodeId)) this.#controllers.get(node.id)?.schedule();
 	}
 }
 

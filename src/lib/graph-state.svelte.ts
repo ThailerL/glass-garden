@@ -35,14 +35,13 @@ export function graphKeyPrefix(projectId: string) {
 }
 
 // Every project's nodes share one VFS, so a boot restores them all - a database in a project
-// not on screen still spends the wait. Read from storage, not a GraphState, for the same reason
-export function anyStoredDataNodes(): boolean {
+// not on screen still spends the wait. Read from storage, not a GraphState, for the same reason.
+// Postgres specifically, not every resource that stores something: its files are the ones
+// heavy enough to explain a slow boot
+export function anyPostgresNodes(): boolean {
 	return keysWithPrefix(GRAPH_PREFIX)
 		.filter((key) => key.includes(':node:'))
-		.some((key) => {
-			const type = readEntry<Node>(key)?.type;
-			return resourceDefinitions[type as ResourceType]?.ownsStoredData ?? false;
-		});
+		.some((key) => readEntry<Node>(key)?.type === ('postgres' satisfies ResourceType));
 }
 
 export class GraphState {

@@ -117,11 +117,16 @@ export function statistic(bucket: MetricBucket, stat: MetricStatistic): number |
 	return stat === 'avg' ? bucket.sum / bucket.n : bucket[stat];
 }
 
+// An instance, named by its port, or the node itself: the region reports what a resource
+// holds for the whole node, with no process behind it
+export type MetricSource = number | 'resource';
 // series is optional so an instance that has never reported this metric still holds its place
-export type MetricLine = { port: number; series?: MetricSeries };
-// instance port: metric value, plus the same reading across every line at once
+export type MetricLine = { port: MetricSource; series?: MetricSeries };
+// source: metric value, plus the same reading across every line at once
 export const ALL_LINES = 'all';
-export type MetricWindowRow = { time: Date; all: number | null } & Record<number, number | null>;
+export type MetricWindowRow = { time: Date; all: number | null } & Partial<
+	Record<MetricSource, number | null>
+>;
 
 // Rows sit on a fixed grid rather than being measured back from the clock, so a row keeps its
 // value once the clock is past it. Anchored to `now`, every boundary slides a second at a time
@@ -156,9 +161,9 @@ export function metricWindow(
 	const stat = reading === 'cumsum' ? 'sum' : reading;
 	const end = windowEnd(now, gridMs);
 	const rows: MetricWindowRow[] = [];
-	const running: Record<number | string, number> = {};
+	const running: Record<MetricSource | string, number> = {};
 	// Anchored to the left edge of the window rather than to the series
-	const read = (key: number | typeof ALL_LINES, bucket: MetricBucket) => {
+	const read = (key: MetricSource | typeof ALL_LINES, bucket: MetricBucket) => {
 		const value = statistic(bucket, stat) ?? null;
 		if (reading !== 'cumsum') return value;
 		running[key] = (running[key] ?? 0) + (value ?? 0);

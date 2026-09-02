@@ -5,7 +5,7 @@ import DatabaseIcon from '@lucide/svelte/icons/database';
 import * as resourceFiles from 'virtual:resource-files';
 import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
-import type { Capture, ResourceDefinition, Upstream } from '../types';
+import type { Capture, ResourceDefinition, ConnectedNode } from '../types';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -37,6 +37,7 @@ export const postgres = {
 	metricDefaults: { connections: 'avg', 'database size (MB)': 'avg' },
 	// PGlite is single-writer, so a second instance would be a second database
 	instanceCount: () => 1,
+	runsProcesses: true,
 	connectionUrl: (_node: Node, port: number) => connectionUrl(port),
 	launchConfig,
 	prepare: async (node: Node, container: Vivari, capture: Capture) => {
@@ -46,7 +47,7 @@ export const postgres = {
 		node: Node,
 		container: Vivari,
 		port: number,
-		_upstreams: readonly Upstream[],
+		_upstreams: readonly ConnectedNode[],
 		config: unknown
 	) => {
 		const { maxConnections } = config as LaunchConfig;

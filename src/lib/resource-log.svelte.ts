@@ -66,10 +66,12 @@ export class ResourceLog {
 			this.event(source, 'warning', `Ignored a metric line - it is ${parsed.reason}`);
 			return;
 		}
-		this.#recordMetric(source, parsed.report);
+		this.recordMetric(source, parsed.report);
 	}
 
-	#recordMetric(source: LogSource, { name, value }: MetricReport) {
+	// Public because the region reports a resource's own measurements over its event
+	// channel rather than through captured output
+	recordMetric(source: LogSource, { name, value }: MetricReport) {
 		const now = Date.now();
 		this.metrics[source] ??= {};
 		// Read back rather than reuse: $state hands out a proxy of what we assigned
