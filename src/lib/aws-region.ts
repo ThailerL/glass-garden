@@ -31,7 +31,6 @@ type Region = {
 	// The page cannot dial VM ports; control calls go through Vivari's preview route
 	previewUrl: string;
 	token: string;
-	stopping: boolean;
 };
 
 let region: Region | undefined;
@@ -54,13 +53,19 @@ export function onRegionEvent(route: (event: RegionEvent) => void) {
 function record(line: string) {
 	output.push(line);
 	if (output.length > OUTPUT_LIMIT) output = output.slice(-OUTPUT_LIMIT);
-	if (line.startsWith(EVENT_PREFIX)) {
-		try {
-			onEvent?.(JSON.parse(line.slice(EVENT_PREFIX.length)));
-		} catch {
-			// a malformed event is still in the ring above
-		}
+}
+
+// Only the VM's own output carries events; a malformed one is still in the ring above
+function handleOutput(line: string) {
+	record(line);
+	if (!line.startsWith(EVENT_PREFIX)) return;
+	let event: RegionEvent;
+	try {
+		event = JSON.parse(line.slice(EVENT_PREFIX.length));
+	} catch {
+		return;
 	}
+	onEvent?.(event);
 }
 
 // Boots on first call and is awaited by every later one, so warming and a resource that
@@ -88,7 +93,6 @@ export async function stopRegion(): Promise<void> {
 	const current = region;
 	if (!current) return;
 	region = undefined;
-	current.stopping = true;
 	try {
 		await current.ready;
 	} catch {
@@ -160,7 +164,6 @@ function boot(): Region {
 		token: crypto.randomUUID(),
 		directory: '',
 		previewUrl: '',
-		stopping: false,
 		ready: Promise.resolve()
 	};
 	created.ready = (async () => {
@@ -196,7 +199,7 @@ function boot(): Region {
 			env: { PORT: String(REGION_PORT), GG_CONTROL_TOKEN: created.token }
 		});
 		created.process = process;
-		captureLines(process.output, record);
+		captureLines(process.output, handleOutput);
 		void process.exit.then((code) => onExit(created, code));
 		try {
 			created.previewUrl = await Promise.race([
@@ -220,7 +223,7 @@ function boot(): Region {
 
 // Only an exit we did not ask for is a crash; a graceful stop has already cleared `region`
 function onExit(exited: Region, code: number) {
-	if (region !== exited || exited.stopping) return;
+	if (region !== exited) return;
 	region = undefined;
 	consecutiveCrashes += 1;
 	record(`Region process exited with code ${code}`);
