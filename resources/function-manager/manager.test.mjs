@@ -48,7 +48,13 @@ async function waitUntil(find, what, timeout = 5000) {
 
 const running = [];
 
-async function startManager({ config, handler = ECHO_HANDLER, handlerFile = 'index.mjs' } = {}) {
+async function startManager({
+  config,
+  handler = ECHO_HANDLER,
+  handlerFile = 'index.mjs',
+  idleMs = 60_000,
+  initTimeoutMs = 30_000
+} = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), 'function-manager-'));
   await writeFile(path.join(dir, 'package.json'), '{"type":"module"}');
   await writeFile(path.join(dir, handlerFile), handler);
@@ -60,7 +66,9 @@ async function startManager({ config, handler = ECHO_HANDLER, handlerFile = 'ind
       ...process.env,
       PORT: String(port),
       AWS_LAMBDA_FUNCTION_NAME: 'tested',
-      GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS)
+      GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS),
+      GG_IDLE_MS: String(idleMs),
+      GG_INIT_TIMEOUT_MS: String(initTimeoutMs)
     }
   });
   const lines = [];
@@ -205,6 +213,28 @@ describe('function URL', () => {
     await fetch(manager.url('/again'));
     expect(environmentIds(manager.lines)).toHaveLength(2);
     expect(environmentIds(manager.lines)[0]).toBe(first);
+  });
+
+  it('reaps an environment left idle, so the function falls back to zero', async () => {
+    const manager = await startManager({ idleMs: 300 });
+    await fetch(manager.url('/'));
+    await manager.waitFor((l) => /idle for 0.3 s/.test(l), 3000);
+    await manager.waitFor((l) => l.startsWith('gg:env-exit '));
+
+    await fetch(manager.url('/again'));
+    expect(environmentIds(manager.lines)).toHaveLength(2);
+  });
+
+  it('reaps an environment that never asks for work', async () => {
+    const manager = await startManager({
+      // Alive but never loading: the timer keeps the event loop busy, so node does not
+      // notice the unsettled await and exit on its own
+      handler: 'setInterval(() => {}, 1000); await new Promise(() => {});',
+      initTimeoutMs: 300
+    });
+    const response = await fetch(manager.url('/'));
+    expect(response.status).toBe(502);
+    await manager.waitFor((l) => /never asked for work/.test(l));
   });
 
   it('fails the invocation when the handler cannot be loaded', async () => {

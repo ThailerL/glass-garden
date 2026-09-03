@@ -24,6 +24,11 @@ const FUNCTION_ARN = `arn:aws:lambda:us-east-1:000000000000:function:${FUNCTION_
 const THROTTLED = 'TooManyRequestsException';
 // Overridable so tests need not wait a second per re-read
 const CONFIG_POLL_MS = Number(process.env.GG_CONFIG_POLL_MS) || 1000;
+// Lambda keeps a warm environment for minutes; shorter here so a cold start stays visible
+// under hand-driven traffic
+const IDLE_MS = Number(process.env.GG_IDLE_MS) || 60_000;
+// An environment that never asks for work is broken, whatever it is doing
+const INIT_TIMEOUT_MS = Number(process.env.GG_INIT_TIMEOUT_MS) || 30_000;
 
 // Until config.json says otherwise: enough concurrency to be worth watching, few enough
 // processes to be harmless
@@ -103,6 +108,8 @@ function spawnEnvironment() {
     waiting: undefined,
     invocation: undefined,
     invocations: 0,
+    idleTimer: undefined,
+    initTimer: setTimeout(() => reap(env, 'never asked for work'), INIT_TIMEOUT_MS),
   };
   environments.set(id, env);
   console.log(`Starting execution environment ${id}`);
@@ -125,8 +132,16 @@ function spawnEnvironment() {
 
   child.on('error', (error) => console.error(`Environment ${id} could not start: ${error.message}`));
   child.on('exit', (code, signal) => {
+    clearTimeout(env.initTimer);
+    clearTimeout(env.idleTimer);
     if (!environments.delete(id)) return;
     console.log(`gg:env-exit ${id}`);
+    if (!env.readyAt) {
+      failStartup(env, {
+        errorType: 'Runtime.InitError',
+        errorMessage: 'The execution environment stopped before it asked for an invocation',
+      });
+    }
     if (env.invocation) {
       complete(env.invocation, {
         error: {
@@ -137,6 +152,15 @@ function spawnEnvironment() {
     }
     dispatch();
   });
+}
+
+// An environment that dies before it ever asks for work means the function cannot start, so
+// the invocation that spawned it fails with the reason instead of waiting on a respawn loop
+function failStartup(env, error) {
+  if (env.startupFailed) return;
+  env.startupFailed = true;
+  const invocation = pending.shift();
+  if (invocation) invocation.resolve({ error });
 }
 
 function reap(env, reason) {
@@ -161,6 +185,7 @@ function dispatch() {
 }
 
 function assign(env, invocation) {
+  clearTimeout(env.idleTimer);
   const res = env.waiting;
   env.waiting = undefined;
   env.invocation = invocation;
@@ -235,12 +260,16 @@ function handleRuntimeApi(req, res, route, body) {
   if (!env) return respondJson(res, 404, { errorMessage: 'Unknown execution environment' });
 
   if (req.method === 'GET' && route === 'invocation/next') {
+    clearTimeout(env.initTimer);
     env.readyAt ??= Date.now();
     env.waiting = res;
     // The environment went away mid-wait: not idle any more, and not to be handed work
     req.on('close', () => {
       if (env.waiting === res) env.waiting = undefined;
     });
+    // Lambda's scale to zero: an environment nothing needs stops, and the next request
+    // pays for a new one
+    env.idleTimer = setTimeout(() => reap(env, `idle for ${IDLE_MS / 1000} s`), IDLE_MS);
     dispatch();
     return;
   }
@@ -271,8 +300,7 @@ function handleRuntimeApi(req, res, route, body) {
       error = { errorType: 'Runtime.InitError', errorMessage: body.toString('utf8') };
     }
     console.error(`Environment ${env.id} failed to initialize: ${error.errorMessage}`);
-    const invocation = pending.shift();
-    if (invocation) invocation.resolve({ error });
+    failStartup(env, error);
     reap(env, 'failed to initialize');
     return respondJson(res, 202, { status: 'OK' });
   }
