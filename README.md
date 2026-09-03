@@ -1,8 +1,8 @@
 # Glass Garden
 
-[Try it live](https://glass.garden/) - a two-minute guided tour starts you off
-
 Build cloud architecture by dragging load balancers, instance groups, and AWS services onto a canvas. Press play, use your app, and watch where requests go.
+
+[Try it live](https://glass.garden/) - a two-minute guided tour starts you off
 
 Everything on your canvas is running real code, and your app talks to it the same way it would in production:
 
