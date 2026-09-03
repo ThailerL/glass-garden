@@ -16,6 +16,6 @@ mx-2 makes the separator wider than the sidebar and lets it scroll sideways -->
 	bind:ref
 	data-slot="sidebar-separator"
 	data-sidebar="separator"
-	class={cn('mx-2 data-[orientation=horizontal]:w-auto bg-sidebar-border', className)}
+	class={cn('mx-2 bg-sidebar-border data-[orientation=horizontal]:w-auto', className)}
 	{...restProps}
 />
