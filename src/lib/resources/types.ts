@@ -5,7 +5,7 @@ import { type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
 import type { ChartReading } from '$lib/metrics';
 
-// What a resource offers its dependents and what it needs from them. An edge is legal when
+// What a resource offers and what it needs from what it points at. An edge is legal when
 // its source consumes something its target provides
 export type Capability = 'http' | 'sql' | 'aws';
 
@@ -27,7 +27,7 @@ export type Capture = (output: ReadableStream<string>) => void;
 export type InstanceStatus =
 	// From slot creation until fully up: spawning, then waiting for its server to listen
 	| 'starting'
-	// Fully up, in its dependents' rotation. Reached via server-ready, or straight
+	// Fully up, in the rotation of whatever points at it. Reached via server-ready, or straight
 	// from start for definitions with readyOnStart
 	| 'running'
 	| 'stopping'
@@ -118,24 +118,29 @@ export type ResourceDefinition = {
 	// never comes
 	readyOnStart?: boolean;
 	// Everything an instance is launched with that requires relaunching it when it changes:
-	// the node's own config, plus what upstreams hand down. Omitted when nothing does
-	launchConfig?: (node: Node, upstreams: readonly ConnectedNode[]) => unknown;
-	// What a consumer connected to this resource finds in its environment. The suffix is
-	// appended to the consumer-facing slug of this node's name; soleName is the conventional
-	// variable, used only when this is the one resource of its kind connected
+	// the node's own config, plus what its neighbours hand down. Omitted when nothing does
+	launchConfig?: (node: Node, neighbours: readonly ConnectedNode[]) => unknown;
+	// What a node connected to this one, at either end, finds in its environment. The suffix
+	// is appended to the consumer-facing slug of this node's name; soleName is the
+	// conventional variable, used only when this is the one resource of its kind connected
 	supplies?: (node: Node, port: number) => { suffix: string; value: string; soleName: string };
 	prepare?: (node: Node, container: Vivari, capture: Capture) => Promise<void>;
 	start: (
 		node: Node,
 		container: Vivari,
 		port: number,
-		upstreams: readonly ConnectedNode[],
+		targets: readonly ConnectedNode[],
 		// What launchConfig returned, so an instance is guaranteed to run the config it is stamped with
 		launchConfig: unknown
 	) => Promise<InstanceHandle>;
-	// Called when something this resource points at changes, so it can rewrite whatever
-	// config its running process reads
-	update?: (node: Node, container: Vivari, upstreams: readonly ConnectedNode[]) => Promise<void>;
+	// Called when something connected to this resource changes, at either end, so it can
+	// rewrite whatever config its running process reads
+	update?: (
+		node: Node,
+		container: Vivari,
+		targets: readonly ConnectedNode[],
+		sources: readonly ConnectedNode[]
+	) => Promise<void>;
 	// Called when the node is deleted. For data that lives outside the node's directory
 	remove?: (node: Node, container: Vivari) => Promise<void>;
 };

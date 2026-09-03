@@ -20,9 +20,9 @@ const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
 export function launchPlan(
 	definition: ResourceDefinition,
 	node: Node | undefined,
-	upstreams: readonly ConnectedNode[]
+	neighbours: readonly ConnectedNode[]
 ): LaunchPlan {
-	const config = node ? definition.launchConfig?.(node, upstreams) : undefined;
+	const config = node ? definition.launchConfig?.(node, neighbours) : undefined;
 	return { config, stamp: stampOf(config) };
 }
 
@@ -38,8 +38,11 @@ export type ControllerServices = {
 	// A port for a new instance, free of whatever this node's live instances are on
 	takePort: () => number;
 	reconcileReservations: () => void;
-	getUpstreams: () => readonly ConnectedNode[];
-	scheduleDependents: () => void;
+	getTargets: () => readonly ConnectedNode[];
+	getSources: () => readonly ConnectedNode[];
+	getNeighbours: () => readonly ConnectedNode[];
+	// Everything connected to this node, at either end, reads its instances
+	scheduleNeighbours: () => void;
 	unregister: () => void;
 };
 
@@ -60,7 +63,7 @@ export class ResourceController {
 	#services: ControllerServices;
 	#dirty = false;
 	#converging = false;
-	// What dependents last saw, so they are only rescheduled on real change
+	// What neighbours last saw, so they are only rescheduled on real change
 	#lastEndpoints: number[] = [];
 	// Consecutive deployments that never got an instance running; at the cap the
 	// reconciler stops respawning so a broken command doesn't loop forever
@@ -200,8 +203,8 @@ export class ResourceController {
 		const node = this.#services.getNode();
 		const desired = this.wantsRunning && node ? this.#definition.instanceCount(node) : 0;
 		// Built once and handed to start, so an instance launches with what it is stamped with
-		const upstreams = this.#services.getUpstreams();
-		const launch = launchPlan(this.#definition, node, upstreams);
+		const targets = this.#services.getTargets();
+		const launch = launchPlan(this.#definition, node, this.#services.getNeighbours());
 
 		// Whatever the deficit step puts up after a slot was freed is a replacement rather
 		// than a first start
@@ -225,17 +228,18 @@ export class ResourceController {
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
 
 		if (node && this.instances.length < desired) {
-			await this.#spawnDeficit(node, desired, upstreams, launch, replacing);
+			await this.#spawnDeficit(node, desired, targets, launch, replacing);
 		}
 
 		if (node && this.wantsRunning && this.#definition.update) {
 			try {
-				// Read fresh rather than reusing the pass's upstreams: spawning may have taken a
+				// Read fresh rather than reusing the pass's: spawning may have taken a
 				// while, and update exists to reflect current topology
 				await this.#definition.update(
 					node,
 					await this.#services.getContainer(),
-					this.#services.getUpstreams()
+					this.#services.getTargets(),
+					this.#services.getSources()
 				);
 				this.#updateFailed = false;
 			} catch (e) {
@@ -249,7 +253,7 @@ export class ResourceController {
 		}
 
 		this.#services.reconcileReservations();
-		this.#notifyDependents();
+		this.#notifyNeighbours();
 	}
 
 	// Auto-restart: drops crashed instances so the deficit step refills their slots, charging
@@ -278,7 +282,7 @@ export class ResourceController {
 	async #spawnDeficit(
 		node: Node,
 		desired: number,
-		upstreams: readonly ConnectedNode[],
+		targets: readonly ConnectedNode[],
 		launch: LaunchPlan,
 		replacing: boolean
 	) {
@@ -310,7 +314,7 @@ export class ResourceController {
 			);
 			await Promise.all(
 				pending.map((instance) =>
-					this.#spawnInstance(node, container, upstreams, launch.config, instance)
+					this.#spawnInstance(node, container, targets, launch.config, instance)
 				)
 			);
 		} catch (e) {
@@ -325,7 +329,7 @@ export class ResourceController {
 	async #spawnInstance(
 		node: Node,
 		container: Vivari,
-		upstreams: readonly ConnectedNode[],
+		targets: readonly ConnectedNode[],
 		launchConfig: unknown,
 		instance: Instance
 	) {
@@ -334,7 +338,7 @@ export class ResourceController {
 				node,
 				container,
 				instance.port,
-				upstreams,
+				targets,
 				launchConfig
 			);
 			instance.handle = handle;
@@ -439,7 +443,7 @@ export class ResourceController {
 	}
 
 	// A spawned process is not a listening server, so this is the first point at which
-	// dependents can be pointed at the instance
+	// whatever points at this node can be pointed at the instance
 	onServerReady(port: number, url: string): boolean {
 		const instance = this.instances.find((instance) => instance.port === port);
 		if (!instance) return false;
@@ -456,14 +460,14 @@ export class ResourceController {
 		return true;
 	}
 
-	#notifyDependents() {
+	#notifyNeighbours() {
 		const endpoints = this.instances
 			.filter((instance) => instance.status === 'running')
 			.map((instance) => instance.port)
 			.sort((a, b) => a - b);
 		if (endpoints.join(',') === this.#lastEndpoints.join(',')) return;
 		this.#lastEndpoints = endpoints;
-		this.#services.scheduleDependents();
+		this.#services.scheduleNeighbours();
 	}
 
 	// Falls back to the resource's own name once the node is gone from the graph

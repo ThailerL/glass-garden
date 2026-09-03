@@ -19,16 +19,28 @@ function awsCredentials(consumer: Node): Record<string, string> {
 	};
 }
 
+// Everything the nodes connected to this one hand it, in either direction. Sorted so the
+// set - and with it the configStamp - never depends on edge order
+function suppliedBy(neighbours: readonly ConnectedNode[]) {
+	return neighbours
+		.flatMap(({ node, reservedPorts }) => {
+			const { supplies } = getResourceDefinition(node.type);
+			// The reservation rather than a live port, so the stamp survives a restart there
+			const [port] = reservedPorts;
+			return supplies && port !== undefined ? [{ node, ...supplies(node, port) }] : [];
+		})
+		.sort(
+			(a, b) =>
+				nodeName(a.node).localeCompare(nodeName(b.node)) || a.node.id.localeCompare(b.node.id)
+		);
+}
+
 // The conventional names that are deliberately not set, because more than one resource of
 // that kind is connected and the name would have to pick one of them arbitrarily. Reported so
 // a panel can say why a variable a user expected is missing, rather than leaving it silent
-export function withheldConventionalNames(upstreams: readonly ConnectedNode[]): string[] {
+export function withheldConventionalNames(neighbours: readonly ConnectedNode[]): string[] {
 	const perSoleName = new Map<string, number>();
-	for (const { node, reservedPorts } of upstreams) {
-		const { supplies } = getResourceDefinition(node.type);
-		const [port] = reservedPorts;
-		if (!supplies || port === undefined) continue;
-		const { soleName } = supplies(node, port);
+	for (const { soleName } of suppliedBy(neighbours)) {
 		perSoleName.set(soleName, (perSoleName.get(soleName) ?? 0) + 1);
 	}
 	return [...perSoleName]
@@ -40,22 +52,12 @@ export function withheldConventionalNames(upstreams: readonly ConnectedNode[]): 
 // Everything a consumer's code is launched with because of what it is connected to. Each
 // provider says what it supplies; the naming lives here, because collisions and the
 // conventional single-resource name are decisions about the whole set rather than any one
-// of them. Sorted so the set - and with it the configStamp - never depends on edge order
+// of them
 export function consumerEnv(
 	consumer: Node,
-	upstreams: readonly ConnectedNode[]
+	neighbours: readonly ConnectedNode[]
 ): Record<string, string> {
-	const supplied = upstreams
-		.flatMap(({ node, reservedPorts }) => {
-			const { supplies } = getResourceDefinition(node.type);
-			// The reservation rather than a live port, so the stamp survives an upstream restart
-			const [port] = reservedPorts;
-			return supplies && port !== undefined ? [{ node, ...supplies(node, port) }] : [];
-		})
-		.sort(
-			(a, b) =>
-				nodeName(a.node).localeCompare(nodeName(b.node)) || a.node.id.localeCompare(b.node.id)
-		);
+	const supplied = suppliedBy(neighbours);
 
 	// Credentials come with being able to call AWS at all, not with any particular resource:
 	// code can reach CloudWatch with nothing connected, and gets a signpost error otherwise.

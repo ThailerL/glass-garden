@@ -35,13 +35,13 @@ export function canConnect(source: Node, target: Node): boolean {
 	return consumes.some((capability) => provides.includes(capability));
 }
 
-// The upstreams a definition should actually read, so an edge that means nothing to it is
+// The connections a definition should actually read, so an edge that means nothing to it is
 // skipped rather than misread
-export function upstreamsProviding(
-	upstreams: readonly ConnectedNode[],
+export function providing(
+	connected: readonly ConnectedNode[],
 	capability: Capability
 ): readonly ConnectedNode[] {
-	return upstreams.filter(({ node }) =>
+	return connected.filter(({ node }) =>
 		getResourceDefinition(node.type).provides.includes(capability)
 	);
 }

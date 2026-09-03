@@ -12,8 +12,8 @@ const bucket = (id: string, name: string, bucketName: string) =>
 	node(id, 's3Bucket', { name, bucketName });
 const database = (id: string, name: string) => node(id, 'postgres', { name, maxConnections: 10 });
 
-const upstream = (target: Node, port = 5000) => ({
-	node: target,
+const neighbour = (node: Node, port = 5000) => ({
+	node,
 	instances: [],
 	reservedPorts: [port]
 });
@@ -32,21 +32,21 @@ describe('consumerEnv', () => {
 	});
 
 	it('takes the named and conventional variables from what each provider supplies', () => {
-		const env = consumerEnv(web, [upstream(bucket('b1', 'Assets', 'assets'))]);
+		const env = consumerEnv(web, [neighbour(bucket('b1', 'Assets', 'assets'))]);
 		expect(env.ASSETS_BUCKET).toBe('assets');
 		expect(env.S3_BUCKET).toBe('assets');
 	});
 
 	it('names a database the same way, from the provider rather than the consumer', () => {
-		const env = consumerEnv(web, [upstream(database('p1', 'Orders'), 5433)]);
+		const env = consumerEnv(web, [neighbour(database('p1', 'Orders'), 5433)]);
 		expect(env.ORDERS_DATABASE_URL).toContain('5433');
 		expect(env.DATABASE_URL).toBe(env.ORDERS_DATABASE_URL);
 	});
 
 	it('mixes providers of different kinds in one environment', () => {
 		const env = consumerEnv(web, [
-			upstream(bucket('b1', 'Assets', 'assets')),
-			upstream(database('p1', 'Orders'), 5433)
+			neighbour(bucket('b1', 'Assets', 'assets')),
+			neighbour(database('p1', 'Orders'), 5433)
 		]);
 		expect(env.S3_BUCKET).toBe('assets');
 		expect(env.DATABASE_URL).toBeDefined();
@@ -55,8 +55,8 @@ describe('consumerEnv', () => {
 
 	it('drops the conventional name when two of a kind are connected', () => {
 		const env = consumerEnv(web, [
-			upstream(bucket('b1', 'Assets', 'assets')),
-			upstream(bucket('b2', 'Backups', 'backups'))
+			neighbour(bucket('b1', 'Assets', 'assets')),
+			neighbour(bucket('b2', 'Backups', 'backups'))
 		]);
 		expect(env.ASSETS_BUCKET).toBe('assets');
 		expect(env.BACKUPS_BUCKET).toBe('backups');
@@ -65,8 +65,8 @@ describe('consumerEnv', () => {
 
 	it('disambiguates two providers whose names slug the same', () => {
 		const env = consumerEnv(web, [
-			upstream(bucket('b1', 'My Data', 'one')),
-			upstream(bucket('b2', 'My  Data', 'two'))
+			neighbour(bucket('b1', 'My Data', 'one')),
+			neighbour(bucket('b2', 'My  Data', 'two'))
 		]);
 		// Which one takes the bare name follows the sort, which is not worth pinning here
 		expect([env.MY_DATA_BUCKET, env.MY_DATA_BUCKET_2].sort()).toEqual(['one', 'two']);
@@ -79,15 +79,18 @@ describe('consumerEnv', () => {
 
 	it('reports the conventional name it withheld, so it never just vanishes', () => {
 		const two = [
-			upstream(bucket('b1', 'Assets', 'assets')),
-			upstream(bucket('b2', 'Backups', 'backups'))
+			neighbour(bucket('b1', 'Assets', 'assets')),
+			neighbour(bucket('b2', 'Backups', 'backups'))
 		];
 		expect(withheldConventionalNames(two)).toEqual(['S3_BUCKET']);
 		expect(consumerEnv(web, two).S3_BUCKET).toBeUndefined();
 	});
 
 	it('withholds nothing when each kind is connected once', () => {
-		const mixed = [upstream(bucket('b1', 'Assets', 'assets')), upstream(database('p1', 'Orders'))];
+		const mixed = [
+			neighbour(bucket('b1', 'Assets', 'assets')),
+			neighbour(database('p1', 'Orders'))
+		];
 		expect(withheldConventionalNames(mixed)).toEqual([]);
 	});
 });

@@ -8,7 +8,7 @@ import type { FileSetId } from './files/node-files';
 
 export type NodeData = {
 	config: Record<string, unknown>;
-	// Ports reserved to this node, so dependents can be wired to it before it has ever run
+	// Ports reserved to this node, so others can be wired to it before it has ever run
 	ports: number[];
 	// Set by a template whose node starts on files other than its resource type's
 	files?: FileSetId;

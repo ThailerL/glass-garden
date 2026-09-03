@@ -1,5 +1,5 @@
 import { SvelteMap } from 'svelte/reactivity';
-import type { Node } from '@xyflow/svelte';
+import type { Edge, Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import { anyPostgresNodes, GraphState, nodeName, nodePorts } from './graph-state.svelte';
@@ -25,7 +25,7 @@ const MAX_PORT = 49151;
 const SLOW_BOOT_MS = 1500;
 
 // Registry of one ResourceController per node, plus the cross-node concerns the
-// controllers share: the container, port uniqueness and dependent wiring
+// controllers share: the container, port uniqueness and neighbour wiring
 export class Orchestrator {
 	#graphState: GraphState;
 	#controllers = new SvelteMap<string, ResourceController>();
@@ -120,7 +120,7 @@ export class Orchestrator {
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
 	}
 
-	// Reserved before anything runs, so a dependent can be wired to a target not yet started
+	// Reserved before anything runs, so a node can be wired to one not yet started
 	getReservedPorts(nodeId: string): readonly number[] {
 		const node = this.#graphState.getNode(nodeId);
 		// A deleted node's ports go with it; its winding-down instances hold what they have
@@ -128,16 +128,22 @@ export class Orchestrator {
 		return nodePorts(node);
 	}
 
-	// What this node points at: the resources it consumes. Rebuilt per call rather than
-	// cached, so a definition always reads current edges
-	getUpstreams(nodeId: string): readonly ConnectedNode[] {
+	// What this node points at. Rebuilt per call rather than cached, so a definition always
+	// reads current edges
+	getTargets(nodeId: string): readonly ConnectedNode[] {
 		return this.#linked(nodeId, 'source');
 	}
 
-	// What points at this node: the resources consuming it. The question a resource that only
-	// provides has to ask, since it has no upstreams of its own
-	getDependents(nodeId: string): readonly ConnectedNode[] {
+	// What points at this node
+	getSources(nodeId: string): readonly ConnectedNode[] {
 		return this.#linked(nodeId, 'target');
+	}
+
+	// Everything connected at either end, once each
+	getNeighbours(nodeId: string): readonly ConnectedNode[] {
+		const connected = [...this.getSources(nodeId), ...this.getTargets(nodeId)];
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		return [...new Map(connected.map((neighbour) => [neighbour.node.id, neighbour])).values()];
 	}
 
 	// Both directions read an edge the same way; only which end is matched differs
@@ -233,6 +239,12 @@ export class Orchestrator {
 		this.#controllers.get(nodeId)?.schedule();
 	}
 
+	// An edge is a change to both of the nodes it connects
+	refreshEdge(edge: Edge) {
+		this.refresh(edge.source);
+		this.refresh(edge.target);
+	}
+
 	// Establishes the ports-match-configured invariant across a freshly loaded graph
 	reconcileAllReservations() {
 		for (const id of this.#graphState.nodes.map((node) => node.id)) {
@@ -268,8 +280,10 @@ export class Orchestrator {
 			regionReady: () => ensureRegion().catch(() => {}),
 			takePort: () => this.#takePort(nodeId),
 			reconcileReservations: () => this.#reconcileReservations(nodeId),
-			getUpstreams: () => this.getUpstreams(nodeId),
-			scheduleDependents: () => this.#scheduleDependents(nodeId),
+			getTargets: () => this.getTargets(nodeId),
+			getSources: () => this.getSources(nodeId),
+			getNeighbours: () => this.getNeighbours(nodeId),
+			scheduleNeighbours: () => this.#scheduleNeighbours(nodeId),
 			unregister: () => {
 				this.#controllers.delete(nodeId);
 				// Only reached after the node is deleted and its last instance is gone
@@ -325,7 +339,7 @@ export class Orchestrator {
 		// Trimming and topping up are exclusive, so a length change is the whole difference
 		if (kept.length !== reserved.length) {
 			this.#graphState.setNodePorts(nodeId, kept);
-			this.#scheduleDependents(nodeId);
+			this.#scheduleNeighbours(nodeId);
 		}
 	}
 
@@ -369,8 +383,8 @@ export class Orchestrator {
 		return port;
 	}
 
-	#scheduleDependents(nodeId: string) {
-		for (const { node } of this.getDependents(nodeId)) this.#controllers.get(node.id)?.schedule();
+	#scheduleNeighbours(nodeId: string) {
+		for (const { node } of this.getNeighbours(nodeId)) this.#controllers.get(node.id)?.schedule();
 	}
 }
 

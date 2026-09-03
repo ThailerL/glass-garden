@@ -16,10 +16,10 @@
 	// What this group's code will find in its environment, from its own connections. Read
 	// only: every line here is decided by the canvas, not by the form
 	const node = $derived(graphState.getNode(nodeId));
-	const env = $derived(node ? consumerEnv(node, orchestrator.getUpstreams(nodeId)) : {});
+	const env = $derived(node ? consumerEnv(node, orchestrator.getNeighbours(nodeId)) : {});
 	const lines = $derived(Object.entries(env).sort(([a], [b]) => a.localeCompare(b)));
 	// Named so a variable the user expected never just vanishes from this list
-	const withheld = $derived(withheldConventionalNames(orchestrator.getUpstreams(nodeId)));
+	const withheld = $derived(withheldConventionalNames(orchestrator.getNeighbours(nodeId)));
 </script>
 
 <ConfigField {form} name="name" label="Name" bind:value={$formData.name} />

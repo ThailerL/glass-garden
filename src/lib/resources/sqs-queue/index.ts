@@ -89,7 +89,7 @@ export const sqsQueue = {
 	// A queue is not a process. Provisioning it is the whole of starting it, so there is no
 	// server to wait for and the region reports what the queue holds on the node's behalf
 	readyOnStart: true,
-	start: async (_node: Node, _container: Vivari, _port: number, _upstreams, config: unknown) => {
+	start: async (_node: Node, _container: Vivari, _port: number, _targets, config: unknown) => {
 		const { queueName, visibilityTimeout } = config as LaunchConfig;
 		await ensureRegion();
 		await provisionResource('sqs', queueName, {

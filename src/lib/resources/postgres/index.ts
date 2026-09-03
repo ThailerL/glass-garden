@@ -51,7 +51,7 @@ export const postgres = {
 		node: Node,
 		container: Vivari,
 		port: number,
-		_upstreams: readonly ConnectedNode[],
+		_targets: readonly ConnectedNode[],
 		config: unknown
 	) => {
 		const { maxConnections } = config as LaunchConfig;

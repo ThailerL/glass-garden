@@ -17,8 +17,8 @@
 	} = $props();
 
 	const orchestrator = getOrchestrator();
-	// A resource is reached, not reaching: what uses it are the edges that end here
-	const consumers = $derived(orchestrator.getDependents(nodeId));
+	// An edge at either end grants access
+	const consumers = $derived(orchestrator.getNeighbours(nodeId));
 	const count = $derived(
 		consumers.length === 1 ? 'One connected node' : `${consumers.length} connected nodes`
 	);

@@ -18,10 +18,10 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-function launchConfig(node: Node, upstreams: readonly ConnectedNode[]) {
+function launchConfig(node: Node, neighbours: readonly ConnectedNode[]) {
 	return {
 		command: nodeConfig<Config>(node).command,
-		env: consumerEnv(node, upstreams)
+		env: consumerEnv(node, neighbours)
 	};
 }
 
@@ -46,7 +46,7 @@ export const instanceGroup = {
 		node: Node,
 		container: Vivari,
 		port: number,
-		_upstreams: readonly ConnectedNode[],
+		_targets: readonly ConnectedNode[],
 		config: unknown
 	) => {
 		const { command, env } = config as LaunchConfig;

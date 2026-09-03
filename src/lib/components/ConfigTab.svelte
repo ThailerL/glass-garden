@@ -46,10 +46,10 @@
 		const upCount = orchestrator.getUpCount(nodeId);
 		if (!liveNode || upCount === 0) return 0;
 
-		const upstreams = orchestrator.getUpstreams(nodeId);
+		const neighbours = orchestrator.getNeighbours(nodeId);
 		const pending = { ...liveNode, data: { ...liveNode.data, config: $formData } };
-		return launchPlan(definition, liveNode, upstreams).stamp ===
-			launchPlan(definition, pending, upstreams).stamp
+		return launchPlan(definition, liveNode, neighbours).stamp ===
+			launchPlan(definition, pending, neighbours).stamp
 			? 0
 			: upCount;
 	});

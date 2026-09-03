@@ -65,8 +65,10 @@ function makeServices(getNode: () => Node | undefined): ControllerServices {
 		regionReady: async () => {},
 		takePort: vi.fn(),
 		reconcileReservations: vi.fn(),
-		getUpstreams: () => [],
-		scheduleDependents: vi.fn(),
+		getTargets: () => [],
+		getSources: () => [],
+		getNeighbours: () => [],
+		scheduleNeighbours: vi.fn(),
 		unregister: vi.fn()
 	};
 }
@@ -113,8 +115,39 @@ describe('ResourceController', () => {
 		expect(new Set(controller.instances.map((instance) => instance.port)).size).toBe(3);
 		expect(controller.status).toBe('running');
 		expect(services.reconcileReservations).toHaveBeenCalled();
-		// Three running endpoints is a change from none, so dependents hear about it
-		expect(services.scheduleDependents).toHaveBeenCalled();
+		// Three running endpoints is a change from none, so neighbours hear about it
+		expect(services.scheduleNeighbours).toHaveBeenCalled();
+	});
+
+	// An edge supplies a variable whichever way it was drawn, so the stamp reads both ends
+	it('builds the launch config from every neighbour, not just what the node points at', async () => {
+		const { services, controller } = setup(
+			{},
+			{
+				launchConfig: (_node: unknown, neighbours: readonly unknown[]) => ({
+					connected: neighbours.length
+				})
+			}
+		);
+		services.getTargets = () => [];
+		services.getNeighbours = () => [{ node: makeNode(), instances: [], reservedPorts: [5000] }];
+
+		controller.start();
+		await settle();
+		expect(controller.instances[0].configStamp).toBe('{"connected":1}');
+	});
+
+	// What stops a notification going round forever: every edge schedules both of its ends
+	it('announces its endpoints only when they change, so neighbours cannot loop', async () => {
+		const { services, controller } = setup();
+		controller.start();
+		await settle();
+		expect(services.scheduleNeighbours).toHaveBeenCalledTimes(1);
+
+		// What a neighbour hearing the announcement does back to this controller
+		controller.schedule();
+		await settle();
+		expect(services.scheduleNeighbours).toHaveBeenCalledTimes(1);
 	});
 
 	it('holds a server-hosting instance at starting until server-ready promotes it', async () => {
@@ -123,14 +156,14 @@ describe('ResourceController', () => {
 		controller.start();
 		await settle();
 		expect(controller.status).toBe('starting');
-		expect(services.scheduleDependents).not.toHaveBeenCalled();
+		expect(services.scheduleNeighbours).not.toHaveBeenCalled();
 
 		const port = controller.instances[0].port;
 		expect(controller.onServerReady(port, `http://x/${port}/`)).toBe(true);
 		await settle();
 		expect(controller.instances[0].status).toBe('running');
 		expect(controller.instances[0].previewUrl).toBe(`http://x/${port}/`);
-		expect(services.scheduleDependents).toHaveBeenCalled();
+		expect(services.scheduleNeighbours).toHaveBeenCalled();
 		// A port no instance holds is not this controller's to claim
 		expect(controller.onServerReady(59999, 'http://x/59999/')).toBe(false);
 	});

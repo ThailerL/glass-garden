@@ -76,8 +76,7 @@
 		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
 
 		nodes.forEach((node) => orchestrator.remove(node));
-		// A deleted edge changes what its source routes to
-		edges.forEach((edge) => orchestrator.refresh(edge.source));
+		edges.forEach((edge) => orchestrator.refreshEdge(edge));
 	};
 
 	let selectedEdges: Edge[] = $state.raw([]);
@@ -157,7 +156,7 @@
 				edge.targetHandle == connection.targetHandle
 		);
 		if (edge) {
-			orchestrator.refresh(edge.source);
+			orchestrator.refreshEdge(edge);
 			graphState.setEdgeInStorage(edge);
 		}
 	};
