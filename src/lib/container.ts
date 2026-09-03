@@ -91,20 +91,35 @@ const mounts = new Map<string, Promise<void>>();
 // first mounts them. The VFS keeps every edit since, so a template is laid down once;
 // `overwrite` re-lays ours for node's that we manage and can't be edited by the user
 export function mountNodeFiles(nodeId: string, files: FileSystemTree, overwrite = false) {
-	const existing = mounts.get(nodeId);
+	return mountOnce(nodeId, () => nodeDirectory(nodeId), files, overwrite);
+}
+
+// Files every node of a kind runs but none owns, laid down once per project outside any
+// node's directory so the editor never shows them
+export function mountSharedFiles(name: string, files: FileSystemTree) {
+	return mountOnce(`shared:${name}`, () => `${activeProjectDirectory()}/${name}`, files, true);
+}
+
+function mountOnce(
+	key: string,
+	directory: () => string,
+	files: FileSystemTree,
+	overwrite: boolean
+) {
+	const existing = mounts.get(key);
 	if (existing) return existing;
 
 	const mount = (async () => {
 		const container = await getContainer();
-		const directory = nodeDirectory(nodeId);
-		if (!overwrite && (await container.fs.exists(directory))) return;
-		await container.fs.mkdir(directory, { recursive: true });
-		await container.mount(files, { mountPoint: directory });
+		const target = directory();
+		if (!overwrite && (await container.fs.exists(target))) return;
+		await container.fs.mkdir(target, { recursive: true });
+		await container.mount(files, { mountPoint: target });
 	})().catch((error) => {
-		mounts.delete(nodeId);
+		mounts.delete(key);
 		throw error;
 	});
-	mounts.set(nodeId, mount);
+	mounts.set(key, mount);
 	return mount;
 }
 
