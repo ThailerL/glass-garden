@@ -1,5 +1,6 @@
 // The manager under real Node: the same code the VM runs, minus the VM
 import { afterEach, describe, expect, it } from 'vitest';
+import http from 'node:http';
 import net from 'node:net';
 import readline from 'node:readline';
 import { spawn } from 'node:child_process';
@@ -14,6 +15,11 @@ const DEFAULT_MAX_CONCURRENCY = 5;
 
 const ECHO_HANDLER = `
 export async function handler(event, context) {
+  if (event.Records) {
+    for (const record of event.Records) console.log('record ' + record.body);
+    if (event.Records.some((record) => record.body === 'bad')) throw new Error('bad batch');
+    return;
+  }
   const wait = Number(event.queryStringParameters?.wait ?? 0);
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   if (event.rawPath === '/throw') throw new TypeError('handler failed');
@@ -46,10 +52,37 @@ async function waitUntil(find, what, timeout = 5000) {
   throw new Error(what());
 }
 
+const waitForCall = (region, action) =>
+  waitUntil(
+    () => region.calls.find((c) => c.action === action),
+    () => `The region never saw ${action}`
+  );
+
+// A region that answers SQS calls from a script the test writes, recording what it saw
+function fakeRegion(answer) {
+  const calls = [];
+  const server = http.createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const action = req.headers['x-amz-target']?.replace('AmazonSQS.', '');
+    const payload = JSON.parse(Buffer.concat(chunks).toString() || '{}');
+    calls.push({ action, payload, authorization: req.headers.authorization });
+    const reply = await answer(action, payload);
+    res.writeHead(reply.status ?? 200, { 'content-type': 'application/x-amz-json-1.0' });
+    res.end(JSON.stringify(reply.body ?? {}));
+  });
+  return {
+    calls,
+    listen: () => new Promise((resolve) => server.listen(0, () => resolve(server.address().port))),
+    close: () => new Promise((resolve) => server.close(resolve))
+  };
+}
+
 const running = [];
 
 async function startManager({
   config,
+  region,
   handler = ECHO_HANDLER,
   handlerFile = 'index.mjs',
   idleMs = 60_000,
@@ -60,11 +93,14 @@ async function startManager({
   await writeFile(path.join(dir, handlerFile), handler);
   if (config) await writeFile(path.join(dir, 'config.json'), JSON.stringify(config));
   const port = await freePort();
+  const regionPort = region ? await region.listen() : 1;
   const child = spawn('node', [MANAGER], {
     cwd: dir,
     env: {
       ...process.env,
       PORT: String(port),
+      AWS_ENDPOINT_URL: `http://localhost:${regionPort}`,
+      AWS_ACCESS_KEY_ID: 'ggtest',
       AWS_LAMBDA_FUNCTION_NAME: 'tested',
       GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS),
       GG_IDLE_MS: String(idleMs),
@@ -79,6 +115,7 @@ async function startManager({
     port,
     dir,
     lines,
+    region,
     writeConfig: (value) => writeFile(path.join(dir, 'config.json'), JSON.stringify(value)),
     url: (route = '/') => `http://localhost:${port}${route}`,
     // Waits for a log line, which is also how the tests read what the environments printed
@@ -90,6 +127,7 @@ async function startManager({
       ),
     stop: async () => {
       child.kill();
+      await region?.close();
       await rm(dir, { recursive: true, force: true });
     }
   };
@@ -276,3 +314,75 @@ describe('function URL', () => {
     await manager.waitFor((l) => /failed to initialize/.test(l));
   });
 });
+
+describe('trigger queues', () => {
+  const queueUrl = 'http://localhost:1/000000000000/orders';
+  const trigger = { queueUrl, queueName: 'orders' };
+  const message = (body) => ({ MessageId: body, ReceiptHandle: `rh-${body}`, Body: body });
+  const triggered = { timeout: 3, maxConcurrency: 5, triggers: [trigger] };
+
+  // Serves one batch and then nothing, as a queue that has been drained answers
+  const queueServing = (...bodies) => {
+    let served = false;
+    return fakeRegion(async (action) => {
+      if (action === 'ReceiveMessage' && !served) {
+        served = true;
+        return { body: { Messages: bodies.map(message) } };
+      }
+      await sleep(100);
+      return {};
+    });
+  };
+
+  it('delivers a batch as Records and deletes it once the handler returns', async () => {
+    const region = queueServing('one', 'two');
+    const manager = await startManager({ config: triggered, region });
+    await manager.waitFor((l) => /record two/.test(l));
+    const deletion = await waitForCall(region, 'DeleteMessageBatch');
+    expect(deletion.payload.Entries.map((e) => e.ReceiptHandle)).toEqual(['rh-one', 'rh-two']);
+    expect(deletion.authorization).toMatch(/Credential=ggtest\/\d{8}\/us-east-1\/sqs\/aws4_request/);
+    const receive = region.calls.find((c) => c.action === 'ReceiveMessage');
+    expect(receive.payload).toMatchObject({ QueueUrl: queueUrl, MaxNumberOfMessages: 10, WaitTimeSeconds: 20 });
+    await manager.waitFor((l) => /"batches"/.test(l));
+  });
+
+  it('leaves a failed batch on the queue', async () => {
+    const region = queueServing('bad');
+    const manager = await startManager({ config: triggered, region });
+    await manager.waitFor((l) => /returns to the queue after its visibility timeout/.test(l));
+    await sleep(200);
+    expect(region.calls.some((c) => c.action === 'DeleteMessageBatch')).toBe(false);
+  });
+
+  it('says once when the queue refuses it, and keeps trying', async () => {
+    const region = fakeRegion(async () => ({
+      status: 403,
+      body: { __type: 'AccessDenied', message: 'not connected to the queue "orders"' }
+    }));
+    const manager = await startManager({ config: triggered, region });
+    await manager.waitFor((l) => /Could not read from "orders": not connected/.test(l));
+    await sleep(300);
+    expect(manager.lines.filter((l) => /Could not read from/.test(l))).toHaveLength(1);
+  });
+
+  it('starts and stops polling as the config file changes, without a restart', async () => {
+    const region = fakeRegion(async () => {
+      await sleep(50);
+      return {};
+    });
+    const manager = await startManager({ region });
+    await sleep(300);
+    expect(region.calls).toHaveLength(0);
+
+    await manager.writeConfig(triggered);
+    await manager.waitFor((l) => /Polling "orders"/.test(l));
+    await waitForCall(region, 'ReceiveMessage');
+
+    await manager.writeConfig({ ...triggered, triggers: [] });
+    await manager.waitFor((l) => /Stopped polling "orders"/.test(l));
+    const seen = region.calls.length;
+    await sleep(400);
+    expect(region.calls.length).toBe(seen);
+  });
+});
+

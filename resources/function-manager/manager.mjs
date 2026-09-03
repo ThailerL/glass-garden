@@ -7,6 +7,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
 const port = Number(process.env.PORT);
@@ -19,6 +20,14 @@ const RUNTIME_API_PREFIX = '/2018-06-01/runtime/';
 const RUNTIME_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'runtime.mjs');
 const FUNCTION_NAME = process.env.AWS_LAMBDA_FUNCTION_NAME || 'function';
 const FUNCTION_ARN = `arn:aws:lambda:us-east-1:000000000000:function:${FUNCTION_NAME}`;
+const ENDPOINT = process.env.AWS_ENDPOINT_URL;
+const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+
+// Lambda's defaults for an SQS event source mapping
+const BATCH_SIZE = 10;
+const WAIT_SECONDS = 20;
+const RECEIVE_TIMEOUT_MS = 30_000;
+const POLL_RETRY_MS = 5000;
 
 // The error Lambda answers an invocation it has no concurrency for
 const THROTTLED = 'TooManyRequestsException';
@@ -34,7 +43,7 @@ const INIT_TIMEOUT_MS = Number(process.env.GG_INIT_TIMEOUT_MS) || 30_000;
 
 // Until config.json says otherwise: enough concurrency to be worth watching, few enough
 // processes to be harmless
-const DEFAULT_CONFIG = { timeout: 3, maxConcurrency: 5 };
+const DEFAULT_CONFIG = { timeout: 3, maxConcurrency: 5, triggers: [] };
 
 // ── Logging and metrics ───────────────────────────────────────────────────────────────────
 
@@ -65,8 +74,18 @@ function putMetric(name, value, unit, dimensions = {}) {
 // ── Config ────────────────────────────────────────────────────────────────────────────────
 
 let config = DEFAULT_CONFIG;
-// So a file the user is midway through editing complains once rather than every second
-let configComplaint;
+
+// Says a message only while it is new, so a failure that repeats every second or every poll
+// is said once. Called with nothing it forgets, so the next failure is said again
+function complainer() {
+  let last;
+  return (message) => {
+    if (message && message !== last) console.error(message);
+    last = message;
+  };
+}
+
+const complainAboutConfig = complainer();
 
 async function readConfig() {
   let contents;
@@ -82,24 +101,31 @@ async function readConfig() {
   } catch (error) {
     throw new Error(`config.json is not valid JSON (${error.message}): ${contents}`);
   }
-  const { timeout, maxConcurrency } = parsed ?? {};
+  // Absent is no triggers, which is what a function with no queue pointing at it has
+  const { timeout, maxConcurrency, triggers = [] } = parsed ?? {};
   if (!(timeout > 0)) throw new Error(`config.json has no positive timeout: ${contents}`);
   if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
     throw new Error(`config.json has no positive maxConcurrency: ${contents}`);
   }
-  return { timeout, maxConcurrency };
+  const valid = (trigger) =>
+    trigger && typeof trigger.queueUrl === 'string' && typeof trigger.queueName === 'string';
+  if (!Array.isArray(triggers) || !triggers.every(valid)) {
+    throw new Error(`config.json triggers are not a list of queues: ${contents}`);
+  }
+  return { timeout, maxConcurrency, triggers };
 }
 
-// Re-read on a timer rather than at spawn, so a change on the canvas takes effect within a
-// second and without relaunching the manager. The last good config stands if a read fails
+// Re-read on a timer rather than at spawn, so a change on the canvas — a raised cap, an
+// added trigger — takes effect within a second and without relaunching the manager. The
+// last good config stands if a read fails
 async function refreshConfig() {
   try {
     config = await readConfig();
-    configComplaint = undefined;
+    complainAboutConfig();
   } catch (error) {
-    if (configComplaint !== error.message) console.error(error.message);
-    configComplaint = error.message;
+    complainAboutConfig(error.message);
   }
+  reconcilePollers();
 }
 
 // ── Execution environments ────────────────────────────────────────────────────────────────
@@ -420,6 +446,158 @@ async function handleHttp(req, res, url, body) {
     return respondJson(res, 502, { message: 'Internal Server Error', errorType, errorMessage });
   }
   sendHttpResult(res, outcome.result);
+}
+
+// ── Trigger queues ────────────────────────────────────────────────────────────────────────
+
+// SigV4's shape without a signature: the region routes and enforces on the credential scope
+// and never verifies one
+const AUTHORIZATION = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/20260101/us-east-1/sqs/aws4_request, SignedHeaders=host, Signature=glass-garden`;
+
+// hand-written SQS client to greatly reduce provisioning time of lambda nodes
+function sqs(action, payload, signal) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(ENDPOINT);
+    const body = JSON.stringify(payload);
+    const req = http.request(
+      {
+        host: url.hostname,
+        port: url.port,
+        path: '/',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-amz-json-1.0',
+          'content-length': Buffer.byteLength(body),
+          'x-amz-target': `AmazonSQS.${action}`,
+          authorization: AUTHORIZATION,
+        },
+        timeout: RECEIVE_TIMEOUT_MS,
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          if (res.statusCode >= 400) return reject(new Error(awsErrorMessage(text, res.statusCode)));
+          try {
+            resolve(text ? JSON.parse(text) : {});
+          } catch {
+            reject(new Error(`the region answered ${action} with something other than JSON`));
+          }
+        });
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error(`${action} timed out`)));
+    req.on('error', reject);
+    signal.addEventListener('abort', () => req.destroy(new Error('aborted')), { once: true });
+    req.end(body);
+  });
+}
+
+// AWS errors carry their message under one of two keys depending on the protocol
+function awsErrorMessage(text, status) {
+  try {
+    const parsed = JSON.parse(text);
+    const message = parsed.message ?? parsed.Message;
+    if (typeof message === 'string') return message;
+  } catch {
+    // not JSON
+  }
+  return `HTTP ${status}`;
+}
+
+// The record shape Lambda hands a function for each SQS message
+const toRecord = (message, queueName) => ({
+  messageId: message.MessageId,
+  receiptHandle: message.ReceiptHandle,
+  body: message.Body,
+  attributes: message.Attributes ?? {},
+  messageAttributes: {},
+  md5OfBody: message.MD5OfBody,
+  eventSource: 'aws:sqs',
+  eventSourceARN: `arn:aws:sqs:us-east-1:000000000000:${queueName}`,
+  awsRegion: 'us-east-1',
+});
+
+const messageCount = (n) => `${n} message${n === 1 ? '' : 's'}`;
+
+// The event source mapping for one queue: long-poll, invoke with the batch, delete on success.
+// On failure nothing is deleted and the batch returns after the visibility timeout, which
+// is Lambda's rule. A read failure is said once and retried
+async function poll({ queueUrl, queueName }, signal) {
+  const complain = complainer();
+  while (!signal.aborted) {
+    let messages;
+    try {
+      const received = await sqs(
+        'ReceiveMessage',
+        {
+          QueueUrl: queueUrl,
+          MaxNumberOfMessages: BATCH_SIZE,
+          WaitTimeSeconds: WAIT_SECONDS,
+          AttributeNames: ['All'],
+        },
+        signal,
+      );
+      messages = Array.isArray(received.Messages) ? received.Messages : [];
+    } catch (error) {
+      if (signal.aborted) return;
+      complain(`Could not read from "${queueName}": ${error.message}`);
+      // Resolves early on abort rather than rejecting: the loop checks the signal itself
+      await sleep(POLL_RETRY_MS, undefined, { signal }).catch(() => {});
+      continue;
+    }
+    complain();
+    if (messages.length === 0) continue;
+
+    putMetric('batches', 1, 'Count', { queue: queueName });
+    const outcome = await invoke({ Records: messages.map((m) => toRecord(m, queueName)) });
+    if (signal.aborted) return;
+    if (outcome.error) {
+      const why =
+        outcome.error.errorType === THROTTLED
+          ? 'found no free execution environment'
+          : `failed (${outcome.error.errorMessage ?? 'unknown error'})`;
+      console.error(
+        `A batch of ${messageCount(messages.length)} from "${queueName}" ${why}, so it returns to the queue after its visibility timeout`,
+      );
+      continue;
+    }
+    try {
+      await sqs(
+        'DeleteMessageBatch',
+        {
+          QueueUrl: queueUrl,
+          Entries: messages.map((m, i) => ({ Id: String(i), ReceiptHandle: m.ReceiptHandle })),
+        },
+        signal,
+      );
+    } catch (error) {
+      if (signal.aborted) return;
+      complain(`Could not delete ${messageCount(messages.length)} from "${queueName}": ${error.message}`);
+    }
+  }
+}
+
+const pollers = new Map();
+
+function reconcilePollers() {
+  const wanted = new Map(config.triggers.map((trigger) => [trigger.queueUrl, trigger]));
+  for (const [queueUrl, { trigger, controller }] of pollers) {
+    if (wanted.has(queueUrl)) continue;
+    controller.abort();
+    pollers.delete(queueUrl);
+    console.log(`Stopped polling "${trigger.queueName}"`);
+  }
+  for (const [queueUrl, trigger] of wanted) {
+    if (pollers.has(queueUrl)) continue;
+    const controller = new AbortController();
+    pollers.set(queueUrl, { trigger, controller });
+    console.log(`Polling "${trigger.queueName}" for messages`);
+    poll(trigger, controller.signal).catch((error) =>
+      console.error(`Polling "${trigger.queueName}" stopped: ${error.stack ?? error.message}`),
+    );
+  }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────────────────
