@@ -10,6 +10,7 @@
 		value,
 		description,
 		empty,
+		listEmpty,
 		children
 	}: {
 		label: string;
@@ -19,9 +20,12 @@
 		empty?: string;
 		// For a value that is more than one line, or part of which is prose rather than data
 		children?: Snippet;
+		// Whether children rendered nothing this time - a snippet is always passed, so the
+		// component cannot look inside it to tell
+		listEmpty?: boolean;
 	} = $props();
 
-	const isEmpty = $derived(!children && (value === undefined || value === ''));
+	const isEmpty = $derived(children ? (listEmpty ?? false) : value === undefined || value === '');
 </script>
 
 <div class="space-y-2">

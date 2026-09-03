@@ -1,0 +1,7 @@
+{
+  "name": "function",
+  "type": "module",
+  "dependencies": {
+    "@aws-lambda-powertools/metrics": "^2.35.0"
+  }
+}

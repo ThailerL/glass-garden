@@ -52,7 +52,7 @@ export const sqsQueue = {
 	hasPreview: false,
 	ownsStoredData: true,
 	provides: ['aws'],
-	consumes: [],
+	consumes: ['invoke'],
 	configComponent: QueueConfig,
 	configSchema,
 	namedOnCreate: {

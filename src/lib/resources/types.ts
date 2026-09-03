@@ -6,8 +6,9 @@ import type { LucideIcon } from '@lucide/svelte';
 import type { ChartReading } from '$lib/metrics';
 
 // What a resource offers and what it needs from what it points at. An edge is legal when
-// its source consumes something its target provides
-export type Capability = 'http' | 'sql' | 'aws';
+// its source consumes something its target provides. 'invoke' runs against the traffic of
+// the others: a resource that consumes it points at the code it triggers
+export type Capability = 'http' | 'sql' | 'aws' | 'invoke';
 
 // Returned by a definition's start so the orchestrator can manage an instance's
 // lifecycle without touching whatever the definition actually launched

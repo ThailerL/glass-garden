@@ -6,11 +6,13 @@ import { postgres } from './postgres';
 import { s3Bucket } from './s3-bucket';
 import { sqsQueue } from './sqs-queue';
 import { dynamodbTable } from './dynamodb-table';
+import { lambdaFunction } from './lambda-function';
 
 export * from './types';
 
 export const resourceDefinitions = {
 	instanceGroup,
+	lambdaFunction,
 	httpLoadBalancer,
 	postgres,
 	s3Bucket,
