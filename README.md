@@ -2,18 +2,18 @@
 
 [Try it live](https://glass.garden/) - a two-minute guided tour starts you off
 
-Build cloud architecture by dragging load balancers, compute instances, and AWS services onto a canvas. Press play and watch real traffic move through it, right in your browser.
+Build cloud architecture by dragging load balancers, instance groups, functions, and other AWS services onto a canvas. Press play, use your app, and see where requests go.
 
 Everything on your canvas is running real code, and your app reaches it the way it would in production:
 
-- compute instances running real Node processes whose code you can edit
-- functions with Lambda's handler shape, running in execution environments that scale from zero
-- a real Postgres server you connect to with the ordinary `pg` client
+- compute instances running Node processes whose code you can edit
+- Lambda functions with the standard handler shape, running in execution environments that scale to zero
+- a Postgres server you connect to with the ordinary `pg` client
 - an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK
 
-Click any resource to see its metrics, logs, and a live preview of what it's serving. The edges you draw are what grant access in real time.
+Click any resource to see its metrics, logs, and a live preview of what it's serving. The edges you draw are what grant access.
 
-It's all inside a WebAssembly VM in the tab, so there's nothing to install and nothing to sign up for. All your data stays on your device, and the whole thing is easily self-hostable.
+It's all inside a WebAssembly VM in the tab, so there's nothing to install or sign up for. Nothing leaves your machine, and the whole thing is easily self-hostable.
 
 ## Self-hosting
 
