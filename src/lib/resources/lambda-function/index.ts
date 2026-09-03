@@ -23,11 +23,14 @@ export type Config = z.infer<typeof configSchema>;
 
 const MANAGER_DIRECTORY = 'function-manager';
 
+// The function's own name, which the manager reports to the handler as its identity - AWS's
+// own reserved variable, not a grant from a connection, so it travels outside consumerEnv
+function ownEnv(node: Node) {
+	return { AWS_LAMBDA_FUNCTION_NAME: nodeConfig<Config>(node).name };
+}
+
 function launchConfig(node: Node, neighbours: readonly ConnectedNode[]) {
-	return {
-		functionName: nodeConfig<Config>(node).name,
-		env: consumerEnv(node, neighbours)
-	};
+	return { env: { ...ownEnv(node), ...consumerEnv(node, neighbours) } };
 }
 
 type LaunchConfig = ReturnType<typeof launchConfig>;
@@ -61,6 +64,7 @@ export const lambdaFunction = {
 	runsProcesses: true,
 	instanceLabel: 'manager',
 	launchConfig,
+	ownEnv,
 	prepare: async (node: Node, container: Vivari, capture: Capture) => {
 		await Promise.all([
 			mountSharedFiles(MANAGER_DIRECTORY, resourceFiles.functionManager),
@@ -74,17 +78,14 @@ export const lambdaFunction = {
 		_targets: readonly ConnectedNode[],
 		config: unknown
 	) => {
-		const { functionName, env } = config as LaunchConfig;
+		const { env } = config as LaunchConfig;
 		// Written before the process spawns so its first invocation already has the node's
 		// limits; the triggers follow from the update this pass makes next
 		await writeConfig(node, container, []);
 		const process = await container.spawn(
 			'node',
 			[`${activeProjectDirectory()}/${MANAGER_DIRECTORY}/manager.mjs`],
-			{
-				cwd: nodeDirectory(node.id),
-				env: { PORT: String(port), AWS_LAMBDA_FUNCTION_NAME: functionName, ...env }
-			}
+			{ cwd: nodeDirectory(node.id), env: { PORT: String(port), ...env } }
 		);
 		return processHandle(process);
 	},

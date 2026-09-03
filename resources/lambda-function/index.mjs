@@ -26,11 +26,7 @@ const metrics = new Metrics();
 // The whole file is an ordinary Lambda handler. It runs unchanged on AWS.
 export async function handler(event, context) {
   if (event.Records) {
-    for (const record of event.Records) {
-      console.log(`Message from ${record.eventSourceARN.split(':').pop()}: ${record.body}`);
-    }
-    metrics.addMetric('messages', MetricUnit.Count, event.Records.length);
-    metrics.publishStoredMetrics();
+    for (const record of event.Records) console.log(`Message: ${record.body}`);
     return;
   }
 

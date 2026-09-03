@@ -29,14 +29,14 @@
 	name="maxConcurrency"
 	label="Max Concurrency"
 	type="number"
-	description="How many execution environments may run at once. Past this, a synchronous request or batch is refused rather than queued, as Lambda refuses one it has no concurrency for."
+	description="How many execution environments run at once. A request past this is refused rather than queued."
 	bind:value={$formData.maxConcurrency}
 />
 
 <ReadOnlyValue
 	label="Triggers"
-	description="A queue delivers up to ten messages per invocation as event.Records, and redelivers the batch if the handler throws. A load balancer or the Preview tab sends one HTTP request per invocation."
-	empty="No triggers configured. Draw an edge from a queue or a load balancer to this function."
+	description="What invokes this function. Each kind arrives as a differently shaped event."
+	empty="No triggers configured. Draw an edge from anything that can invoke this function."
 	listEmpty={triggers.length === 0}
 >
 	{#each triggers as node (node.id)}

@@ -128,6 +128,10 @@ export type ResourceDefinition = {
 	// is appended to the consumer-facing slug of this node's name; soleName is the
 	// conventional variable, used only when this is the one resource of its kind connected
 	supplies?: (node: Node, port: number) => { suffix: string; value: string; soleName: string };
+	// Environment variables the resource sets at spawn from its own identity, outside what
+	// consumerEnv grants from its connections - shown in the config panel alongside them so
+	// the summary stays accurate to what the process actually receives
+	ownEnv?: (node: Node) => Record<string, string>;
 	prepare?: (node: Node, container: Vivari, capture: Capture) => Promise<void>;
 	start: (
 		node: Node,

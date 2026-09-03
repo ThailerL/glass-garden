@@ -4,6 +4,7 @@
 	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getResourceDefinition } from '$lib/resources';
 	import { consumerEnv, withheldConventionalNames } from '$lib/resources/env';
 
 	const { nodeId }: { nodeId: string } = $props();
@@ -12,7 +13,16 @@
 	const orchestrator = getOrchestrator();
 
 	const node = $derived(graphState.getNode(nodeId));
-	const env = $derived(node ? consumerEnv(node, orchestrator.getNeighbours(nodeId)) : {});
+	// What the node's connections grant it, plus whatever it sets from its own identity -
+	// a function's name becoming AWS_LAMBDA_FUNCTION_NAME, say
+	const env = $derived(
+		node
+			? {
+					...consumerEnv(node, orchestrator.getNeighbours(nodeId)),
+					...getResourceDefinition(node.type).ownEnv?.(node)
+				}
+			: {}
+	);
 	// Left in the order it was built: credentials, then a line per connected resource, then
 	// the conventional names
 	const lines = $derived(Object.entries(env));
