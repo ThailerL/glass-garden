@@ -307,10 +307,18 @@ async function handleAws(req, res, url, body) {
   );
   res.writeHead(status, Object.fromEntries(JSON.parse(headersJson)));
   res.end(responseBody);
+  // A long poll that found nothing changed nothing and is not traffic anyone sent: a
+  // function polls its trigger queue every 20 s forever
+  if (status < 300 && isEmptyReceive(req.headers['x-amz-target'], responseBody)) return;
   reportRequest(topology.owners, service, resourceName, req.method, url.pathname, status);
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
   if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') armSave();
+}
+
+function isEmptyReceive(target, responseBody) {
+  if (target !== 'AmazonSQS.ReceiveMessage') return false;
+  return !Buffer.from(responseBody).toString('utf8').includes('"Messages"');
 }
 
 const server = http.createServer((req, res) => {
