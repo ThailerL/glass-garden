@@ -27,7 +27,7 @@ const CONFIG_POLL_MS = Number(process.env.GG_CONFIG_POLL_MS) || 1000;
 
 // Until config.json says otherwise: enough concurrency to be worth watching, few enough
 // processes to be harmless
-const DEFAULT_CONFIG = { maxConcurrency: 5 };
+const DEFAULT_CONFIG = { timeout: 3, maxConcurrency: 5 };
 
 // ── Logging ───────────────────────────────────────────────────────────────────────────────
 
@@ -55,11 +55,12 @@ async function readConfig() {
   } catch (error) {
     throw new Error(`config.json is not valid JSON (${error.message}): ${contents}`);
   }
-  const { maxConcurrency } = parsed ?? {};
+  const { timeout, maxConcurrency } = parsed ?? {};
+  if (!(timeout > 0)) throw new Error(`config.json has no positive timeout: ${contents}`);
   if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
     throw new Error(`config.json has no positive maxConcurrency: ${contents}`);
   }
-  return { maxConcurrency };
+  return { timeout, maxConcurrency };
 }
 
 // Re-read on a timer rather than at spawn, so a change on the canvas takes effect within a
@@ -165,18 +166,34 @@ function assign(env, invocation) {
   env.invocation = invocation;
   env.invocations++;
   invocation.environment = env;
+  invocation.startedAt = Date.now();
+  const budget = invocation.timeout * 1000;
+  invocation.timer = setTimeout(() => timeOut(invocation), budget);
   inFlight.set(invocation.id, invocation);
   environmentLine(env.id, `START RequestId: ${invocation.id} Version: $LATEST`);
   res.writeHead(200, {
     'content-type': 'application/json',
     'lambda-runtime-aws-request-id': invocation.id,
+    'lambda-runtime-deadline-ms': String(invocation.startedAt + budget),
     'lambda-runtime-invoked-function-arn': FUNCTION_ARN,
   });
   res.end(JSON.stringify(invocation.event));
 }
 
+// Lambda's own message and error type. The environment is not reused: a handler that ran
+// past its deadline may still be running in it
+function timeOut(invocation) {
+  const seconds = invocation.timeout.toFixed(2);
+  const env = invocation.environment;
+  complete(invocation, {
+    error: { errorType: 'Sandbox.Timedout', errorMessage: `Task timed out after ${seconds} seconds` },
+  });
+  reap(env, `timed out after ${seconds} seconds`);
+}
+
 function complete(invocation, outcome) {
   if (!inFlight.delete(invocation.id)) return;
+  clearTimeout(invocation.timer);
   const env = invocation.environment;
   env.invocation = undefined;
   environmentLine(env.id, `END RequestId: ${invocation.id}`);
@@ -203,7 +220,7 @@ function invoke(event) {
         error: { errorType: THROTTLED, errorMessage: 'Rate exceeded' },
       });
     }
-    pending.push({ id: randomUUID(), event, resolve });
+    pending.push({ id: randomUUID(), event, timeout: config.timeout, resolve });
     dispatch();
   });
 }

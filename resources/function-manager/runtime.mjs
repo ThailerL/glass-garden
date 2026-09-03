@@ -79,11 +79,13 @@ for (;;) {
   if (next.status !== 200) process.exit(0);
 
   const requestId = next.headers['lambda-runtime-aws-request-id'];
+  const deadline = Number(next.headers['lambda-runtime-deadline-ms']);
   const context = {
     awsRequestId: requestId,
     functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     invokedFunctionArn: next.headers['lambda-runtime-invoked-function-arn'],
     logStreamName: environmentId,
+    getRemainingTimeInMillis: () => Math.max(0, deadline - Date.now()),
   };
 
   try {

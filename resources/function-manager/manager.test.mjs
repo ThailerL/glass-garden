@@ -18,7 +18,7 @@ export async function handler(event, context) {
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   if (event.rawPath === '/throw') throw new TypeError('handler failed');
   if (event.rawPath === '/text') return 'plain text';
-  return { statusCode: 201, headers: { 'x-echo': 'yes' }, body: { path: event.rawPath, id: context.awsRequestId } };
+  return { statusCode: 201, headers: { 'x-echo': 'yes' }, body: { path: event.rawPath, remaining: context.getRemainingTimeInMillis() } };
 }
 `;
 
@@ -103,7 +103,11 @@ describe('function URL', () => {
     const first = await fetch(manager.url('/one'));
     expect(first.status).toBe(201);
     expect(first.headers.get('x-echo')).toBe('yes');
-    expect(await first.json()).toMatchObject({ path: '/one' });
+    const body = await first.json();
+    expect(body.path).toBe('/one');
+    // The handler is told how long it has left, from the deadline the manager sent
+    expect(body.remaining).toBeGreaterThan(0);
+    expect(body.remaining).toBeLessThanOrEqual(3000);
     await manager.waitFor((l) => /END RequestId/.test(l));
 
     const second = await fetch(manager.url('/two'));
@@ -152,7 +156,7 @@ describe('function URL', () => {
   });
 
   it('takes its concurrency from the config file', async () => {
-    const manager = await startManager({ config: { maxConcurrency: 2 } });
+    const manager = await startManager({ config: { timeout: 3, maxConcurrency: 2 } });
     const statuses = await Promise.all(
       [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=400`)).then((r) => r.status))
     );
@@ -161,13 +165,13 @@ describe('function URL', () => {
   });
 
   it('follows a change to the config file without a restart', async () => {
-    const manager = await startManager({ config: { maxConcurrency: 1 } });
+    const manager = await startManager({ config: { timeout: 3, maxConcurrency: 1 } });
     const refused = await Promise.all(
       [1, 2].map((i) => fetch(manager.url(`/${i}?wait=300`)).then((r) => r.status))
     );
     expect(refused.sort()).toEqual([201, 429]);
 
-    await manager.writeConfig({ maxConcurrency: 3 });
+    await manager.writeConfig({ timeout: 3, maxConcurrency: 3 });
     await sleep(CONFIG_POLLS_MS);
     const allowed = await Promise.all(
       [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=300`)).then((r) => r.status))
@@ -176,8 +180,8 @@ describe('function URL', () => {
   });
 
   it('says once that the config file cannot be read, and keeps the last good one', async () => {
-    const manager = await startManager({ config: { maxConcurrency: 2 } });
-    await manager.writeConfig({ maxConcurrency: 0 });
+    const manager = await startManager({ config: { timeout: 3, maxConcurrency: 2 } });
+    await manager.writeConfig({ timeout: 3, maxConcurrency: 0 });
     await manager.waitFor((l) => /no positive maxConcurrency/.test(l));
     await sleep(CONFIG_POLLS_MS);
     expect(manager.lines.filter((l) => /no positive maxConcurrency/.test(l))).toHaveLength(1);
@@ -185,6 +189,22 @@ describe('function URL', () => {
       [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=400`)).then((r) => r.status))
     );
     expect(statuses.sort()).toEqual([201, 201, 429]);
+  });
+
+  it('fails an invocation past its timeout with Lambda’s message and replaces its environment', async () => {
+    const manager = await startManager({ config: { timeout: 0.5, maxConcurrency: 5 } });
+    const response = await fetch(manager.url('/slow?wait=2000'));
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({
+      errorType: 'Sandbox.Timedout',
+      errorMessage: 'Task timed out after 0.50 seconds'
+    });
+    await manager.waitFor((l) => l.startsWith('gg:env-exit '));
+    const [first] = environmentIds(manager.lines);
+
+    await fetch(manager.url('/again'));
+    expect(environmentIds(manager.lines)).toHaveLength(2);
+    expect(environmentIds(manager.lines)[0]).toBe(first);
   });
 
   it('fails the invocation when the handler cannot be loaded', async () => {
