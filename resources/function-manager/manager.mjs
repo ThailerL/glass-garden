@@ -4,6 +4,7 @@
 // process. Hidden from the user; index.mjs in the working directory is theirs
 import http from 'node:http';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -19,16 +20,59 @@ const RUNTIME_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 const FUNCTION_NAME = process.env.AWS_LAMBDA_FUNCTION_NAME || 'function';
 const FUNCTION_ARN = `arn:aws:lambda:us-east-1:000000000000:function:${FUNCTION_NAME}`;
 
-// Lambda's own default, until the node's config says otherwise
-const MAX_ENVIRONMENTS = 5;
 // The error Lambda answers an invocation it has no concurrency for
 const THROTTLED = 'TooManyRequestsException';
+// Overridable so tests need not wait a second per re-read
+const CONFIG_POLL_MS = Number(process.env.GG_CONFIG_POLL_MS) || 1000;
+
+// Until config.json says otherwise: enough concurrency to be worth watching, few enough
+// processes to be harmless
+const DEFAULT_CONFIG = { maxConcurrency: 5 };
 
 // ── Logging ───────────────────────────────────────────────────────────────────────────────
 
 // Lines from an environment carry its id, so the host files them as that environment's
 // stream; the manager's own lines are bare
 const environmentLine = (id, line) => console.log(`gg:env ${id} ${line}`);
+
+// ── Config ────────────────────────────────────────────────────────────────────────────────
+
+let config = DEFAULT_CONFIG;
+// So a file the user is midway through editing complains once rather than every second
+let configComplaint;
+
+async function readConfig() {
+  let contents;
+  try {
+    contents = await readFile('config.json', 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return DEFAULT_CONFIG;
+    throw new Error(`Cannot read config.json: ${error.message}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(contents);
+  } catch (error) {
+    throw new Error(`config.json is not valid JSON (${error.message}): ${contents}`);
+  }
+  const { maxConcurrency } = parsed ?? {};
+  if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
+    throw new Error(`config.json has no positive maxConcurrency: ${contents}`);
+  }
+  return { maxConcurrency };
+}
+
+// Re-read on a timer rather than at spawn, so a change on the canvas takes effect within a
+// second and without relaunching the manager. The last good config stands if a read fails
+async function refreshConfig() {
+  try {
+    config = await readConfig();
+    configComplaint = undefined;
+  } catch (error) {
+    if (configComplaint !== error.message) console.error(error.message);
+    configComplaint = error.message;
+  }
+}
 
 // ── Execution environments ────────────────────────────────────────────────────────────────
 
@@ -109,7 +153,7 @@ function dispatch() {
     if (env.waiting) assign(env, pending.shift());
   }
   let uncovered = pending.length - countEnvironments((env) => !env.readyAt);
-  while (uncovered > 0 && environments.size < MAX_ENVIRONMENTS) {
+  while (uncovered > 0 && environments.size < config.maxConcurrency) {
     spawnEnvironment();
     uncovered--;
   }
@@ -143,7 +187,7 @@ function complete(invocation, outcome) {
 // spoken for, and past the cap there is nothing left to start
 function capacity() {
   const coming = countEnvironments((env) => env.waiting || !env.readyAt);
-  return coming + MAX_ENVIRONMENTS - environments.size;
+  return coming + config.maxConcurrency - environments.size;
 }
 
 // One invocation, resolved with { result } or { error: { errorType, errorMessage } }. Lambda
@@ -153,7 +197,7 @@ function invoke(event) {
   return new Promise((resolve) => {
     if (pending.length >= capacity()) {
       console.error(
-        `Refused an invocation: all ${MAX_ENVIRONMENTS} execution environments are busy`,
+        `Refused an invocation: all ${config.maxConcurrency} execution environments are busy`,
       );
       return resolve({
         error: { errorType: THROTTLED, errorMessage: 'Rate exceeded' },
@@ -284,6 +328,9 @@ async function handleHttp(req, res, url, body) {
 
 // Wrapped whole: an error escaping a VM process exits 0 without a trace
 try {
+  await refreshConfig();
+  setInterval(() => void refreshConfig(), CONFIG_POLL_MS);
+
   const server = http.createServer(async (req, res) => {
     try {
       const chunks = [];

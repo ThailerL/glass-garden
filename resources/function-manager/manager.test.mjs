@@ -9,8 +9,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MANAGER = fileURLToPath(new URL('./manager.mjs', import.meta.url));
-// The cap the manager holds until the node's config can set it
-const MAX_ENVIRONMENTS = 5;
+// What the manager falls back to with no config.json
+const DEFAULT_MAX_CONCURRENCY = 5;
 
 const ECHO_HANDLER = `
 export async function handler(event, context) {
@@ -32,6 +32,9 @@ const freePort = () =>
   });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const CONFIG_POLL_MS = 100;
+// Long enough for the manager to have re-read config.json more than once
+const CONFIG_POLLS_MS = CONFIG_POLL_MS * 3;
 
 async function waitUntil(find, what, timeout = 5000) {
   const deadline = Date.now() + timeout;
@@ -45,17 +48,19 @@ async function waitUntil(find, what, timeout = 5000) {
 
 const running = [];
 
-async function startManager({ handler = ECHO_HANDLER, handlerFile = 'index.mjs' } = {}) {
+async function startManager({ config, handler = ECHO_HANDLER, handlerFile = 'index.mjs' } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), 'function-manager-'));
   await writeFile(path.join(dir, 'package.json'), '{"type":"module"}');
   await writeFile(path.join(dir, handlerFile), handler);
+  if (config) await writeFile(path.join(dir, 'config.json'), JSON.stringify(config));
   const port = await freePort();
   const child = spawn('node', [MANAGER], {
     cwd: dir,
     env: {
       ...process.env,
       PORT: String(port),
-      AWS_LAMBDA_FUNCTION_NAME: 'tested'
+      AWS_LAMBDA_FUNCTION_NAME: 'tested',
+      GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS)
     }
   });
   const lines = [];
@@ -66,6 +71,7 @@ async function startManager({ handler = ECHO_HANDLER, handlerFile = 'index.mjs' 
     port,
     dir,
     lines,
+    writeConfig: (value) => writeFile(path.join(dir, 'config.json'), JSON.stringify(value)),
     url: (route = '/') => `http://localhost:${port}${route}`,
     // Waits for a log line, which is also how the tests read what the environments printed
     waitFor: (test, timeout = 5000) =>
@@ -133,16 +139,52 @@ describe('function URL', () => {
   it('refuses an invocation it has no concurrency for, as Lambda does', async () => {
     const manager = await startManager();
     const responses = await Promise.all(
-      Array.from({ length: MAX_ENVIRONMENTS + 1 }, (_, i) =>
+      Array.from({ length: DEFAULT_MAX_CONCURRENCY + 1 }, (_, i) =>
         fetch(manager.url(`/${i}?wait=400`))
       )
     );
     const statuses = responses.map((r) => r.status).sort();
-    expect(statuses).toEqual([...Array(MAX_ENVIRONMENTS).fill(201), 429]);
+    expect(statuses).toEqual([...Array(DEFAULT_MAX_CONCURRENCY).fill(201), 429]);
     const refused = responses.find((r) => r.status === 429);
     expect(refused.headers.get('x-amzn-errortype')).toBe('TooManyRequestsException');
     expect(await refused.json()).toEqual({ message: 'Rate exceeded' });
-    expect(environmentIds(manager.lines)).toHaveLength(MAX_ENVIRONMENTS);
+    expect(environmentIds(manager.lines)).toHaveLength(DEFAULT_MAX_CONCURRENCY);
+  });
+
+  it('takes its concurrency from the config file', async () => {
+    const manager = await startManager({ config: { maxConcurrency: 2 } });
+    const statuses = await Promise.all(
+      [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=400`)).then((r) => r.status))
+    );
+    expect(statuses.sort()).toEqual([201, 201, 429]);
+    expect(environmentIds(manager.lines)).toHaveLength(2);
+  });
+
+  it('follows a change to the config file without a restart', async () => {
+    const manager = await startManager({ config: { maxConcurrency: 1 } });
+    const refused = await Promise.all(
+      [1, 2].map((i) => fetch(manager.url(`/${i}?wait=300`)).then((r) => r.status))
+    );
+    expect(refused.sort()).toEqual([201, 429]);
+
+    await manager.writeConfig({ maxConcurrency: 3 });
+    await sleep(CONFIG_POLLS_MS);
+    const allowed = await Promise.all(
+      [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=300`)).then((r) => r.status))
+    );
+    expect(allowed).toEqual([201, 201, 201]);
+  });
+
+  it('says once that the config file cannot be read, and keeps the last good one', async () => {
+    const manager = await startManager({ config: { maxConcurrency: 2 } });
+    await manager.writeConfig({ maxConcurrency: 0 });
+    await manager.waitFor((l) => /no positive maxConcurrency/.test(l));
+    await sleep(CONFIG_POLLS_MS);
+    expect(manager.lines.filter((l) => /no positive maxConcurrency/.test(l))).toHaveLength(1);
+    const statuses = await Promise.all(
+      [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=400`)).then((r) => r.status))
+    );
+    expect(statuses.sort()).toEqual([201, 201, 429]);
   });
 
   it('fails the invocation when the handler cannot be loaded', async () => {
