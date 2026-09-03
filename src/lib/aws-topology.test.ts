@@ -47,6 +47,15 @@ describe('buildTopology', () => {
 		expect(topology.owners).toEqual({ s3: {}, sqs: { orders: 'q1' }, dynamodb: { users: 't1' } });
 	});
 
+	it('grants a node the queue pointing at it, though the edge runs the other way', () => {
+		const topology = buildTopology(
+			[app('a', 'Worker'), queue('q1', 'Orders', 'orders')],
+			[edge('q1', 'a')]
+		);
+		expect(topology.principals[accessKeyFor('a')].resources.sqs).toEqual(['orders']);
+		expect(topology.principals[accessKeyFor('q1')]).toBeUndefined();
+	});
+
 	it('gives a resource node no principal of its own: it runs no code and gets no credentials', () => {
 		const topology = buildTopology([bucket('b1', 'Assets', 'assets')], []);
 		expect(topology.principals).toEqual({});

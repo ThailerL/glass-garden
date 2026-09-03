@@ -58,10 +58,14 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 		if (getResourceDefinition(node.type).consumes.includes('aws')) principalFor(node);
 	}
 
+	// An edge at either end grants: code pointing at a resource uses it, and a resource
+	// pointing at code triggers it, which the code then reads from with its own credentials
 	for (const node of nodes) {
-		const granted = edges
-			.filter((edge) => edge.source === node.id)
-			.flatMap((edge) => awsNodes.get(edge.target) ?? []);
+		const granted = edges.flatMap((edge) => {
+			if (edge.source === node.id) return awsNodes.get(edge.target) ?? [];
+			if (edge.target === node.id) return awsNodes.get(edge.source) ?? [];
+			return [];
+		});
 		if (granted.length === 0) continue;
 		const principal = principalFor(node);
 		for (const { service, resourceName } of granted) {
