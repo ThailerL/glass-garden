@@ -342,7 +342,10 @@ export class ResourceController {
 				launchConfig
 			);
 			instance.handle = handle;
-			if (handle.output) this.log.capture(instance.port, handle.output);
+			if (handle.output) {
+				this.log.openStream(instance.port, this.#definition.instanceLabel ?? `:${instance.port}`);
+				this.log.capture(instance.port, handle.output);
+			}
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
 			this.log.event(instance.port, 'info', 'Instance started');
@@ -368,6 +371,7 @@ export class ResourceController {
 	#onExit(instance: Instance, code: number) {
 		instance.previewUrl = undefined;
 		instance.handle = undefined;
+		this.log.closeStream(instance.port);
 		// A deliberate stop sets 'stopping' first, so a live status here means a crash
 		if (instance.status !== 'starting' && instance.status !== 'running') return;
 		const neverRan = instance.status === 'starting';

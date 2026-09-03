@@ -14,8 +14,17 @@ const MAX_METRIC_NAMES = 20;
 // A request id in a dimension mints a series per request; real CloudWatch bills for the same
 const MAX_SERIES_PER_NAME = 20;
 
-// What produced an entry: an instance, named by its port, or 'resource' for the node's own work
-export type LogSource = number | 'resource';
+// An execution environment a manager instance runs, reported through its output
+export type EnvironmentSource = `env:${string}`;
+
+// What produced an entry: an instance, named by its port, one of its execution environments,
+// or 'resource' for the node's own work
+export type LogSource = number | 'resource' | EnvironmentSource;
+
+// One writer in the node's log, as CloudWatch has a stream per instance or environment in a
+// group. Listed in order of first appearance; a reused port reopens its stream
+export type Stream = { source: number | EnvironmentSource; label: string; alive: boolean };
+const MAX_STREAMS = 50;
 
 // Shared fields that let output and events sort into one stream and filter by one source
 type LogEntry = {
@@ -42,6 +51,7 @@ export class ResourceLog {
 	events = $state<ResourceEvent[]>([]);
 	output = $state<OutputLine[]>([]);
 	metrics = $state<MetricStore>({});
+	streams = $state<Stream[]>([]);
 
 	// So a flood of new names does not fill the log with the complaint about it
 	#warnedNameCap = false;
@@ -51,14 +61,43 @@ export class ResourceLog {
 		captureLines(output, (line) => this.#routeLine(source, line));
 	}
 
+	openStream(source: Stream['source'], label: string) {
+		// From the end: the stream opening is nearly always the newest
+		const known = this.streams.findLast((stream) => stream.source === source);
+		if (known) {
+			known.alive = true;
+			return;
+		}
+		this.streams.push({ source, label, alive: true });
+		if (this.streams.length > MAX_STREAMS) this.streams.shift();
+	}
+
+	closeStream(source: Stream['source']) {
+		const known = this.streams.findLast((stream) => stream.source === source);
+		if (known) known.alive = false;
+	}
+
 	event(source: LogSource, level: ResourceEvent['level'], text: string) {
 		this.events.push({ kind: 'event', time: Date.now(), source, level, text });
 		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 
-	// A captured line is either an Embedded Metric Format line or something the process
-	// printed. Metric lines stay out of the log: one JSON blob per request would bury it
+	// A captured line is either an Embedded Metric Format line, a line a manager forwards
+	// from one of its execution environments, or something the process printed. Metric
+	// lines stay out of the log: one JSON blob per request would bury it
 	#routeLine(source: LogSource, line: string) {
+		const forwarded = /^gg:env(-exit)? (\S+)(?: (.*))?$/.exec(line);
+		if (forwarded) {
+			const [, exited, id, text] = forwarded;
+			const source: EnvironmentSource = `env:${id}`;
+			if (exited) {
+				this.closeStream(source);
+				return;
+			}
+			this.openStream(source, id);
+			this.#routeLine(source, text ?? '');
+			return;
+		}
 		if (!looksLikeEmf(line)) {
 			this.#logOutput(source, line);
 			return;

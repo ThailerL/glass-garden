@@ -12,7 +12,7 @@ import {
 	type ConnectedNode
 } from './resources';
 import { ResourceController, type ControllerServices } from './resource-controller.svelte';
-import type { MetricStore, OutputLine, ResourceEvent } from './resource-log.svelte';
+import type { MetricStore, OutputLine, ResourceEvent, Stream } from './resource-log.svelte';
 import { getContainer, removeNodeFiles, shutdownContainer } from './container';
 import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
 import { buildTopology } from './aws-topology';
@@ -175,6 +175,10 @@ export class Orchestrator {
 
 	getMetrics(nodeId: string): MetricStore {
 		return this.#controllers.get(nodeId)?.log.metrics ?? {};
+	}
+
+	getStreams(nodeId: string): readonly Stream[] {
+		return this.#controllers.get(nodeId)?.log.streams ?? [];
 	}
 
 	getRestarts(nodeId: string): number {

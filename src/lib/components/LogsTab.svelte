@@ -8,7 +8,8 @@
 	import { Toggle } from '$lib/components/ui/toggle';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
+	import type { LogSource, Stream } from '$lib/resource-log.svelte';
+	import StreamSelect from '$lib/components/StreamSelect.svelte';
 	const { nodeId }: { nodeId: string } = $props();
 	const orchestrator = getOrchestrator();
 
@@ -27,11 +28,17 @@
 		second: '2-digit'
 	});
 
-	let selectedPort = $state<number | 'all'>('all');
+	let selected = $state<Stream['source'] | 'all'>('all');
 
 	// Whether a source is worth naming at all, which is a question about the node rather
 	// than about what the select is currently showing
-	const hasMultipleInstances = $derived(orchestrator.getConfiguredCount(nodeId) > 1);
+	const streams = $derived(orchestrator.getStreams(nodeId));
+	const labelled = $derived(streams.length > 1);
+
+	function label(source: LogSource) {
+		if (source === 'resource') return 'resource';
+		return streams.find((stream) => stream.source === source)?.label ?? String(source);
+	}
 
 	// Both lists arrive oldest-first, so the sort only has to settle where they meet. Log
 	// lines win a tie because an event is a remark about output that has already been printed
@@ -43,9 +50,9 @@
 	// The resource's own entries stay in every view: an install that failed is the reason an
 	// instance never printed anything
 	const shown = $derived(
-		selectedPort === 'all'
+		selected === 'all'
 			? entries
-			: entries.filter((entry) => entry.source === selectedPort || entry.source === 'resource')
+			: entries.filter((entry) => entry.source === selected || entry.source === 'resource')
 	);
 
 	// How close to the end still counts as being at the end
@@ -90,7 +97,7 @@
 			<ClockIcon />
 		</Toggle>
 		<Toggle variant="outline" class="shrink-0" bind:pressed={eventsOnly}>Events only</Toggle>
-		<InstanceSelect {nodeId} bind:selected={selectedPort} all />
+		<StreamSelect {nodeId} bind:selected />
 	</div>
 
 	<!-- Kept mounted even when empty, so the observer below attaches once and stays -->
@@ -112,9 +119,9 @@
 						{timeFormat.format(entry.time)}
 					</span>
 				{/if}
-				{#if hasMultipleInstances && selectedPort === 'all'}
+				{#if labelled && selected === 'all'}
 					<span class="shrink-0 text-muted-foreground tabular-nums">
-						{entry.source === 'resource' ? 'resource' : `:${entry.source}`}
+						{label(entry.source)}
 					</span>
 				{/if}
 				<!-- Only printed output keeps its own spacing; an event is a sentence -->

@@ -117,6 +117,9 @@ export type ResourceDefinition = {
 	// instances go straight to 'running' instead of waiting for a server-ready that
 	// never comes
 	readyOnStart?: boolean;
+	// What the log calls this resource's one instance when its port would say nothing: a
+	// manager whose output is mostly the execution environments it forwards
+	instanceLabel?: string;
 	// Everything an instance is launched with that requires relaunching it when it changes:
 	// the node's own config, plus what its neighbours hand down. Omitted when nothing does
 	launchConfig?: (node: Node, neighbours: readonly ConnectedNode[]) => unknown;
