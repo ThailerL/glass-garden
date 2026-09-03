@@ -20,6 +20,13 @@ const PYODIDE_VERSION = '314.0.6';
 const EMULATOR_SPEC = 'ministack==1.5.5';
 const EMULATOR_NAME = EMULATOR_SPEC.split('==')[0];
 
+// Resolved as the emulator's dependency but left out of the tree. botocore is half the
+// payload and the slowest wheel to install, and nothing we serve imports it: it is lazy,
+// reached only from the glue, lambda-runtime and IAM paths. Code that wants an AWS client
+// installs its own from PyPI, which works in the VM - as the templates' npm install already
+// does. Verified by booting the region and exercising S3, SQS and DynamoDB without it
+const EXCLUDED_PACKAGES = ['botocore'];
+
 const RUNTIME_FILES = [
 	'package.json',
 	'pyodide.mjs',
@@ -132,7 +139,9 @@ fs.writeFileSync(${JSON.stringify(listFile)}, result);
 		files.push({ path: `wheels/${file}`, bytes: bytes.length });
 		totalBytes += bytes.length;
 	};
+	const excluded = new Set(EXCLUDED_PACKAGES.map(canonical));
 	for (const entry of packages) {
+		if (excluded.has(canonical(entry.name))) continue;
 		if (entry.source === 'pyodide') {
 			const dist = distEntries.get(canonical(entry.name));
 			if (!dist) fail(`${entry.name} is not in the distribution lockfile`);
@@ -188,8 +197,10 @@ fs.writeFileSync(${JSON.stringify(listFile)}, result);
 			2
 		)}\n`
 	);
+	const kept = distPackages.length + pypiWheels.length;
 	log(
-		`wrote ${packages.length} wheels + runtime - ${megabytes} MB, ${EMULATOR_NAME} ${emulator.version}`
+		`wrote ${kept} wheels + runtime - ${megabytes} MB, ${EMULATOR_NAME} ${emulator.version}` +
+			(kept < packages.length ? ` (excluded ${EXCLUDED_PACKAGES.join(', ')})` : '')
 	);
 } finally {
 	fs.rmSync(work, { recursive: true, force: true });
