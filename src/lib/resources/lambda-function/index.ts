@@ -55,6 +55,7 @@ export const lambdaFunction = {
 	consumes: ['sql', 'aws'],
 	configComponent: FunctionConfig,
 	configSchema,
+	metricDefaults: { 'concurrent executions': 'Average' },
 	// The one instance is the manager; execution environments spawned inside the manager
 	instanceCount: () => 1,
 	runsProcesses: true,

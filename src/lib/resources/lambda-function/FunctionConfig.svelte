@@ -29,7 +29,7 @@
 	name="maxConcurrency"
 	label="Max Concurrency"
 	type="number"
-	description="How many execution environments may run at once. Past this, a request or batch is refused rather than queued, as Lambda refuses one it has no concurrency for."
+	description="How many execution environments may run at once. Past this, a synchronous request or batch is refused rather than queued, as Lambda refuses one it has no concurrency for."
 	bind:value={$formData.maxConcurrency}
 />
 

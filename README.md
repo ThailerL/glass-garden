@@ -7,6 +7,7 @@ Build cloud architecture by dragging load balancers, compute instances, and AWS 
 Everything on your canvas is running real code, and your app reaches it the way it would in production:
 
 - compute instances running real Node processes whose code you can edit
+- functions with Lambda's handler shape, running in execution environments that scale from zero
 - a real Postgres server you connect to with the ordinary `pg` client
 - an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK
 

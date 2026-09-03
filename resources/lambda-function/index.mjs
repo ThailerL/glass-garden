@@ -19,7 +19,7 @@ const metrics = new Metrics();
 //   Lambda service does, and deletes the batch from the queue only when the handler returns.
 //   Throw instead, and the whole batch comes back after the queue's visibility timeout and
 //   is delivered again.
-// - A request through a load balancer or the preview URL arrives as the event a Lambda
+// - A request through a load balancer or the Preview tab arrives as the event a Lambda
 //   function URL sends: event.rawPath, event.headers, event.body and so on. What the handler
 //   returns becomes the response.
 //
