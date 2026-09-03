@@ -22,6 +22,8 @@ const FUNCTION_ARN = `arn:aws:lambda:us-east-1:000000000000:function:${FUNCTION_
 
 // The error Lambda answers an invocation it has no concurrency for
 const THROTTLED = 'TooManyRequestsException';
+// The host stores one datapoint per second, so a level reported less often leaves gaps
+const METRIC_PERIOD_MS = 1000;
 // Overridable so tests need not wait a second per re-read
 const CONFIG_POLL_MS = Number(process.env.GG_CONFIG_POLL_MS) || 1000;
 // Lambda keeps a warm environment for minutes; shorter here so a cold start stays visible
@@ -34,11 +36,31 @@ const INIT_TIMEOUT_MS = Number(process.env.GG_INIT_TIMEOUT_MS) || 30_000;
 // processes to be harmless
 const DEFAULT_CONFIG = { timeout: 3, maxConcurrency: 5 };
 
-// ── Logging ───────────────────────────────────────────────────────────────────────────────
+// ── Logging and metrics ───────────────────────────────────────────────────────────────────
 
 // Lines from an environment carry its id, so the host files them as that environment's
 // stream; the manager's own lines are bare
 const environmentLine = (id, line) => console.log(`gg:env ${id} ${line}`);
+
+// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line
+function putMetric(name, value, unit, dimensions = {}) {
+  console.log(
+    JSON.stringify({
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [
+          {
+            Namespace: 'glass-garden',
+            Dimensions: [Object.keys(dimensions)],
+            Metrics: [{ Name: name, Unit: unit }],
+          },
+        ],
+      },
+      ...dimensions,
+      [name]: value,
+    }),
+  );
+}
 
 // ── Config ────────────────────────────────────────────────────────────────────────────────
 
@@ -89,6 +111,22 @@ const pending = [];
 // Invocations handed to an environment, by request id
 const inFlight = new Map();
 
+let concurrencyBeat;
+
+// A level rather than a tally, so the chart reads as what is running right now. A period
+// with no samples is a gap rather than a zero, and an invocation outlives several, so the
+// level keeps reporting itself while there is work and falls silent when there is none
+function reportConcurrency() {
+  const busy = countEnvironments((env) => env.invocation);
+  putMetric('concurrent executions', busy, 'Count');
+  if (busy > 0 && !concurrencyBeat) {
+    concurrencyBeat = setInterval(reportConcurrency, METRIC_PERIOD_MS);
+  } else if (busy === 0 && concurrencyBeat) {
+    clearInterval(concurrencyBeat);
+    concurrencyBeat = undefined;
+  }
+}
+
 function spawnEnvironment() {
   const id = randomUUID().slice(0, 8);
   const child = spawn('node', [RUNTIME_SCRIPT], {
@@ -102,6 +140,7 @@ function spawnEnvironment() {
   const env = {
     id,
     child,
+    spawnedAt: Date.now(),
     // Set when the environment first asks for work: its init is over
     readyAt: undefined,
     // The parked /next response, present exactly while the environment is idle
@@ -196,6 +235,8 @@ function assign(env, invocation) {
   invocation.timer = setTimeout(() => timeOut(invocation), budget);
   inFlight.set(invocation.id, invocation);
   environmentLine(env.id, `START RequestId: ${invocation.id} Version: $LATEST`);
+  if (env.invocations === 1) putMetric('cold starts', 1, 'Count', { environment: env.id });
+  reportConcurrency();
   res.writeHead(200, {
     'content-type': 'application/json',
     'lambda-runtime-aws-request-id': invocation.id,
@@ -221,7 +262,18 @@ function complete(invocation, outcome) {
   clearTimeout(invocation.timer);
   const env = invocation.environment;
   env.invocation = undefined;
+  const duration = Date.now() - invocation.startedAt;
+  // Lambda's own per-invocation summary, and the init time only on the invocation that
+  // paid for the environment
+  const report = [`REPORT RequestId: ${invocation.id}`, `Duration: ${duration} ms`];
+  if (env.invocations === 1) report.push(`Init Duration: ${env.readyAt - env.spawnedAt} ms`);
   environmentLine(env.id, `END RequestId: ${invocation.id}`);
+  environmentLine(env.id, report.join('\t'));
+  const dimensions = { environment: env.id };
+  putMetric('invocations', 1, 'Count', dimensions);
+  putMetric('duration', duration, 'Milliseconds', dimensions);
+  if (outcome.error) putMetric('errors', 1, 'Count', dimensions);
+  reportConcurrency();
   invocation.resolve(outcome);
 }
 
@@ -241,6 +293,7 @@ function invoke(event) {
       console.error(
         `Refused an invocation: all ${config.maxConcurrency} execution environments are busy`,
       );
+      putMetric('throttles', 1, 'Count');
       return resolve({
         error: { errorType: THROTTLED, errorMessage: 'Rate exceeded' },
       });

@@ -102,6 +102,13 @@ afterEach(async () => {
   await Promise.all(running.splice(0).map((manager) => manager.stop()));
 });
 
+// The EMF lines the manager printed for one metric name
+const metrics = (lines, name) =>
+  lines
+    .filter((line) => line.startsWith('{'))
+    .map((line) => JSON.parse(line))
+    .filter((line) => line._aws?.CloudWatchMetrics?.[0]?.Metrics?.[0]?.Name === name);
+
 const environmentIds = (lines) =>
   [...new Set(lines.filter((l) => l.startsWith('gg:env ')).map((l) => l.split(' ')[1]))];
 
@@ -118,10 +125,16 @@ describe('function URL', () => {
     expect(body.remaining).toBeLessThanOrEqual(3000);
     await manager.waitFor((l) => /END RequestId/.test(l));
 
+    await manager.waitFor((l) => /REPORT RequestId: .*Init Duration/.test(l));
+
     const second = await fetch(manager.url('/two'));
     expect(await second.json()).toMatchObject({ path: '/two' });
     expect(manager.lines.filter((l) => /START RequestId/.test(l))).toHaveLength(2);
     expect(environmentIds(manager.lines)).toHaveLength(1);
+    // The second invocation is warm, so it reports no init time and mints no cold start
+    await manager.waitFor((l) => /REPORT RequestId/.test(l) && !/Init Duration/.test(l));
+    expect(metrics(manager.lines, 'cold starts')).toHaveLength(1);
+    expect(metrics(manager.lines, 'invocations')).toHaveLength(2);
   });
 
   it('takes the handler from index.js when there is no index.mjs', async () => {
@@ -146,6 +159,10 @@ describe('function URL', () => {
       errorMessage: 'handler failed'
     });
     await manager.waitFor((l) => /Invoke Error/.test(l));
+    await waitUntil(
+      () => metrics(manager.lines, 'errors').length === 1,
+      () => 'The failed invocation reported no error metric'
+    );
   });
 
   it('refuses an invocation it has no concurrency for, as Lambda does', async () => {
@@ -160,7 +177,21 @@ describe('function URL', () => {
     const refused = responses.find((r) => r.status === 429);
     expect(refused.headers.get('x-amzn-errortype')).toBe('TooManyRequestsException');
     expect(await refused.json()).toEqual({ message: 'Rate exceeded' });
+    expect(metrics(manager.lines, 'throttles')).toHaveLength(1);
     expect(environmentIds(manager.lines)).toHaveLength(DEFAULT_MAX_CONCURRENCY);
+  });
+
+  it('keeps reporting concurrency while an invocation runs', async () => {
+    const manager = await startManager();
+    await fetch(manager.url('/slow?wait=2500'));
+    const busy = metrics(manager.lines, 'concurrent executions').filter(
+      (line) => line['concurrent executions'] === 1
+    );
+    // One at the start and one per second it kept running, rather than a single sample
+    expect(busy.length).toBeGreaterThanOrEqual(3);
+    expect(metrics(manager.lines, 'concurrent executions').at(-1)).toMatchObject({
+      'concurrent executions': 0
+    });
   });
 
   it('takes its concurrency from the config file', async () => {
