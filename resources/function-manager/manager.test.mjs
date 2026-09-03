@@ -16,8 +16,14 @@ const DEFAULT_MAX_CONCURRENCY = 5;
 const ECHO_HANDLER = `
 export async function handler(event, context) {
   if (event.Records) {
-    for (const record of event.Records) console.log('record ' + record.body);
+    for (const record of event.Records) {
+      if (record.s3) console.log('object ' + record.s3.object.key);
+      else console.log('record ' + record.body);
+    }
+    // Long enough that two notifications delivered together overlap
+    if (event.Records[0].s3) await new Promise((resolve) => setTimeout(resolve, 300));
     if (event.Records.some((record) => record.body === 'bad')) throw new Error('bad batch');
+    if (event.Records.some((record) => record.s3?.object.key === 'bad.txt')) throw new Error('bad object');
     return;
   }
   const wait = Number(event.queryStringParameters?.wait ?? 0);
@@ -317,7 +323,7 @@ describe('function URL', () => {
 
 describe('trigger queues', () => {
   const queueUrl = 'http://localhost:1/000000000000/orders';
-  const trigger = { queueUrl, queueName: 'orders' };
+  const trigger = { source: 'sqs', queueUrl, queueName: 'orders' };
   const message = (body) => ({ MessageId: body, ReceiptHandle: `rh-${body}`, Body: body });
   const triggered = { timeout: 3, maxConcurrency: 5, triggers: [trigger] };
 
@@ -360,9 +366,9 @@ describe('trigger queues', () => {
       body: { __type: 'AccessDenied', message: 'not connected to the queue "orders"' }
     }));
     const manager = await startManager({ config: triggered, region });
-    await manager.waitFor((l) => /Could not read from "orders": not connected/.test(l));
+    await manager.waitFor((l) => /Could not read messages from "orders": not connected/.test(l));
     await sleep(300);
-    expect(manager.lines.filter((l) => /Could not read from/.test(l))).toHaveLength(1);
+    expect(manager.lines.filter((l) => /Could not read/.test(l))).toHaveLength(1);
   });
 
   it('starts and stops polling as the config file changes, without a restart', async () => {
@@ -375,14 +381,92 @@ describe('trigger queues', () => {
     expect(region.calls).toHaveLength(0);
 
     await manager.writeConfig(triggered);
-    await manager.waitFor((l) => /Polling "orders"/.test(l));
+    await manager.waitFor((l) => /Polling for messages from "orders"/.test(l));
     await waitForCall(region, 'ReceiveMessage');
 
     await manager.writeConfig({ ...triggered, triggers: [] });
-    await manager.waitFor((l) => /Stopped polling "orders"/.test(l));
+    await manager.waitFor((l) => /Stopped polling for messages from "orders"/.test(l));
     const seen = region.calls.length;
     await sleep(400);
     expect(region.calls.length).toBe(seen);
   });
 });
 
+describe('bucket notifications', () => {
+  const queueUrl = 'http://localhost:1/000000000000/gg-notifications-f1';
+  const trigger = { source: 's3', queueUrl, queueName: 'gg-notifications-f1' };
+  const triggered = { timeout: 3, maxConcurrency: 5, triggers: [trigger] };
+  // The body S3 puts on the queue for one object, as ministack builds it
+  const notification = (key) =>
+    JSON.stringify({
+      Records: [
+        {
+          eventSource: 'aws:s3',
+          eventName: 'ObjectCreated:Put',
+          s3: { bucket: { name: 'uploads' }, object: { key, size: 3 } }
+        }
+      ]
+    });
+  const testEvent = JSON.stringify({ Service: 'Amazon S3', Event: 's3:TestEvent' });
+  const message = (id, body) => ({ MessageId: id, ReceiptHandle: `rh-${id}`, Body: body });
+
+  // Serves the given messages, as many per receive as asked for, then nothing
+  const queueServing = (...messages) => {
+    const waiting = [...messages];
+    return fakeRegion(async (action, payload) => {
+      if (action === 'ReceiveMessage' && waiting.length > 0) {
+        return { body: { Messages: waiting.splice(0, payload.MaxNumberOfMessages) } };
+      }
+      await sleep(100);
+      return {};
+    });
+  };
+
+  it('invokes the handler with the S3 event and deletes the notification', async () => {
+    const region = queueServing(message('a', notification('photo.jpg')));
+    const manager = await startManager({ config: triggered, region });
+    await manager.waitFor((l) => /object photo.jpg/.test(l));
+    const deletion = await waitForCall(region, 'DeleteMessageBatch');
+    expect(deletion.payload.Entries.map((e) => e.ReceiptHandle)).toEqual(['rh-a']);
+    expect(metrics(manager.lines, 'notifications')).toMatchObject([{ bucket: 'uploads' }]);
+  });
+
+  it('drops the test event S3 sends when a bucket is configured', async () => {
+    const region = queueServing(message('t', testEvent));
+    const manager = await startManager({ config: triggered, region });
+    const deletion = await waitForCall(region, 'DeleteMessageBatch');
+    expect(deletion.payload.Entries.map((e) => e.ReceiptHandle)).toEqual(['rh-t']);
+    expect(manager.lines.filter((l) => /START RequestId/.test(l))).toHaveLength(0);
+  });
+
+  it('pulls only as many notifications as it can run, rather than throttling the rest', async () => {
+    const region = queueServing(message('a', notification('a.txt')), message('b', notification('b.txt')));
+    const manager = await startManager({ config: { ...triggered, maxConcurrency: 1 }, region });
+    await manager.waitFor((l) => /object a.txt/.test(l));
+    await manager.waitFor((l) => /object b.txt/.test(l));
+    expect(manager.lines.filter((l) => /no free execution environment/.test(l))).toHaveLength(0);
+    expect(environmentIds(manager.lines)).toHaveLength(1);
+  });
+
+  it('deletes each notification as it finishes, not once the whole receive is done', async () => {
+    const region = queueServing(message('a', notification('a.txt')), message('b', notification('b.txt')));
+    const manager = await startManager({ config: triggered, region });
+    await waitUntil(
+      () => region.calls.filter((c) => c.action === 'DeleteMessageBatch').length === 2,
+      () => 'The two notifications were deleted together rather than one at a time'
+    );
+  });
+
+  it('runs notifications together and deletes only the ones that succeeded', async () => {
+    const region = queueServing(
+      message('good', notification('fine.txt')),
+      message('bad', notification('bad.txt'))
+    );
+    const manager = await startManager({ config: triggered, region });
+    await manager.waitFor((l) => /delivered again after its visibility timeout/.test(l));
+    const deletion = await waitForCall(region, 'DeleteMessageBatch');
+    expect(deletion.payload.Entries.map((e) => e.ReceiptHandle)).toEqual(['rh-good']);
+    // Both ran at once: two environments, not one reused
+    expect(environmentIds(manager.lines)).toHaveLength(2);
+  });
+});

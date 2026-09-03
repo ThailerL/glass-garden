@@ -13,7 +13,6 @@ const auth = (service: string, accessKeyId = 'ggweb') =>
 	'SignedHeaders=host;x-amz-date, Signature=abc123';
 
 const topology: Topology = {
-	services: ['s3', 'sqs'],
 	principals: {
 		ggweb: {
 			nodeId: 'node-1',
@@ -101,7 +100,6 @@ describe('decideRequest', () => {
 
 	it('denies a service the caller has no edge to', () => {
 		const withoutSqsEdge: Topology = {
-			services: ['s3', 'sqs'],
 			principals: {
 				ggweb: {
 					nodeId: 'node-1',

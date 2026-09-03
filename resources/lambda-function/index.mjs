@@ -12,13 +12,17 @@ const metrics = new Metrics();
 // Watch the Logs tab: each environment is its own stream, and a new one appears whenever
 // Glass Garden has to start another to keep up.
 //
-// Two kinds of event reach this function, and the shape of the event says which:
+// Three kinds of event reach this function, and the shape of the event says which:
 //
 // - A queue that points at this function delivers messages in batches of up to ten, as
 //   event.Records. Glass Garden polls the queue on the function's behalf, exactly as the
 //   Lambda service does, and deletes the batch from the queue only when the handler returns.
 //   Throw instead, and the whole batch comes back after the queue's visibility timeout and
 //   is delivered again.
+// - A bucket that points at this function sends one event for each object created or
+//   removed, also as event.Records, with record.s3 naming the bucket and the key. Each
+//   notification is its own invocation, and several can run at once. Throw, and it is
+//   delivered again later, the way Lambda retries an asynchronous invocation.
 // - A request through a load balancer or the Preview tab arrives as the event a Lambda
 //   function URL sends: event.rawPath, event.headers, event.body and so on. What the handler
 //   returns becomes the response.
@@ -26,7 +30,13 @@ const metrics = new Metrics();
 // The whole file is an ordinary Lambda handler. It runs unchanged on AWS.
 export async function handler(event, context) {
   if (event.Records) {
-    for (const record of event.Records) console.log(`Message: ${record.body}`);
+    for (const record of event.Records) {
+      if (record.eventSource === 'aws:s3') {
+        console.log(`${record.eventName} ${record.s3.bucket.name}/${record.s3.object.key}`);
+      } else {
+        console.log(`Message: ${record.body}`);
+      }
+    }
     return;
   }
 

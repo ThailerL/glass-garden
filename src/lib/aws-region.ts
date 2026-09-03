@@ -107,6 +107,11 @@ export async function stopRegion(): Promise<void> {
 	await current.process?.exit;
 }
 
+// For a caller that would rather do nothing than boot the region to do it
+export function isRegionRunning() {
+	return region !== undefined;
+}
+
 export function setRegionTopology(topology: Topology) {
 	lastTopology = topology;
 	const current = region;

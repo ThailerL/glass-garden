@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/svelte';
-import { accessKeyFor, buildTopology } from './aws-topology';
+import { accessKeyFor, buildTopology, notificationQueueName } from './aws-topology';
 
 const node = (id: string, type: string, config: Record<string, unknown>): Node =>
 	({ id, type, position: { x: 0, y: 0 }, data: { config } }) as unknown as Node;
@@ -13,6 +13,8 @@ const table = (id: string, name: string, tableName: string) =>
 	node(id, 'dynamodbTable', { name, tableName, partitionKey: 'pk' });
 const app = (id: string, name: string) =>
 	node(id, 'instanceGroup', { name, instanceCount: 1, command: 'npm start' });
+const fn = (id: string, name: string) =>
+	node(id, 'lambdaFunction', { name, timeout: 3, maxConcurrency: 5 });
 const edge = (source: string, target: string): Edge => ({
 	id: `${source}-${target}`,
 	source,
@@ -27,7 +29,6 @@ describe('buildTopology', () => {
 			bucket('b2', 'Backups', 'backups')
 		];
 		const topology = buildTopology(nodes, [edge('a', 'b1')]);
-		expect(topology.services).toEqual(['s3']);
 		expect(topology.principals[accessKeyFor('a')]).toMatchObject({
 			nodeId: 'a',
 			name: 'Web',
@@ -38,7 +39,6 @@ describe('buildTopology', () => {
 	it('grants each service separately, so one edge does not unlock the others', () => {
 		const nodes = [app('a', 'Web'), queue('q1', 'Orders', 'orders'), table('t1', 'Users', 'users')];
 		const topology = buildTopology(nodes, [edge('a', 'q1')]);
-		expect(topology.services).toEqual(['dynamodb', 'sqs']);
 		expect(topology.principals[accessKeyFor('a')].resources).toEqual({
 			s3: [],
 			sqs: ['orders'],
@@ -54,6 +54,28 @@ describe('buildTopology', () => {
 		);
 		expect(topology.principals[accessKeyFor('a')].resources.sqs).toEqual(['orders']);
 		expect(topology.principals[accessKeyFor('q1')]).toBeUndefined();
+	});
+
+	it('grants a function the notification queue a bucket pointing at it delivers through', () => {
+		const topology = buildTopology(
+			[fn('f', 'Resize'), bucket('b1', 'Uploads', 'uploads')],
+			[edge('b1', 'f')]
+		);
+		expect(topology.principals[accessKeyFor('f')].resources).toEqual({
+			s3: ['uploads'],
+			sqs: [notificationQueueName('f')],
+			dynamodb: []
+		});
+		// Owned by nobody, so the region reports nothing about it
+		expect(topology.owners.sqs).toEqual({});
+	});
+
+	it('grants no notification queue for a function that merely uses a bucket', () => {
+		const topology = buildTopology(
+			[fn('f', 'Resize'), bucket('b1', 'Uploads', 'uploads')],
+			[edge('f', 'b1')]
+		);
+		expect(topology.principals[accessKeyFor('f')].resources.sqs).toEqual([]);
 	});
 
 	it('gives a resource node no principal of its own: it runs no code and gets no credentials', () => {
@@ -79,7 +101,6 @@ describe('buildTopology', () => {
 
 	it('skips a bucket whose name is not set yet', () => {
 		const topology = buildTopology([bucket('b1', 'Assets', '')], []);
-		expect(topology.services).toEqual([]);
 		expect(topology.owners.s3).toEqual({});
 	});
 

@@ -28,6 +28,8 @@ const BATCH_SIZE = 10;
 const WAIT_SECONDS = 20;
 const RECEIVE_TIMEOUT_MS = 30_000;
 const POLL_RETRY_MS = 5000;
+// How often a poller with nothing free to run on looks again
+const SLOT_WAIT_MS = 100;
 
 // The error Lambda answers an invocation it has no concurrency for
 const THROTTLED = 'TooManyRequestsException';
@@ -107,10 +109,14 @@ async function readConfig() {
   if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
     throw new Error(`config.json has no positive maxConcurrency: ${contents}`);
   }
+  // A queue delivers batches; a bucket's notifications arrive through a queue of their own
   const valid = (trigger) =>
-    trigger && typeof trigger.queueUrl === 'string' && typeof trigger.queueName === 'string';
+    trigger &&
+    typeof trigger.queueUrl === 'string' &&
+    typeof trigger.queueName === 'string' &&
+    ['sqs', 's3'].includes(trigger.source);
   if (!Array.isArray(triggers) || !triggers.every(valid)) {
-    throw new Error(`config.json triggers are not a list of queues: ${contents}`);
+    throw new Error(`config.json triggers are not a list of queue or bucket sources: ${contents}`);
   }
   return { timeout, maxConcurrency, triggers };
 }
@@ -310,12 +316,15 @@ function capacity() {
   return coming + config.maxConcurrency - environments.size;
 }
 
+// Invocations that could start right now without a refusal
+const free = () => capacity() - pending.length;
+
 // One invocation, resolved with { result } or { error: { errorType, errorMessage } }. Lambda
 // refuses a synchronous invocation it has no concurrency for rather than queueing it, so a
 // caller learns the cap is the reason instead of waiting on it
 function invoke(event) {
   return new Promise((resolve) => {
-    if (pending.length >= capacity()) {
+    if (free() < 1) {
       console.error(
         `Refused an invocation: all ${config.maxConcurrency} execution environments are busy`,
       );
@@ -521,48 +530,67 @@ const toRecord = (message, queueName) => ({
 
 const messageCount = (n) => `${n} message${n === 1 ? '' : 's'}`;
 
-// The event source mapping for one queue: long-poll, invoke with the batch, delete on success.
-// On failure nothing is deleted and the batch returns after the visibility timeout, which
-// is Lambda's rule. A read failure is said once and retried
-async function poll({ queueUrl, queueName }, signal) {
-  const complain = complainer();
-  while (!signal.aborted) {
-    let messages;
-    try {
-      const received = await sqs(
-        'ReceiveMessage',
-        {
-          QueueUrl: queueUrl,
-          MaxNumberOfMessages: BATCH_SIZE,
-          WaitTimeSeconds: WAIT_SECONDS,
-          AttributeNames: ['All'],
-        },
-        signal,
-      );
-      messages = Array.isArray(received.Messages) ? received.Messages : [];
-    } catch (error) {
-      if (signal.aborted) return;
-      complain(`Could not read from "${queueName}": ${error.message}`);
-      // Resolves early on abort rather than rejecting: the loop checks the signal itself
-      await sleep(POLL_RETRY_MS, undefined, { signal }).catch(() => {});
-      continue;
-    }
-    complain();
-    if (messages.length === 0) continue;
+// What a trigger is called in the log: a bucket's queue is hidden, so it is not named
+const describe = (trigger) =>
+  trigger.source === 's3' ? 'bucket notifications' : `messages from "${trigger.queueName}"`;
 
-    putMetric('batches', 1, 'Count', { queue: queueName });
-    const outcome = await invoke({ Records: messages.map((m) => toRecord(m, queueName)) });
+const failure = (error) =>
+  error.errorType === THROTTLED
+    ? 'found no free execution environment'
+    : `failed (${error.errorMessage ?? 'unknown error'})`;
+
+// A queue's batch is one invocation, deleted whole once the handler returns. On failure
+// nothing is deleted and the batch returns after the visibility timeout, which is Lambda's rule
+async function deliverBatch({ queueName }, messages, remove) {
+  putMetric('batches', 1, 'Count', { queue: queueName });
+  const outcome = await invoke({ Records: messages.map((m) => toRecord(m, queueName)) });
+  if (!outcome.error) return remove(messages);
+  console.error(
+    `A batch of ${messageCount(messages.length)} from "${queueName}" ${failure(outcome.error)}, so it returns to the queue after its visibility timeout`,
+  );
+}
+
+// A bucket's events are one invocation each, run together as Lambda runs asynchronous
+// invocations, and each is deleted the moment it succeeds: a failed or throttled one returns
+// after the visibility timeout, which stands in for Lambda's retries. The test event S3 sends
+// when a bucket is configured goes to queues, never to functions, so it is dropped
+async function deliverNotifications(_trigger, messages, remove) {
+  await Promise.all(
+    messages.map(async (message) => {
+      let event;
+      try {
+        event = JSON.parse(message.Body);
+      } catch {
+        event = undefined;
+      }
+      const record = event?.Records?.[0];
+      if (!record) return remove([message]);
+      const bucket = record.s3?.bucket?.name ?? '';
+      putMetric('notifications', 1, 'Count', { bucket });
+      const outcome = await invoke(event);
+      if (outcome.error) {
+        console.error(
+          `The notification for ${bucket}/${record.s3?.object?.key} ${failure(outcome.error)}, so it is delivered again after its visibility timeout`,
+        );
+        return;
+      }
+      // Each on its own, as soon as it is done: one that waited for the rest of the batch
+      // would be delivered again if this process died meanwhile
+      await remove([message]);
+    }),
+  );
+}
+
+// The event source mapping for one trigger: long-poll, hand the messages to the delivery its
+// source calls for, and let it delete what it finishes. A read failure is said once and retried
+async function poll(trigger, signal) {
+  const { queueUrl, source } = trigger;
+  const deliver = source === 's3' ? deliverNotifications : deliverBatch;
+  const complain = complainer();
+  // Resolves early on abort rather than rejecting: the loop checks the signal itself
+  const pause = (ms) => sleep(ms, undefined, { signal }).catch(() => {});
+  const remove = async (messages) => {
     if (signal.aborted) return;
-    if (outcome.error) {
-      const why =
-        outcome.error.errorType === THROTTLED
-          ? 'found no free execution environment'
-          : `failed (${outcome.error.errorMessage ?? 'unknown error'})`;
-      console.error(
-        `A batch of ${messageCount(messages.length)} from "${queueName}" ${why}, so it returns to the queue after its visibility timeout`,
-      );
-      continue;
-    }
     try {
       await sqs(
         'DeleteMessageBatch',
@@ -574,8 +602,38 @@ async function poll({ queueUrl, queueName }, signal) {
       );
     } catch (error) {
       if (signal.aborted) return;
-      complain(`Could not delete ${messageCount(messages.length)} from "${queueName}": ${error.message}`);
+      complain(`Could not delete ${messageCount(messages.length)} of ${describe(trigger)}: ${error.message}`);
     }
+  };
+  while (!signal.aborted) {
+    // An event source mapping only pulls what it can run now, rather than receiving work it
+    // would have to throttle and hand back for a visibility timeout. A batch is one
+    // invocation however many messages it holds; notifications are one each
+    while (!signal.aborted && free() < 1) await pause(SLOT_WAIT_MS);
+    if (signal.aborted) return;
+    let messages;
+    try {
+      const received = await sqs(
+        'ReceiveMessage',
+        {
+          QueueUrl: queueUrl,
+          MaxNumberOfMessages: source === 's3' ? Math.min(BATCH_SIZE, free()) : BATCH_SIZE,
+          WaitTimeSeconds: WAIT_SECONDS,
+          AttributeNames: ['All'],
+        },
+        signal,
+      );
+      messages = Array.isArray(received.Messages) ? received.Messages : [];
+    } catch (error) {
+      if (signal.aborted) return;
+      complain(`Could not read ${describe(trigger)}: ${error.message}`);
+      await pause(POLL_RETRY_MS);
+      continue;
+    }
+    complain();
+    if (messages.length === 0) continue;
+
+    await deliver(trigger, messages, remove);
   }
 }
 
@@ -587,15 +645,15 @@ function reconcilePollers() {
     if (wanted.has(queueUrl)) continue;
     controller.abort();
     pollers.delete(queueUrl);
-    console.log(`Stopped polling "${trigger.queueName}"`);
+    console.log(`Stopped polling for ${describe(trigger)}`);
   }
   for (const [queueUrl, trigger] of wanted) {
     if (pollers.has(queueUrl)) continue;
     const controller = new AbortController();
     pollers.set(queueUrl, { trigger, controller });
-    console.log(`Polling "${trigger.queueName}" for messages`);
+    console.log(`Polling for ${describe(trigger)}`);
     poll(trigger, controller.signal).catch((error) =>
-      console.error(`Polling "${trigger.queueName}" stopped: ${error.stack ?? error.message}`),
+      console.error(`Polling for ${describe(trigger)} stopped: ${error.stack ?? error.message}`),
     );
   }
 }

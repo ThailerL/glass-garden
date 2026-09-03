@@ -1,11 +1,14 @@
 # The function surface the JS bridge calls. Runs last: everything defined by the other
 # python files is already in this namespace.
 import glob
-import html
-import re
 import time
+from xml.etree.ElementTree import Element, SubElement, fromstring, tostring
 
 from pyodide.ffi import to_js
+
+S3_NAMESPACE = "http://s3.amazonaws.com/doc/2006-03-01/"
+# What a bucket tells a function about, as a Lambda trigger's default does
+NOTIFIED_EVENTS = ("s3:ObjectCreated:*", "s3:ObjectRemoved:*")
 
 
 # One data-plane request: the caller's method/path/headers/body, forwarded verbatim. body
@@ -89,6 +92,10 @@ async def gg_provision(service, name, config_json):
         # 409 is BucketAlreadyOwnedByYou territory: provisioning is idempotent
         if created.status not in (200, 409):
             raise RuntimeError(f"CreateBucket answered {created.status}")
+        # Absent leaves the configuration alone: start provisions with launch config only and
+        # must not wipe what update wrote
+        if "notifications" in config:
+            await put_bucket_notifications(name, config["notifications"])
         return json.dumps({"bucket": name})
     if service == "sqs":
         # Created bare and then configured, rather than created with its attributes: a
@@ -127,6 +134,28 @@ async def gg_provision(service, name, config_json):
     raise RuntimeError(f"unknown service {service}")
 
 
+# One QueueConfiguration per queue; an empty list clears. The ARN's region and account are
+# what the emulator validates the destination against, and match the URLs the host mints
+async def put_bucket_notifications(bucket, queues):
+    root = Element("NotificationConfiguration", xmlns=S3_NAMESPACE)
+    for queue in queues:
+        configuration = SubElement(root, "QueueConfiguration")
+        SubElement(configuration, "Id").text = queue["id"]
+        arn = f"arn:aws:sqs:us-east-1:000000000000:{queue['queueName']}"
+        SubElement(configuration, "Queue").text = arn
+        for event in NOTIFIED_EVENTS:
+            SubElement(configuration, "Event").text = event
+    body = tostring(root, encoding="utf-8")
+    response = await s3_request(
+        "put", f"/{bucket}?notification", body, {"content-type": "application/xml"}
+    )
+    if response.status != 200:
+        raise RuntimeError(
+            f"PutBucketNotificationConfiguration answered {response.status}: "
+            f"{response.body.decode()}"
+        )
+
+
 async def gg_deprovision(service, name):
     if service == "s3":
         while True:
@@ -155,4 +184,4 @@ async def _bucket_key_page(bucket):
     listing = await s3_request("get", f"/{bucket}?list-type=2")
     if listing.status == 404:
         return None
-    return [html.unescape(k) for k in re.findall(r"<Key>([^<]*)</Key>", listing.body.decode())]
+    return [key.text or "" for key in fromstring(listing.body).iter(f"{{{S3_NAMESPACE}}}Key")]

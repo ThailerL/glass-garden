@@ -8,7 +8,6 @@ export type Principal = {
 // owners maps a resource name back to the node serving it, so the bridge can attribute
 // what it observes about a resource to the node the user sees
 export type Topology = {
-	services: string[];
 	principals: Record<string, Principal>;
 	owners: Record<Service, Record<string, string>>;
 };

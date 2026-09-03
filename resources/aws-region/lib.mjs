@@ -11,7 +11,7 @@ export const EVENT_PREFIX = 'gg:event ';
 
 // What every holder of a topology starts from, before the canvas has said anything
 export function emptyTopology() {
-  return { services: [], principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
+  return { principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
 }
 
 // SigV4 credential scope: "AWS4-HMAC-SHA256 Credential=<key>/<date>/<region>/<service>/aws4_request, ..."
@@ -57,11 +57,11 @@ export function extractResourceName(service, path, bodyText) {
 // that node's log
 const deny = (status, code, message, nodeId) => ({ allow: false, status, code, message, nodeId });
 
-// topology: { services: string[], principals: { [accessKeyId]: Principal } } where a
-// principal is { nodeId, name, resources: { s3: string[], sqs: string[], dynamodb: string[] } }.
+// topology: { principals: { [accessKeyId]: Principal } } where a principal is
+// { nodeId, name, resources: { s3: string[], sqs: string[], dynamodb: string[] } }.
 // The checks run most-general first so the signpost names the closest missing thing:
-// bad credentials, unknown service, unknown caller, no such node family on the canvas,
-// no edge to the family, no edge to the named resource
+// bad credentials, unknown service, unknown caller, no edge to the family, no edge to the
+// named resource
 export function decideRequest({ credential, resourceName }, topology) {
   if (!credential) {
     return deny(
@@ -89,14 +89,6 @@ export function decideRequest({ credential, resourceName }, topology) {
     );
   }
 
-  if (!topology.services.includes(service)) {
-    return deny(
-      403,
-      'AccessDenied',
-      `There is no ${noun(service)} on the canvas. Drag a ${NODE_LABELS[service]} node in and connect "${principal.name}" to it.`,
-      principal.nodeId,
-    );
-  }
   const allowed = principal.resources[service] ?? [];
   if (allowed.length === 0) {
     return deny(

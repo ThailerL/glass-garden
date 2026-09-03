@@ -9,8 +9,14 @@ import { npmInstall, processHandle } from '../shared';
 import { consumerEnv } from '../env';
 import { activeProjectDirectory, mountSharedFiles, nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
-import { queueUrlFor } from '$lib/aws-region';
-import { awsResourceOf } from '$lib/aws-topology';
+import {
+	deprovisionResource,
+	ensureRegion,
+	isRegionRunning,
+	provisionResource,
+	queueUrlFor
+} from '$lib/aws-region';
+import { awsResourceOf, notificationQueueName } from '$lib/aws-topology';
 
 const configSchema = z.object({
 	name: z.string().min(1).default('Function'),
@@ -22,6 +28,12 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 const MANAGER_DIRECTORY = 'function-manager';
+
+const queueTrigger = (source: 'sqs' | 's3', queueName: string) => ({
+	source,
+	queueName,
+	queueUrl: queueUrlFor(queueName)
+});
 
 // The function's own name, which the manager reports to the handler as its identity - AWS's
 // own reserved variable, not a grant from a connection, so it travels outside consumerEnv
@@ -89,20 +101,34 @@ export const lambdaFunction = {
 		);
 		return processHandle(process);
 	},
-	// A running queue pointing at this function is an event source mapping for the manager
-	// to poll
+	// A running queue pointing at this function is an event source mapping for the manager to
+	// poll; running buckets pointing at it all deliver through the function's own queue
 	update: async (
 		node: Node,
 		container: Vivari,
 		_targets: readonly ConnectedNode[],
 		sources: readonly ConnectedNode[]
 	) => {
-		const triggers = sources.flatMap(({ node, instances }) => {
-			const resource = awsResourceOf(node);
-			if (resource?.service !== 'sqs') return [];
-			if (!instances.some((instance) => instance.status === 'running')) return [];
-			return [{ queueName: resource.resourceName, queueUrl: queueUrlFor(resource.resourceName) }];
-		});
+		const running = sources.filter(({ instances }) =>
+			instances.some((instance) => instance.status === 'running')
+		);
+		const services = running.map(({ node }) => awsResourceOf(node)).filter((r) => r !== undefined);
+		const triggers = services
+			.filter(({ service }) => service === 'sqs')
+			.map(({ resourceName }) => queueTrigger('sqs', resourceName));
+		// The hidden queue every bucket pointing here delivers through: this function's to
+		// create, idempotently, and to poll
+		if (services.some(({ service }) => service === 's3')) {
+			await ensureRegion();
+			await provisionResource('sqs', notificationQueueName(node.id));
+			triggers.push(queueTrigger('s3', notificationQueueName(node.id)));
+		}
 		await writeConfig(node, container, triggers);
+	},
+	// Only while the region is up: a function that never had a bucket pointing at it should
+	// not boot the region to delete a queue that is not there, and a queue left behind in a
+	// stopped region is owned by nothing and polled by nothing
+	remove: async (node: Node) => {
+		if (isRegionRunning()) await deprovisionResource('sqs', notificationQueueName(node.id));
 	}
 } satisfies ResourceDefinition;

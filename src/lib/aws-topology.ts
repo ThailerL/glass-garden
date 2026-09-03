@@ -32,12 +32,17 @@ export function accessKeyFor(nodeId: string) {
 	return `gg${nodeId}`;
 }
 
+// The hidden queue a bucket's notifications reach a function through. Named for the function
+// and owned by no node, so the bridge reports nothing about it
+export function notificationQueueName(nodeId: string) {
+	return `gg-notifications-${nodeId}`;
+}
+
 const emptyResources = (): Record<Service, string[]> => ({ s3: [], sqs: [], dynamodb: [] });
 
-// The whole enforcement input, rebuilt from the graph: which AWS services exist on the
-// canvas at all, which node serves each resource, and for each caller, the resource names
-// its edges grant it. Only consumers become principals - a resource node runs no code and
-// is never issued credentials
+// The whole enforcement input, rebuilt from the graph: which node serves each resource, and
+// for each caller, the resource names its edges grant it. Only consumers become principals -
+// a resource node runs no code and is never issued credentials
 export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): Topology {
 	const awsNodes = new Map<string, AwsResource>();
 	for (const node of nodes) {
@@ -66,6 +71,11 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 			if (edge.target === node.id) return awsNodes.get(edge.source) ?? [];
 			return [];
 		});
+		// A bucket pointing at code delivers its events through the code's own notification
+		// queue, which only that direction creates
+		if (edges.some((e) => e.target === node.id && awsNodes.get(e.source)?.service === 's3')) {
+			granted.push({ service: 'sqs', resourceName: notificationQueueName(node.id) });
+		}
 		if (granted.length === 0) continue;
 		const principal = principalFor(node);
 		for (const { service, resourceName } of granted) {
@@ -83,6 +93,5 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 	for (const [nodeId, resource] of awsNodes) {
 		owners[resource.service][resource.resourceName] = nodeId;
 	}
-	const services = [...new Set([...awsNodes.values()].map((entry) => entry.service))].sort();
-	return { services, principals, owners };
+	return { principals, owners };
 }

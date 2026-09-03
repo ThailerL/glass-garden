@@ -3,10 +3,12 @@ import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import BucketIcon from '@lucide/svelte/icons/archive';
 import BucketConfig from './BucketConfig.svelte';
-import type { ResourceDefinition } from '../types';
+import type { ConnectedNode, ResourceDefinition } from '../types';
+import { providing } from '../index';
 import { slugify } from '../shared';
 import { nodeConfig } from '$lib/graph-state.svelte';
 import { deprovisionResource, ensureRegion, provisionResource, regionExit } from '$lib/aws-region';
+import { notificationQueueName } from '$lib/aws-topology';
 
 // S3's own rules, which the AWS SDK enforces client-side too: a name that passes here is
 // one the user could take to real AWS
@@ -47,7 +49,8 @@ export const s3Bucket = {
 	hasPreview: false,
 	ownsStoredData: true,
 	provides: ['aws'],
-	consumes: [],
+	// A bucket can point at a function, which then receives an event per object
+	consumes: ['invoke'],
 	configComponent: BucketConfig,
 	configSchema,
 	namedOnCreate: {
@@ -89,6 +92,21 @@ export const s3Bucket = {
 		// The region is what this node is really running on, so its death is the node's
 		const death = regionExit();
 		return { exited: death.exited, stop: async () => death.cancel() };
+	},
+	// The bucket notifies every running function it points at, through the queue that
+	// function creates for itself. The emulator checks only the ARN's shape here, so the
+	// order of the two updates does not matter
+	update: async (node: Node, _container: Vivari, targets: readonly ConnectedNode[]) => {
+		const running = providing(targets, 'invoke').filter(({ instances }) =>
+			instances.some((instance) => instance.status === 'running')
+		);
+		await ensureRegion();
+		await provisionResource('s3', bucketNameOf(node), {
+			notifications: running.map(({ node: target }) => ({
+				id: target.id,
+				queueName: notificationQueueName(target.id)
+			}))
+		});
 	},
 	remove: async (node: Node) => {
 		await ensureRegion();
