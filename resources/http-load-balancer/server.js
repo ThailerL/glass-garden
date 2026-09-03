@@ -10,23 +10,26 @@ if (!port) {
 // Kept in step with the algorithm field of the resource's config schema
 const ALGORITHMS = ['round-robin', 'random'];
 
-// Retries after the first attempt. Bounded so one client request cannot turn into a
-// connection attempt against every instance of a large pool
-const MAX_RETRIES = 3;
-
 let cursor = 0;
 
-// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line
-function putMetric(name, value, unit) {
+// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line. A metric
+// is either always about a target or never about one, so its dimensions never vary between
+// readings and the per-target lines always add up to the total
+function putMetric(name, value, unit, target) {
   console.log(
     JSON.stringify({
       _aws: {
         Timestamp: Date.now(),
         CloudWatchMetrics: [
-          { Namespace: 'glass-garden', Dimensions: [[]], Metrics: [{ Name: name, Unit: unit }] },
+          {
+            Namespace: 'glass-garden',
+            Dimensions: target === undefined ? [[]] : [[], ['target']],
+            Metrics: [{ Name: name, Unit: unit }],
+          },
         ],
       },
       [name]: value,
+      target,
     }),
   );
 }
@@ -57,27 +60,15 @@ async function readConfig() {
   return { algorithm, targets };
 }
 
-// Advanced once per request rather than once per attempt, so retrying past a dead target
-// does not spend its turn and skew the split
-function rotate(targets) {
+function pick(algorithm, targets) {
+  if (algorithm === 'random') return targets[Math.floor(Math.random() * targets.length)];
   cursor = (cursor + 1) % targets.length;
-  return [...targets.slice(cursor), ...targets.slice(0, cursor)];
+  return targets[cursor];
 }
 
-// Fisher-Yates. A whole order rather than a single pick, so a refused target still falls
-// through to the rest
-function shuffle(targets) {
-  const order = [...targets];
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
-  }
-  return order;
-}
-
-function attemptOrder(algorithm, targets) {
-  return algorithm === 'random' ? shuffle(targets) : rotate(targets);
-}
+// A refused connection arrives as an AggregateError whose own message is empty, one entry per
+// address tried, so the code is the only thing that names the failure
+const reasonOf = (error) => error.message || error.code || String(error);
 
 function forward(target, req, body) {
   return new Promise((resolve, reject) => {
@@ -97,13 +88,6 @@ function forward(target, req, body) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const started = Date.now();
-  res.on('finish', () => {
-    putMetric('requests', 1, 'Count');
-    putMetric('latency', Date.now() - started, 'Milliseconds');
-    if (res.statusCode >= 500) putMetric('failures', 1, 'Count');
-  });
-
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const body = Buffer.concat(chunks);
@@ -114,38 +98,49 @@ const server = http.createServer(async (req, res) => {
     ({ algorithm, targets } = await readConfig());
   } catch (error) {
     console.error(error.message);
+    putMetric('balancer errors', 1, 'Count');
     res.writeHead(500, { 'content-type': 'text/plain' }).end(`${error.message}\n`);
     return;
   }
 
   if (targets.length === 0) {
+    putMetric('balancer errors', 1, 'Count');
     res
       .writeHead(503, { 'content-type': 'text/plain' })
       .end('No targets: nothing running is wired to this load balancer\n');
     return;
   }
 
-  // A target can die between rewrites, so a refused connection falls through to the next
-  const failures = [];
-  for (const target of attemptOrder(algorithm, targets).slice(0, MAX_RETRIES + 1)) {
-    try {
-      const upstream = await forward(target, req, body);
-      res.writeHead(upstream.statusCode, upstream.headers);
-      // Caught here rather than by the retry: the headers are already out, so a target dying
-      // mid-body can only be logged
-      await pipeline(upstream, res).catch((error) =>
-        console.error(`:${target} failed mid-response: ${error.message}`)
-      );
-      return;
-    } catch (error) {
-      failures.push(`:${target} ${error.message}`);
-    }
+  // Counted once a target is chosen, the way an ALB counts a request, so a request it turned
+  // away above is not one and every reading here names the target it belongs to
+  const target = pick(algorithm, targets);
+  const dimension = String(target);
+  putMetric('requests', 1, 'Count', dimension);
+
+  const started = Date.now();
+  let upstream;
+  try {
+    upstream = await forward(target, req, body);
+  } catch (error) {
+    putMetric('connection errors', 1, 'Count', dimension);
+    // The 502 is the balancer's own answer, not the target's, so it is not a target failure
+    putMetric('balancer errors', 1, 'Count');
+    const message = `:${target} unreachable: ${reasonOf(error)}`;
+    console.error(message);
+    res.writeHead(502, { 'content-type': 'text/plain' }).end(`${message}\n`);
+    return;
   }
 
-  const summary = `No upstream reachable, tried ${failures.length} of ${targets.length}`;
-  const detail = failures.join('\n');
-  console.error(`${summary}:\n${detail}`);
-  res.writeHead(502, { 'content-type': 'text/plain' }).end(`${summary}\n\n${detail}\n`);
+  // The target's own time, ending at its first response header rather than at the last byte
+  // of the body, which is what an ALB reports as target response time
+  putMetric('latency', Date.now() - started, 'Milliseconds', dimension);
+  if (upstream.statusCode >= 500) putMetric('failures', 1, 'Count', dimension);
+
+  res.writeHead(upstream.statusCode, upstream.headers);
+  // The headers are already out, so a target dying mid-body can only be logged
+  await pipeline(upstream, res).catch((error) =>
+    console.error(`:${target} failed mid-response: ${reasonOf(error)}`)
+  );
 });
 
 server.listen(port, () => {

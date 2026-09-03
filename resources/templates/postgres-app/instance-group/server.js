@@ -1,6 +1,5 @@
 import express from 'express';
 import pg from 'pg';
-import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
 import { readFile } from 'node:fs/promises';
 
 const url = process.env.DATABASE_URL;
@@ -14,13 +13,6 @@ const port = Number(process.env.PORT);
 if (!port) {
   throw new Error('PORT is not set');
 }
-
-// CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the
-// Metrics tab reads
-const metrics = new Metrics();
-// What tells one instance's numbers from another's, here and in CloudWatch: a dimension the
-// code declares. Remove it and the instances' lines merge into one
-metrics.setDefaultDimensions({ instance: String(port) });
 
 const pool = new pg.Pool({ connectionString: url });
 
@@ -40,7 +32,6 @@ const app = express();
 app.use(express.static('public', { index: false }));
 
 app.get('/', async (req, res) => {
-  const started = Date.now();
   try {
     // Done here so the server can start without a running database
     await pool.query(`CREATE TABLE IF NOT EXISTS views (
@@ -76,12 +67,6 @@ app.get('/', async (req, res) => {
     // This server is fine, the database is not, so it answers 503 rather than stopping
     console.error('database unavailable:', error.message);
     res.status(503).type('text/plain').send(`Database unavailable: ${error.message}\n`);
-  } finally {
-    // The two shapes a metric takes: a count of something, and a measurement of it. Put
-    // here so a request the database refused still counts
-    metrics.addMetric('requests', MetricUnit.Count, 1);
-    metrics.addMetric('response time', MetricUnit.Milliseconds, Date.now() - started);
-    metrics.publishStoredMetrics();
   }
 });
 
