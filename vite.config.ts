@@ -26,7 +26,8 @@ async function readTree(directory: string): Promise<FileSystemTree> {
 			tree[entry.name] = { directory: await readTree(entryPath) };
 			continue;
 		}
-		if (!entry.isFile()) continue;
+		// A resource's tests run on the host, so they are not part of what the VM mounts
+		if (!entry.isFile() || entry.name.includes('.test.')) continue;
 		try {
 			tree[entry.name] = { file: { contents: decoder.decode(await readFile(entryPath)) } };
 		} catch {
@@ -191,7 +192,7 @@ export default defineConfig({
 	],
 
 	test: {
-		include: ['src/**/*.test.ts'],
+		include: ['src/**/*.test.ts', 'resources/**/*.test.mjs'],
 		environment: 'node'
 	}
 });

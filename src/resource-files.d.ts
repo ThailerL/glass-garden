@@ -3,6 +3,7 @@
 declare module 'virtual:resource-files' {
 	import type { FileSystemTree } from '@vivari/core';
 	export const instanceGroup: FileSystemTree;
+	export const functionManager: FileSystemTree;
 	export const httpLoadBalancer: FileSystemTree;
 	export const awsRegion: FileSystemTree;
 	export const postgres: FileSystemTree;
