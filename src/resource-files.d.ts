@@ -7,5 +7,8 @@ declare module 'virtual:resource-files' {
 	export const awsRegion: FileSystemTree;
 	export const postgres: FileSystemTree;
 	// One entry per directory under a template, keyed by the path to it
-	export const templates: Record<'postgres-app/instance-group', FileSystemTree>;
+	export const templates: Record<
+		'postgres-app/instance-group' | 's3-app/instance-group',
+		FileSystemTree
+	>;
 }

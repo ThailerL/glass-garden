@@ -59,7 +59,10 @@
 	{#if definition}
 		<Sidebar.Header class="flex-row items-center gap-2 px-3 pt-3 pb-1">
 			<definition.icon class="size-5 shrink-0" />
-			<span class="truncate font-medium">{name}</span>
+			<div class="min-w-0">
+				<div class="truncate font-medium">{name}</div>
+				<div class="truncate text-xs text-muted-foreground">{definition.name}</div>
+			</div>
 		</Sidebar.Header>
 	{/if}
 	<Sidebar.Content>

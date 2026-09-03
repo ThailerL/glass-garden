@@ -37,7 +37,7 @@
 	<Dialog.Content>
 		<Dialog.Header>
 			<Dialog.Title>New project</Dialog.Title>
-			<Dialog.Description>Each project has its own canvas, files and data.</Dialog.Description>
+			<Dialog.Description>Each project has its own canvas, files, and data.</Dialog.Description>
 		</Dialog.Header>
 
 		<form class="grid gap-4" onsubmit={create}>

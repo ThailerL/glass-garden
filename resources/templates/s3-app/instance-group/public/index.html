@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notes</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <p class="total">{{count}}</p>
+      <p class="caption">
+        objects in the bucket <strong>{{bucket}}</strong>, written with the real AWS SDK
+      </p>
+
+      <form method="post">
+        <input name="note" placeholder="Write a note" autocomplete="off" autofocus />
+        <button type="submit">Add</button>
+      </form>
+
+      <ul class="notes">
+        {{notes}}
+      </ul>
+
+      <p class="caption">
+        Each note is one object. The bucket's own chart counts them, and disconnecting the edge
+        to it stops this page working - the local AWS region refuses a call the canvas does not
+        allow.
+      </p>
+    </main>
+  </body>
+</html>
