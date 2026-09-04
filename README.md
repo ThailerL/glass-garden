@@ -1,4 +1,3 @@
-
 # Glass Garden
 
 Build cloud architecture by dragging load balancers, instance groups, and AWS services onto a canvas. Press play, use your app, and watch where requests go.
