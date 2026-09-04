@@ -2,6 +2,7 @@ import type { Node } from '@xyflow/svelte';
 import type { Capability, ResourceDefinition, ConnectedNode } from './types';
 import { instanceGroup } from './instance-group';
 import { httpLoadBalancer } from './http-load-balancer';
+import { requestGenerator } from './request-generator';
 import { postgres } from './postgres';
 import { s3Bucket } from './s3-bucket';
 import { sqsQueue } from './sqs-queue';
@@ -14,6 +15,7 @@ export const resourceDefinitions = {
 	instanceGroup,
 	lambdaFunction,
 	httpLoadBalancer,
+	requestGenerator,
 	postgres,
 	s3Bucket,
 	sqsQueue,

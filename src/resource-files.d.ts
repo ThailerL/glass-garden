@@ -6,6 +6,7 @@ declare module 'virtual:resource-files' {
 	export const lambdaFunction: FileSystemTree;
 	export const functionManager: FileSystemTree;
 	export const httpLoadBalancer: FileSystemTree;
+	export const requestGenerator: FileSystemTree;
 	export const awsRegion: FileSystemTree;
 	export const postgres: FileSystemTree;
 	// One entry per directory under a template, keyed by the path to it
