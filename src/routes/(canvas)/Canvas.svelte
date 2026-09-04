@@ -188,7 +188,7 @@
 			bind:nodes={graphState.nodes}
 			bind:edges={graphState.edges}
 			{nodeTypes}
-			deleteKeyCode="Delete"
+			deleteKey="Delete"
 			onbeforedelete={onBeforeDelete}
 			ondelete={onDelete}
 			onnodedragstop={onNodeDragStop}
