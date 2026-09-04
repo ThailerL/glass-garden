@@ -17,7 +17,7 @@
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import {
-		canConnect,
+		canAddEdge,
 		getResourceDefinition,
 		resourceDefinitions,
 		type ResourceType
@@ -144,7 +144,7 @@
 	const isValidConnection: IsValidConnection = ({ source, target }) => {
 		const sourceNode = graphState.getNode(source);
 		const targetNode = graphState.getNode(target);
-		return !!sourceNode && !!targetNode && canConnect(sourceNode, targetNode);
+		return !!sourceNode && !!targetNode && canAddEdge(sourceNode, targetNode, graphState.edges);
 	};
 
 	const onConnect: OnConnect = (connection) => {

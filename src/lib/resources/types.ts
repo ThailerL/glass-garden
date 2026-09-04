@@ -102,6 +102,9 @@ export type ResourceDefinition = {
 	// capability: a non-empty provides earns the target handle, a non-empty consumes the source
 	provides: Capability[];
 	consumes: Capability[];
+	// Acts on one of the things it points at rather than all of them, so a second edge out of
+	// it is refused rather than drawn and ignored
+	singleTarget?: boolean;
 	configComponent: Component<{ form: never; nodeId: string }>;
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;

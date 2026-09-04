@@ -60,6 +60,7 @@ export const requestGenerator = {
 	ownsStoredData: false,
 	provides: [],
 	consumes: ['http'],
+	singleTarget: true,
 	configComponent: RequestGeneratorConfig,
 	configSchema,
 	instanceCount: () => 1,
