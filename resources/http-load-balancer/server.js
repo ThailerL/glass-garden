@@ -7,9 +7,6 @@ if (!port) {
   throw new Error('PORT is not set');
 }
 
-// Kept in step with the algorithm field of the resource's config schema
-const ALGORITHMS = ['round-robin', 'random'];
-
 let cursor = 0;
 
 // Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line. A metric
@@ -39,25 +36,14 @@ async function readConfig() {
   try {
     contents = await readFile('config.json', 'utf8');
   } catch (error) {
-    if (error.code === 'ENOENT') return { algorithm: 'round-robin', targets: [] };
     throw new Error(`Cannot read config.json: ${error.message}`);
   }
-
-  let config;
+  // The canvas may be mid-write, so a torn read is a real event rather than a bug
   try {
-    config = JSON.parse(contents);
+    return JSON.parse(contents);
   } catch (error) {
     throw new Error(`config.json is not valid JSON (${error.message}): ${contents}`);
   }
-
-  const { algorithm, targets } = config ?? {};
-  if (!ALGORITHMS.includes(algorithm)) {
-    throw new Error(`config.json names an unknown algorithm: ${contents}`);
-  }
-  if (!Array.isArray(targets) || targets.some((target) => !Number.isInteger(target))) {
-    throw new Error(`config.json targets are not a list of ports: ${contents}`);
-  }
-  return { algorithm, targets };
 }
 
 function pick(algorithm, targets) {
@@ -141,6 +127,13 @@ const server = http.createServer(async (req, res) => {
   await pipeline(upstream, res).catch((error) =>
     console.error(`:${target} failed mid-response: ${reasonOf(error)}`)
   );
+});
+
+// The canvas writes config.json before it starts this process, so a missing one is a bug
+// worth stopping on rather than a state to serve 503s from
+await readConfig().catch((error) => {
+  console.error(`Load balancer failed to start: ${error.message}`);
+  process.exit(1);
 });
 
 server.listen(port, () => {

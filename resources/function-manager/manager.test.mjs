@@ -10,8 +10,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MANAGER = fileURLToPath(new URL('./manager.mjs', import.meta.url));
-// What the manager falls back to with no config.json
+// What a test's manager runs with unless it says otherwise
 const DEFAULT_MAX_CONCURRENCY = 5;
+const DEFAULT_CONFIG = { timeout: 3, maxConcurrency: DEFAULT_MAX_CONCURRENCY, triggers: [] };
 
 const ECHO_HANDLER = `
 export async function handler(event, context) {
@@ -99,7 +100,7 @@ async function startManager({
   const dir = await mkdtemp(path.join(tmpdir(), 'function-manager-'));
   await writeFile(path.join(dir, 'package.json'), '{"type":"module"}');
   await writeFile(path.join(dir, handlerFile), handler);
-  if (config) await writeFile(path.join(dir, 'config.json'), JSON.stringify(config));
+  await writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...DEFAULT_CONFIG, ...config }));
   const port = await freePort();
   const regionPort = region ? await region.listen() : 1;
   const child = spawn('node', [MANAGER], {
@@ -124,7 +125,8 @@ async function startManager({
     dir,
     lines,
     region,
-    writeConfig: (value) => writeFile(path.join(dir, 'config.json'), JSON.stringify(value)),
+    writeConfig: (value) =>
+      writeFile(path.join(dir, 'config.json'), JSON.stringify({ ...DEFAULT_CONFIG, ...value })),
     url: (route = '/') => `http://localhost:${port}${route}`,
     // Waits for a log line, which is also how the tests read what the environments printed
     waitFor: (test, timeout = 5000) =>
@@ -266,10 +268,10 @@ describe('function URL', () => {
 
   it('says once that the config file cannot be read, and keeps the last good one', async () => {
     const manager = await startManager({ config: { timeout: 3, maxConcurrency: 2 } });
-    await manager.writeConfig({ timeout: 3, maxConcurrency: 0 });
-    await manager.waitFor((l) => /no positive maxConcurrency/.test(l));
+    await writeFile(path.join(manager.dir, 'config.json'), '{"timeout": 3');
+    await manager.waitFor((l) => /config\.json is not valid JSON/.test(l));
     await sleep(CONFIG_POLLS_MS);
-    expect(manager.lines.filter((l) => /no positive maxConcurrency/.test(l))).toHaveLength(1);
+    expect(manager.lines.filter((l) => /config\.json is not valid JSON/.test(l))).toHaveLength(1);
     const statuses = await Promise.all(
       [1, 2, 3].map((i) => fetch(manager.url(`/${i}?wait=400`)).then((r) => r.status))
     );

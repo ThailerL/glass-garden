@@ -43,10 +43,6 @@ const IDLE_MS = Number(process.env.GG_IDLE_MS) || 60_000;
 // An environment that never asks for work is broken, whatever it is doing
 const INIT_TIMEOUT_MS = Number(process.env.GG_INIT_TIMEOUT_MS) || 30_000;
 
-// Until config.json says otherwise: enough concurrency to be worth watching, few enough
-// processes to be harmless
-const DEFAULT_CONFIG = { timeout: 3, maxConcurrency: 5, triggers: [] };
-
 // ── Logging and metrics ───────────────────────────────────────────────────────────────────
 
 // Lines from an environment carry its id, so the host files them as that environment's
@@ -75,7 +71,7 @@ function putMetric(name, value, unit, dimensions = {}) {
 
 // ── Config ────────────────────────────────────────────────────────────────────────────────
 
-let config = DEFAULT_CONFIG;
+let config;
 
 // Says a message only while it is new, so a failure that repeats every second or every poll
 // is said once. Called with nothing it forgets, so the next failure is said again
@@ -94,41 +90,26 @@ async function readConfig() {
   try {
     contents = await readFile('config.json', 'utf8');
   } catch (error) {
-    if (error.code === 'ENOENT') return DEFAULT_CONFIG;
     throw new Error(`Cannot read config.json: ${error.message}`);
   }
-  let parsed;
+  // The canvas may be mid-write, so a torn read is a real event rather than a bug
   try {
-    parsed = JSON.parse(contents);
+    return JSON.parse(contents);
   } catch (error) {
     throw new Error(`config.json is not valid JSON (${error.message}): ${contents}`);
   }
-  // Absent is no triggers, which is what a function with no queue pointing at it has
-  const { timeout, maxConcurrency, triggers = [] } = parsed ?? {};
-  if (!(timeout > 0)) throw new Error(`config.json has no positive timeout: ${contents}`);
-  if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
-    throw new Error(`config.json has no positive maxConcurrency: ${contents}`);
-  }
-  // A queue delivers batches; a bucket's notifications arrive through a queue of their own
-  const valid = (trigger) =>
-    trigger &&
-    typeof trigger.queueUrl === 'string' &&
-    typeof trigger.queueName === 'string' &&
-    ['sqs', 's3'].includes(trigger.source);
-  if (!Array.isArray(triggers) || !triggers.every(valid)) {
-    throw new Error(`config.json triggers are not a list of queue or bucket sources: ${contents}`);
-  }
-  return { timeout, maxConcurrency, triggers };
 }
 
 // Re-read on a timer rather than at spawn, so a change on the canvas — a raised cap, an
 // added trigger — takes effect within a second and without relaunching the manager. The
-// last good config stands if a read fails
+// canvas writes config.json before it starts this process, so there is nothing to fall back
+// on at start; after that the last good config stands if a read fails
 async function refreshConfig() {
   try {
     config = await readConfig();
     complainAboutConfig();
   } catch (error) {
+    if (config === undefined) throw error;
     complainAboutConfig(error.message);
   }
   reconcilePollers();
