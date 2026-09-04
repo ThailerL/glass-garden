@@ -49,8 +49,11 @@ const INIT_TIMEOUT_MS = Number(process.env.GG_INIT_TIMEOUT_MS) || 30_000;
 // stream; the manager's own lines are bare
 const environmentLine = (id, line) => console.log(`gg:env ${id} ${line}`);
 
-// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line
+// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line. A metric
+// is either always about an environment or never about one, so the per-environment lines
+// always add up to the total
 function putMetric(name, value, unit, dimensions = {}) {
+  const names = Object.keys(dimensions);
   console.log(
     JSON.stringify({
       _aws: {
@@ -58,7 +61,7 @@ function putMetric(name, value, unit, dimensions = {}) {
         CloudWatchMetrics: [
           {
             Namespace: 'glass-garden',
-            Dimensions: [Object.keys(dimensions)],
+            Dimensions: names.length === 0 ? [[]] : [[], names],
             Metrics: [{ Name: name, Unit: unit }],
           },
         ],
@@ -656,6 +659,10 @@ function reconcilePollers() {
 // Wrapped whole: an error escaping a VM process exits 0 without a trace
 try {
   await refreshConfig();
+  // Every count once, so the names are in the Metrics tab before anything happens
+  for (const name of ['invocations', 'errors', 'throttles', 'cold starts', 'batches', 'notifications']) {
+    putMetric(name, 0, 'Count');
+  }
   setInterval(() => void refreshConfig(), CONFIG_POLL_MS);
 
   const server = http.createServer(async (req, res) => {

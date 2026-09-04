@@ -157,6 +157,9 @@ const metrics = (lines, name) =>
     .map((line) => JSON.parse(line))
     .filter((line) => line._aws?.CloudWatchMetrics?.[0]?.Metrics?.[0]?.Name === name);
 
+// Readings of a count, less the zero its name is announced with at boot
+const events = (lines, name) => metrics(lines, name).filter((line) => line[name] !== 0);
+
 const environmentIds = (lines) =>
   [...new Set(lines.filter((l) => l.startsWith('gg:env ')).map((l) => l.split(' ')[1]))];
 
@@ -181,8 +184,8 @@ describe('function URL', () => {
     expect(environmentIds(manager.lines)).toHaveLength(1);
     // The second invocation is warm, so it reports no init time and mints no cold start
     await manager.waitFor((l) => /REPORT RequestId/.test(l) && !/Init Duration/.test(l));
-    expect(metrics(manager.lines, 'cold starts')).toHaveLength(1);
-    expect(metrics(manager.lines, 'invocations')).toHaveLength(2);
+    expect(events(manager.lines, 'cold starts')).toHaveLength(1);
+    expect(events(manager.lines, 'invocations')).toHaveLength(2);
   });
 
   it('takes the handler from index.js when there is no index.mjs', async () => {
@@ -208,7 +211,7 @@ describe('function URL', () => {
     });
     await manager.waitFor((l) => /Invoke Error/.test(l));
     await waitUntil(
-      () => metrics(manager.lines, 'errors').length === 1,
+      () => events(manager.lines, 'errors').length === 1,
       () => 'The failed invocation reported no error metric'
     );
   });
@@ -225,7 +228,7 @@ describe('function URL', () => {
     const refused = responses.find((r) => r.status === 429);
     expect(refused.headers.get('x-amzn-errortype')).toBe('TooManyRequestsException');
     expect(await refused.json()).toEqual({ message: 'Rate exceeded' });
-    expect(metrics(manager.lines, 'throttles')).toHaveLength(1);
+    expect(events(manager.lines, 'throttles')).toHaveLength(1);
     expect(environmentIds(manager.lines)).toHaveLength(DEFAULT_MAX_CONCURRENCY);
   });
 
@@ -459,7 +462,7 @@ describe('bucket notifications', () => {
     await manager.waitFor((l) => /object photo.jpg/.test(l));
     const deletion = await waitForCall(region, 'DeleteMessageBatch');
     expect(deletion.payload.Entries.map((e) => e.ReceiptHandle)).toEqual(['rh-a']);
-    expect(metrics(manager.lines, 'notifications')).toMatchObject([{ bucket: 'uploads' }]);
+    expect(events(manager.lines, 'notifications')).toMatchObject([{ bucket: 'uploads' }]);
   });
 
   it('drops the test event S3 sends when a bucket is configured', async () => {

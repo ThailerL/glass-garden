@@ -136,6 +136,11 @@ await readConfig().catch((error) => {
   process.exit(1);
 });
 
+// Every count once, so the names are in the Metrics tab before anything happens
+for (const name of ['requests', 'failures', 'connection errors', 'balancer errors']) {
+  putMetric(name, 0, 'Count');
+}
+
 server.listen(port, () => {
   console.log(`Load balancer running on http://localhost:${port}`);
 });
