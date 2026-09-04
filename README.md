@@ -3,7 +3,7 @@
 
 Build cloud architecture by dragging load balancers, instance groups, and AWS services onto a canvas. Press play, use your app, and watch where requests go.
 
-[Glass-Garden.webm](https://github.com/user-attachments/assets/3f70adb8-119d-4a54-8091-5db4251c3f77)
+[Glass-Garden.webm](https://github.com/user-attachments/assets/d785a63e-4854-450e-9b67-a95b40941a07)
 
 [Try it live](https://glass.garden/) - a two-minute guided tour starts you off.
 
