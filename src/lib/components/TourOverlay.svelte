@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
@@ -50,7 +51,7 @@
 
 	// Replaces the metrics step's opening line once its charts are on screen
 	const CHARTS_OPEN =
-		'Each instance counted the requests it answered on its own. The chart shows how they were shared out, and "all" adds them back up to the refreshes you did.';
+		'Each instance counted the requests it answered on its own. The chart shows how they were shared out, and "all" adds them back up to the total refreshes you did.';
 
 	const CARD_WIDTH = 300;
 	const HIGHLIGHT_GAP = 14;
@@ -313,9 +314,9 @@
 
 		{#if tour.step === 'done'}
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				Those counts are separate: each instance only knows its own, and the chart adds them up for
-				you. When you create a new project, there is a version where they share one view-count in a
-				database instead.
+				The <PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar starts
+				a new canvas from a template, including a version where the instances share one view-count in
+				a database instead of each keeping its own.
 			</p>
 		{/if}
 
