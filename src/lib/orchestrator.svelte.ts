@@ -229,7 +229,7 @@ export class Orchestrator {
 		if (definition.remove) {
 			void this.#getContainer()
 				.then((container) => definition.remove?.(node, container))
-				.catch(() => toast.error(`Could not delete its stored datafor ${nodeName(node)}`));
+				.catch(() => toast.error(`Could not delete stored data for ${nodeName(node)}`));
 		}
 		const controller = this.#controllers.get(node.id);
 		if (controller) controller.forget();

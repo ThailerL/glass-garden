@@ -74,7 +74,7 @@
 		graphState.updateNodeConfig(node.id, $formData);
 		// A running node reconciles toward the new config immediately
 		orchestrator.refresh(node.id);
-		toast.success('Successfully saved config');
+		toast.success('Saved changes');
 	}
 
 	// Keystrokes from the fields bubble here, so the shortcut is the form's own rather than the

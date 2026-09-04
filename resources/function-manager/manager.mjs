@@ -498,7 +498,11 @@ function sqs(action, payload, signal) {
     );
     req.on('timeout', () => req.destroy(new Error(`${action} timed out`)));
     req.on('error', reject);
-    signal.addEventListener('abort', () => req.destroy(new Error('aborted')), { once: true });
+    // Dropped once the request is over: the signal outlives every request made under it, so
+    // a listener left behind holds its request for as long as the poller runs
+    const onAbort = () => req.destroy(new Error('aborted'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    req.on('close', () => signal.removeEventListener('abort', onAbort));
     req.end(body);
   });
 }
