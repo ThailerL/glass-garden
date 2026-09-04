@@ -192,7 +192,7 @@ export default defineConfig({
 	],
 
 	test: {
-		include: ['src/**/*.test.ts', 'resources/**/*.test.mjs'],
+		include: ['src/**/*.test.ts', 'resources/**/*.test.{js,mjs}'],
 		environment: 'node'
 	}
 });
