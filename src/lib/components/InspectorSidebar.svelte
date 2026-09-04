@@ -138,6 +138,7 @@
 								{...props}
 								variant="outline"
 								disabled={!orchestrator.canStart(nodeId)}
+								aria-label="Start"
 								onclick={() => orchestrator.start(nodeId)}
 							>
 								<PlayIcon />
@@ -154,6 +155,7 @@
 								{...props}
 								variant="outline"
 								disabled={!orchestrator.canStop(nodeId)}
+								aria-label="Stop"
 								onclick={() => orchestrator.stop(nodeId)}
 							>
 								<SquareIcon />

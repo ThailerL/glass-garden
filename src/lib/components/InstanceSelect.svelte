@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { STATUS_TEXT } from '$lib/status';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 
 	const ALL = 'all';
@@ -41,7 +42,8 @@
 </script>
 
 {#snippet option(port: number | 'all')}
-	<StatusDot status={status(port)} />
+	{@const dot = status(port)}
+	<StatusDot status={dot} label={STATUS_TEXT[dot]} />
 	{port === ALL ? 'All instances' : `:${port}`}
 {/snippet}
 
@@ -52,7 +54,7 @@
 		value={String(selected)}
 		onValueChange={(value) => (selected = value === ALL ? ALL : Number(value))}
 	>
-		<Select.Trigger class="min-w-0 flex-1 overflow-hidden">
+		<Select.Trigger class="min-w-0 flex-1 overflow-hidden" aria-label="Which instance is shown">
 			<!-- One child, so the trigger's justify-between keeps the label off the middle -->
 			<span class="flex items-center gap-1.5">{@render option(selected)}</span>
 		</Select.Trigger>

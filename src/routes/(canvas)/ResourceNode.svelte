@@ -4,6 +4,7 @@
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import { nodeName } from '$lib/graph-state.svelte';
+	import { STATUS_TEXT } from '$lib/status';
 
 	const node: NodeProps = $props();
 	const name = $derived(nodeName(node));
@@ -40,11 +41,14 @@
 
 <div class="absolute top-1.5 right-2 flex items-center gap-1">
 	{#if configured > 1}
-		<span class="text-[0.6875rem] leading-none text-muted-foreground tabular-nums">
+		<span
+			class="text-[0.6875rem] leading-none text-muted-foreground tabular-nums"
+			title="Instances running out of the configured count"
+		>
 			{up}/{configured}
 		</span>
 	{/if}
-	<StatusDot {status} />
+	<StatusDot {status} label={STATUS_TEXT[status]} />
 </div>
 <definition.icon class="size-10 shrink-0 text-resource-icon" />
 <span

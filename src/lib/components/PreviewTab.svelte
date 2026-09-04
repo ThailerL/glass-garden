@@ -27,6 +27,7 @@
 			variant="outline"
 			size="icon"
 			data-tour="refresh"
+			aria-label="Reload the preview"
 			disabled={!previewUrl}
 			onclick={() => {
 				frame?.reload();
@@ -43,6 +44,7 @@
 				href={previewUrl}
 				target="_blank"
 				rel="noreferrer"
+				aria-label="Open preview in a new tab"
 				title="Open preview in a new tab"
 				class={buttonVariants({ variant: 'outline', size: 'icon' })}
 			>
@@ -52,7 +54,7 @@
 		{:else}
 			<!-- An anchor has no disabled state to style, so nothing to open is a real button
 			     and dims like the refresh beside it -->
-			<Button variant="outline" size="icon" disabled>
+			<Button variant="outline" size="icon" aria-label="Open preview in a new tab" disabled>
 				<ExternalLinkIcon />
 			</Button>
 		{/if}

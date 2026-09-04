@@ -68,6 +68,7 @@
 						data-tour="run"
 						variant="outline"
 						disabled={startDisabled}
+						aria-label="Start all resources"
 						onclick={() => orchestrator.startAll()}
 					>
 						<PlayIcon />
@@ -84,6 +85,7 @@
 						{...props}
 						variant="outline"
 						disabled={stopDisabled}
+						aria-label="Stop all resources"
 						onclick={() => orchestrator.stopAll()}
 					>
 						<SquareIcon />

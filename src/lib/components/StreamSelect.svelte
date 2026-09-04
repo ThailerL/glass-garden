@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { STATUS_TEXT } from '$lib/status';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import type { Stream } from '$lib/resource-log.svelte';
 
@@ -38,10 +39,12 @@
 
 {#snippet option(stream: Stream | typeof ALL)}
 	{#if stream === ALL}
-		<StatusDot status={orchestrator.getStatus(nodeId)} />
+		{@const all = orchestrator.getStatus(nodeId)}
+		<StatusDot status={all} label={STATUS_TEXT[all]} />
 		All streams
 	{:else}
-		<StatusDot status={status(stream)} />
+		{@const dot = status(stream)}
+		<StatusDot status={dot} label={STATUS_TEXT[dot]} />
 		{stream.label}
 	{/if}
 {/snippet}
@@ -54,7 +57,7 @@
 		onValueChange={(value) =>
 			(selected = streams.find((stream) => String(stream.source) === value)?.source ?? ALL)}
 	>
-		<Select.Trigger class="min-w-0 flex-1 overflow-hidden">
+		<Select.Trigger class="min-w-0 flex-1 overflow-hidden" aria-label="Which stream is shown">
 			<!-- One child, so the trigger's justify-between keeps the label off the middle -->
 			<span class="flex items-center gap-1.5">
 				{@render option(streams.find((stream) => stream.source === selected) ?? ALL)}

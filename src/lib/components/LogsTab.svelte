@@ -93,7 +93,13 @@
 
 <div class="flex h-full min-h-0 flex-col gap-2">
 	<div class="flex gap-2">
-		<Toggle variant="outline" class="shrink-0" title="Show timestamps" bind:pressed={showTimes}>
+		<Toggle
+			variant="outline"
+			class="shrink-0"
+			aria-label="Show timestamps"
+			title="Show timestamps"
+			bind:pressed={showTimes}
+		>
 			<ClockIcon />
 		</Toggle>
 		<Toggle variant="outline" class="shrink-0" bind:pressed={eventsOnly}>Events only</Toggle>
