@@ -609,12 +609,13 @@ async function poll(trigger, signal) {
       complain(`Could not delete ${messageCount(messages.length)} of ${describe(trigger)}: ${error.message}`);
     }
   };
+  const outstanding = new Set();
   while (!signal.aborted) {
     // An event source mapping only pulls what it can run now, rather than receiving work it
     // would have to throttle and hand back for a visibility timeout. A batch is one
     // invocation however many messages it holds; notifications are one each
     while (!signal.aborted && free() < 1) await pause(SLOT_WAIT_MS);
-    if (signal.aborted) return;
+    if (signal.aborted) break;
     let messages;
     try {
       const received = await sqs(
@@ -629,7 +630,7 @@ async function poll(trigger, signal) {
       );
       messages = Array.isArray(received.Messages) ? received.Messages : [];
     } catch (error) {
-      if (signal.aborted) return;
+      if (signal.aborted) break;
       complain(`Could not read ${describe(trigger)}: ${error.message}`);
       await pause(POLL_RETRY_MS);
       continue;
@@ -637,8 +638,15 @@ async function poll(trigger, signal) {
     complain();
     if (messages.length === 0) continue;
 
-    await deliver(trigger, messages, remove);
+    const delivery = deliver(trigger, messages, remove).catch((error) => {
+      if (!signal.aborted) {
+        console.error(`Could not deliver ${describe(trigger)}: ${error.stack ?? error.message}`);
+      }
+    });
+    outstanding.add(delivery);
+    void delivery.finally(() => outstanding.delete(delivery));
   }
+  await Promise.allSettled(outstanding);
 }
 
 const pollers = new Map();

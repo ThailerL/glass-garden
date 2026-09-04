@@ -22,6 +22,8 @@ export async function handler(event, context) {
     }
     // Long enough that two notifications delivered together overlap
     if (event.Records[0].s3) await new Promise((resolve) => setTimeout(resolve, 300));
+    // The same, for batches: long enough that a second one overlaps the first
+    if (event.Records.some((record) => record.body?.startsWith('slow'))) await new Promise((resolve) => setTimeout(resolve, 300));
     if (event.Records.some((record) => record.body === 'bad')) throw new Error('bad batch');
     if (event.Records.some((record) => record.s3?.object.key === 'bad.txt')) throw new Error('bad object');
     return;
@@ -340,6 +342,18 @@ describe('trigger queues', () => {
     });
   };
 
+  // One batch per receive while any remain, as a queue with a backlog answers
+  const queueBacklog = (...batches) => {
+    const waiting = [...batches];
+    return fakeRegion(async (action) => {
+      if (action === 'ReceiveMessage' && waiting.length > 0) {
+        return { body: { Messages: waiting.shift().map(message) } };
+      }
+      await sleep(100);
+      return {};
+    });
+  };
+
   it('delivers a batch as Records and deletes it once the handler returns', async () => {
     const region = queueServing('one', 'two');
     const manager = await startManager({ config: triggered, region });
@@ -350,6 +364,21 @@ describe('trigger queues', () => {
     const receive = region.calls.find((c) => c.action === 'ReceiveMessage');
     expect(receive.payload).toMatchObject({ QueueUrl: queueUrl, MaxNumberOfMessages: 10, WaitTimeSeconds: 20 });
     await manager.waitFor((l) => /"batches"/.test(l));
+  });
+
+  it('runs batches from one queue together, up to the cap', async () => {
+    const region = queueBacklog(['slow-a'], ['slow-b'], ['slow-c']);
+    const manager = await startManager({ config: { ...triggered, maxConcurrency: 3 }, region });
+    await manager.waitFor((l) => /record slow-c/.test(l));
+    expect(environmentIds(manager.lines)).toHaveLength(3);
+  });
+
+  it('holds a queue to one batch at a time when the cap is one', async () => {
+    const region = queueBacklog(['slow-a'], ['slow-b']);
+    const manager = await startManager({ config: { ...triggered, maxConcurrency: 1 }, region });
+    await manager.waitFor((l) => /record slow-b/.test(l));
+    expect(environmentIds(manager.lines)).toHaveLength(1);
+    expect(manager.lines.filter((l) => /no free execution environment/.test(l))).toHaveLength(0);
   });
 
   it('leaves a failed batch on the queue', async () => {
