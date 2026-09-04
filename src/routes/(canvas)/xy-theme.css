@@ -1,136 +1,135 @@
-/* xyflow theme files. Delete these to start from our base */
-
+/* Every value here comes from the app's own tokens, so the flow follows the app's light/dark
+   choice rather than xyflow's separate colour mode. The unsuffixed names, not the -default
+   ones: xyflow's own .svelte-flow.dark block resets every -default and would outrank these */
 .svelte-flow {
-	--xy-background-color: #f7f9fb;
-	/* Custom Variables */
-	--xy-theme-selected: #ff4000;
-	--xy-theme-hover: #c5c5c5;
-	--xy-theme-edge-hover: black;
-	--xy-theme-color-focus: #e8e8e8;
+	--xy-background-color: var(--canvas);
+	--xy-background-pattern-color: var(--canvas-pattern);
 
-	/* Built-in Variables see https://svelteflow.dev/learn/customization/theming */
-	--xy-node-border-default: 1px solid #ededed;
+	--xy-node-background-color: var(--card);
+	--xy-node-color: var(--card-foreground);
+	--xy-node-border: 1px solid color-mix(in oklab, var(--primary) 40%, var(--border));
+	--xy-node-border-radius: 14px;
+	--xy-node-shadow:
+		0 1px 2px oklch(0.21 0.018 258 / 0.06), 0 4px 10px -3px oklch(0.21 0.018 258 / 0.09);
+	--xy-node-shadow-hover:
+		0 2px 4px oklch(0.21 0.018 258 / 0.07), 0 10px 22px -6px oklch(0.21 0.018 258 / 0.16);
 
-	--xy-node-boxshadow-default:
-		0px 3.54px 4.55px 0px #00000005, 0px 3.54px 4.55px 0px #0000000d,
-		0px 0.51px 1.01px 0px #0000001a;
+	--xy-handle-background-color: var(--card);
+	--xy-handle-border-color: var(--muted-foreground);
 
-	--xy-node-border-radius-default: 8px;
+	--xy-edge-stroke: var(--muted-foreground);
+	--xy-edge-stroke-selected: var(--primary);
+	--xy-edge-stroke-width: 1.5;
+	--xy-connectionline-stroke: var(--primary);
+	--xy-connectionline-stroke-width: 2;
+	--xy-edge-label-color: var(--muted-foreground);
+	--xy-edge-label-background-color: var(--canvas);
 
-	--xy-handle-background-color-default: #ffffff;
-	--xy-handle-border-color-default: #aaaaaa;
+	--xy-selection-background-color: color-mix(in oklab, var(--primary) 8%, transparent);
+	--xy-selection-border: 1px dashed var(--primary);
+	--xy-resize-background-color: var(--primary);
 
-	--xy-edge-label-color-default: #505050;
+	--xy-controls-button-background-color: var(--card);
+	--xy-controls-button-background-color-hover: var(--accent);
+	--xy-controls-button-color: var(--muted-foreground);
+	--xy-controls-button-color-hover: var(--foreground);
+	--xy-controls-button-border-color: var(--border);
+	--xy-controls-box-shadow:
+		0 1px 2px oklch(0.21 0.018 258 / 0.06), 0 6px 16px -6px oklch(0.21 0.018 258 / 0.14);
 
-	--xy-resize-background-color-default: #9e86ed;
-	--xy-node-background-color-default: #ffffff;
-	--xy-theme-panel-bg: #ffffff;
-	--xy-theme-panel-text: #111827;
-	--xy-theme-resize-handle-bg: #ffffff;
-	--xy-theme-focus-border: #d9d9d9;
-	--xy-theme-muted-bg: #f3f4f6;
-	--xy-theme-subtle-border: #d1d5db;
-}
+	--xy-attribution-background-color: transparent;
 
-.svelte-flow.dark {
-	--xy-background-color: #101012;
-	--xy-node-background-color-default: #1a1b1e;
-	--xy-node-border-default: 1px solid #303238;
-	--xy-handle-background-color-default: #141519;
-	--xy-handle-border-color-default: #5a5d66;
-	--xy-edge-label-color-default: #e6e7ea;
-	--xy-theme-hover: #7a7d86;
-	--xy-theme-edge-hover: #f3f4f6;
-	--xy-theme-panel-bg: #141519;
-	--xy-theme-panel-text: #f3f4f6;
-	--xy-theme-resize-handle-bg: #141519;
-	--xy-theme-focus-border: #5f6470;
-	--xy-theme-muted-bg: #24262c;
-	--xy-theme-subtle-border: #3f434c;
-	--xy-node-boxshadow-default: none;
-	--xy-theme-color-focus: #4b4e57;
-	--color-background: #1a1b1e;
-	--color-hover-bg: #24262c;
-	--color-disabled: #8b9099;
-}
-
-.svelte-flow {
 	background-color: var(--xy-background-color);
 }
 
-/* Customizing Default Theming */
+.dark .svelte-flow {
+	--xy-node-shadow: 0 1px 2px oklch(0 0 0 / 0.4);
+	--xy-node-shadow-hover: 0 2px 6px oklch(0 0 0 / 0.5);
+	--xy-controls-box-shadow: 0 2px 8px oklch(0 0 0 / 0.5);
+}
 
 .svelte-flow__node {
-	box-shadow: var(--xy-node-boxshadow-default);
-	border-radius: var(--xy-node-border-radius-default);
-	background-color: var(--xy-node-background-color-default);
+	box-shadow: var(--xy-node-shadow);
+	border-radius: var(--xy-node-border-radius);
+	background-color: var(--xy-node-background-color);
 	display: flex;
 	justify-content: center;
 	align-items: center;
 	text-align: center;
-	padding: 10px;
+	padding: 12px 10px;
 	font-size: 12px;
+	font-weight: 500;
 	flex-direction: column;
-	border: var(--xy-node-border-default);
-	color: var(--xy-node-color, var(--xy-node-color-default));
-	width: 100px;
-	height: 100px;
-}
-
-.svelte-flow__node.selectable:focus {
-	box-shadow: 0px 0px 0px 4px var(--xy-theme-color-focus);
-	border-color: var(--xy-theme-focus-border);
-}
-
-.svelte-flow__node.selectable:focus:active {
-	box-shadow: var(--xy-node-boxshadow-default);
+	gap: 2px;
+	border: var(--xy-node-border);
+	color: var(--xy-node-color);
+	width: 104px;
+	height: 104px;
+	transition:
+		box-shadow 150ms ease,
+		border-color 150ms ease;
 }
 
 .svelte-flow__node.selectable:hover,
 .svelte-flow__node.draggable:hover {
-	border-color: var(--xy-theme-hover);
+	/* Past the resting border, which already carries the green */
+	border-color: color-mix(in oklab, var(--primary) 75%, var(--border));
+	box-shadow: var(--xy-node-shadow-hover);
 }
 
+.svelte-flow__node.selectable:focus-visible,
 .svelte-flow__node.selectable.selected {
-	border-color: var(--xy-theme-selected);
-	box-shadow: var(--xy-node-boxshadow-default);
+	border-color: var(--primary);
+	box-shadow:
+		0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent),
+		var(--xy-node-shadow);
 }
 
 .svelte-flow__node-group {
-	background-color: rgba(207, 182, 255, 0.4);
-	border-color: #9e86ed;
+	background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+	border-color: color-mix(in oklab, var(--primary) 45%, transparent);
 }
 
-.svelte-flow.dark .svelte-flow__node-group {
-	background-color: rgba(123, 107, 148, 0.22);
-	border-color: #7b6b94;
+.svelte-flow__edge-path {
+	transition: stroke 120ms ease;
 }
 
-.svelte-flow__edge.selectable:hover .svelte-flow__edge-path,
-.svelte-flow__edge.selectable.selected .svelte-flow__edge-path {
-	stroke: var(--xy-theme-edge-hover);
+.svelte-flow__edge.selectable:hover .svelte-flow__edge-path {
+	stroke: var(--foreground);
 }
 
 .svelte-flow__handle {
-	background-color: var(--xy-handle-background-color-default);
+	width: 9px;
+	height: 9px;
+	border-width: 1.5px;
+	background-color: var(--xy-handle-background-color);
+	/* Colour only, never size or position: a handle that moves under the pointer
+	   mid-connection is a moving target to drop on */
+	transition:
+		border-color 120ms ease,
+		background-color 120ms ease;
 }
 
-.svelte-flow__handle.connectionindicator:hover {
-	pointer-events: all;
-	border-color: var(--xy-theme-edge-hover);
-	background-color: var(--xy-handle-background-color-default);
-}
-
-.svelte-flow__handle.connectionindicator:focus,
+/* :focus is deliberately absent: a handle keeps focus after the mouseup that ends a
+   connection, so it would stay filled long after the drag is over */
+.svelte-flow__handle.connectionindicator:hover,
 .svelte-flow__handle.connectingfrom,
 .svelte-flow__handle.connectingto {
-	border-color: var(--xy-theme-edge-hover);
+	pointer-events: all;
+	border-color: var(--primary);
+	background-color: var(--primary);
 }
 
-/* Must stay after the connectionindicator:hover rule, which sets a background at the same
+.svelte-flow__handle.connectionindicator:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+}
+
+/* Must stay after the connectingto rule above, which sets a background at the same
    specificity */
 .svelte-flow .svelte-flow__handle.connectingto:not(.valid) {
-	background: #ff6060;
+	border-color: var(--destructive);
+	background: var(--destructive);
 }
 
 .svelte-flow__node:has(.svelte-flow__resize-control.line) {
@@ -138,14 +137,28 @@
 }
 
 .svelte-flow__resize-control.handle {
-	background-color: var(--xy-theme-resize-handle-bg);
+	background-color: var(--xy-resize-background-color);
 	border: none;
 	border-radius: 0;
 	width: 5px;
 	height: 5px;
 }
 
+.svelte-flow__controls {
+	border-radius: 10px;
+	overflow: hidden;
+	box-shadow: var(--xy-controls-box-shadow);
+}
+
+.svelte-flow__controls-button {
+	border-bottom: 1px solid var(--border);
+}
+
+.svelte-flow__controls-button:last-child {
+	border-bottom: none;
+}
+
 .svelte-flow__edge-label {
-	background: var(--xy-background-color);
-	color: var(--xy-edge-label-color-default);
+	background: var(--xy-edge-label-background-color);
+	color: var(--xy-edge-label-color);
 }

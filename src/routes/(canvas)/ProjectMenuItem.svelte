@@ -24,7 +24,7 @@
 		<ContextMenu.Root>
 			<ContextMenu.Trigger>
 				<Sidebar.MenuButton
-					class="text-base"
+					class="text-sm"
 					isActive={active}
 					onclick={() => {
 						// The rename input sits inside this button, so editing must not switch project

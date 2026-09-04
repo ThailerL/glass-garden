@@ -5,7 +5,7 @@
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
-	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
 	import { messageOf } from '$lib/errors';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
@@ -26,10 +26,6 @@
 	// existing one alone
 	const initialFiles = node && definition?.hasEditableFiles ? nodeFiles(node) : undefined;
 </script>
-
-<svelte:head>
-	<title>Editing {node && nodeName(node)}</title>
-</svelte:head>
 
 <!-- The editor waits on the container; the inspector needs nothing from it, so it is
 rendered either side of the boundary and stays in view for the whole wait -->

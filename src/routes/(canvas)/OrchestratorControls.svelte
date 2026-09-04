@@ -37,13 +37,13 @@
 
 <div
 	data-tour="controls"
-	class="fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3
-         rounded-full border bg-background px-3 py-1.5 shadow-lg backdrop-blur"
+	class="fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full
+	       border bg-background/75 px-3.5 py-1.5 text-sm shadow-md backdrop-blur-md"
 >
 	<!-- Start is not blocked while this shows: a start queues on the same boot -->
 	<div class="flex items-center gap-1.5">
 		{#if orchestrator.containerError}
-			<TriangleAlertIcon class="size-3.5 text-red-500" />
+			<TriangleAlertIcon class="size-3.5 text-destructive" />
 			<span class="text-muted-foreground" title={orchestrator.containerError}>Boot failed</span>
 		{:else if orchestrator.warmingRegion}
 			<Spinner class="size-3 text-muted-foreground" />

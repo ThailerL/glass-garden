@@ -38,16 +38,22 @@
 	}
 </script>
 
-<div class="absolute top-1 right-1 flex items-center gap-1">
+<div class="absolute top-1.5 right-2 flex items-center gap-1">
 	{#if configured > 1}
-		<span class="text-[0.5rem] leading-none text-muted-foreground">{up}/{configured}</span>
+		<span class="text-[0.6875rem] leading-none text-muted-foreground tabular-nums">
+			{up}/{configured}
+		</span>
 	{/if}
 	<StatusDot {status} />
 </div>
-<span class="block origin-center whitespace-nowrap" use:fitText>
+<definition.icon class="size-10 shrink-0 text-resource-icon" />
+<span
+	class="block origin-center overflow-visible pt-1.5 text-[0.8125rem] leading-tight
+	       font-medium whitespace-nowrap"
+	use:fitText
+>
 	{name}
 </span>
-<definition.icon class="h-full w-full" />
 {#if definition.provides.length > 0}
 	<Handle type="target" position={Position.Left} />
 {/if}

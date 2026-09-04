@@ -16,6 +16,7 @@
 		type IsValidConnection
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
+	import { asset } from '$app/paths';
 	import {
 		canAddEdge,
 		getResourceDefinition,
@@ -164,6 +165,10 @@
 
 {#snippet leftSidebar()}
 	<Sidebar.Root collapsible="none" class="w-full!">
+		<Sidebar.Header class="flex-row items-center gap-2 px-3 pt-3 pb-1">
+			<img src={asset('/favicon.svg')} alt="" class="size-6 shrink-0" />
+			<span class="truncate font-semibold tracking-tight">Glass Garden</span>
+		</Sidebar.Header>
 		<Sidebar.Content class="gap-0 pt-2">
 			<ProjectsGroup />
 			<Sidebar.Separator class="my-2" />

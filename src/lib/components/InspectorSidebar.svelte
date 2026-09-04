@@ -57,8 +57,10 @@
 	class={cn('w-full!', swappedNode && 'animate-in duration-150 fade-in')}
 >
 	{#if definition}
-		<Sidebar.Header class="flex-row items-center gap-2 px-3 pt-3 pb-1">
-			<definition.icon class="size-5 shrink-0" />
+		<Sidebar.Header class="flex-row items-center gap-2.5 px-3 pt-3 pb-2">
+			<div class="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-card">
+				<definition.icon class="size-5 text-resource-icon" />
+			</div>
 			<div class="min-w-0">
 				<div class="truncate font-medium">{name}</div>
 				<div class="truncate text-xs text-muted-foreground">{definition.name}</div>

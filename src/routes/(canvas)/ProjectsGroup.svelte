@@ -47,7 +47,7 @@
 
 <Collapsible.Root open class="group/collapsible">
 	<Sidebar.Group class="py-0">
-		<Sidebar.GroupLabel class="text-sm">
+		<Sidebar.GroupLabel class="text-xs font-semibold tracking-wide uppercase">
 			{#snippet child({ props })}
 				<Collapsible.Trigger {...props}>
 					<ChevronRightIcon

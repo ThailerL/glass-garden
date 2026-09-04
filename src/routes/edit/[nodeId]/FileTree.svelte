@@ -141,7 +141,7 @@
 								value={itemName}
 								bind:mode={itemRenameMode}
 								blurBehavior="exit"
-								class="flex place-items-center gap-1 pl-0.75"
+								class="pl-0.75"
 								textClass="block truncate"
 								validate={validateName}
 								onSave={renameItem}
@@ -211,7 +211,7 @@
 								value={itemName}
 								bind:mode={itemRenameMode}
 								blurBehavior="exit"
-								class="flex place-items-center gap-1 pl-0.75"
+								class="pl-0.75"
 								textClass="block truncate"
 								validate={validateName}
 								onSave={renameItem}

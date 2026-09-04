@@ -33,7 +33,7 @@
 	{#if isEmpty}
 		<p class="text-sm text-muted-foreground">{empty}</p>
 	{:else}
-		<p class="rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs break-all select-all">
+		<p class="rounded-md border bg-muted px-2.5 py-1.5 font-mono text-xs break-all select-all">
 			{#if children}{@render children()}{:else}{value}{/if}
 		</p>
 		{#if description}

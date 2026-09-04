@@ -5,74 +5,88 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Neutrals carry a trace of the favicon's glass blue; the leaf green is the accent */
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
+	--background: oklch(0.988 0.003 250);
+	--foreground: oklch(0.21 0.018 258);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.21 0.018 258);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
+	--popover-foreground: oklch(0.21 0.018 258);
+	--primary: oklch(0.56 0.13 153);
+	--primary-foreground: oklch(0.99 0.012 153);
+	--secondary: oklch(0.958 0.005 250);
+	--secondary-foreground: oklch(0.26 0.018 258);
+	--muted: oklch(0.962 0.005 250);
+	--muted-foreground: oklch(0.53 0.016 258);
+	--accent: oklch(0.945 0.011 250);
+	--accent-foreground: oklch(0.26 0.018 258);
 	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	/* Categorical, so a series keeps its hue however many are drawn. */
-	--chart-1: #5691dd;
-	--chart-2: #f48a63;
-	--chart-3: #4fb98a;
-	--chart-4: #e4a74a;
-	--chart-5: #e88eae;
+	--border: oklch(0.909 0.007 250);
+	--input: oklch(0.9 0.008 250);
+	--ring: oklch(0.6 0.11 153);
+	/* The canvas is the glass enclosure, so it carries the favicon's blue and the nodes
+	   stay plain cards. Both are mixed from --glass, which keeps the tint to one knob */
+	--glass: oklch(0.86 0.08 230);
+	/* The leaf inside the glass: one knob for every resource icon, wherever it is drawn */
+	--resource-icon: var(--primary);
+	/* Still a shade under the panels, so the nodes read as objects on it */
+	--canvas: color-mix(in oklab, var(--glass) 15%, oklch(0.958 0.008 250));
+	--canvas-pattern: color-mix(in oklab, var(--glass) 36%, oklch(0.86 0.014 250));
+	/* Categorical: a series keeps its hue however many are drawn, and the slots are handed
+	   out in this fixed order, which is what keeps adjacent lines apart under colour blindness.
+	   Dark's values are chosen against the dark surface, not lightened copies of these. */
+	--chart-1: #2a78d6;
+	--chart-2: #eb6834;
+	--chart-3: #1baf7a;
+	--chart-4: #eda100;
+	--chart-5: #e87ba4;
 	--radius: 0.625rem;
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
+	--sidebar: oklch(0.974 0.004 250);
+	--sidebar-foreground: oklch(0.21 0.018 258);
+	--sidebar-primary: oklch(0.56 0.13 153);
+	--sidebar-primary-foreground: oklch(0.99 0.012 153);
+	--sidebar-accent: oklch(0.94 0.011 250);
+	--sidebar-accent-foreground: oklch(0.26 0.018 258);
+	--sidebar-border: oklch(0.909 0.007 250);
+	--sidebar-ring: oklch(0.6 0.11 153);
 }
 
 .dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
+	--background: oklch(0.178 0.011 258);
+	--foreground: oklch(0.965 0.004 250);
+	--card: oklch(0.225 0.013 258);
+	--card-foreground: oklch(0.965 0.004 250);
+	--popover: oklch(0.225 0.013 258);
+	--popover-foreground: oklch(0.965 0.004 250);
+	--primary: oklch(0.74 0.15 155);
+	--primary-foreground: oklch(0.2 0.04 155);
+	--secondary: oklch(0.285 0.014 258);
+	--secondary-foreground: oklch(0.965 0.004 250);
+	--muted: oklch(0.285 0.014 258);
+	--muted-foreground: oklch(0.705 0.014 258);
+	--accent: oklch(0.315 0.016 258);
+	--accent-foreground: oklch(0.965 0.004 250);
 	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
+	--border: oklch(1 0 0 / 11%);
 	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: #3872bc;
-	--chart-2: #d16b45;
-	--chart-3: #29996d;
-	--chart-4: #c38824;
-	--chart-5: #c67090;
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
+	--ring: oklch(0.6 0.11 155);
+	--glass: oklch(0.86 0.08 230);
+	--canvas: color-mix(in oklab, var(--glass) 15%, oklch(0.148 0.011 258));
+	--canvas-pattern: color-mix(in oklab, var(--glass) 36%, oklch(0.32 0.014 258));
+	--chart-1: #3987e5;
+	--chart-2: #d95926;
+	--chart-3: #199e70;
+	--chart-4: #c98500;
+	--chart-5: #d55181;
+	--sidebar: oklch(0.207 0.012 258);
+	--sidebar-foreground: oklch(0.965 0.004 250);
+	--sidebar-primary: oklch(0.74 0.15 155);
+	--sidebar-primary-foreground: oklch(0.2 0.04 155);
+	--sidebar-accent: oklch(0.295 0.015 258);
+	--sidebar-accent-foreground: oklch(0.965 0.004 250);
+	--sidebar-border: oklch(1 0 0 / 11%);
+	--sidebar-ring: oklch(0.6 0.11 155);
 }
 
 @theme inline {
@@ -108,6 +122,9 @@
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-background: var(--background);
+	--color-canvas: var(--canvas);
+	--color-canvas-pattern: var(--canvas-pattern);
+	--color-resource-icon: var(--resource-icon);
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
