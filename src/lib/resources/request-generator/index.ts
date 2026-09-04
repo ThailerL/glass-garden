@@ -15,8 +15,9 @@ const configSchema = z.object({
 	method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).default('GET'),
 	path: z.string().startsWith('/', 'Must start with /').default('/'),
 	body: z.string().default(''),
-	// An unmeasured ceiling: where the tab rather than the generator gives out is still to be found
-	requestsPerSecond: z.coerce.number().positive().max(500).default(10),
+	// A guard rail rather than a limit: measured headroom is far above this, so the cap is only
+	// here to keep a typo from wedging a slower machine than the one it was measured on
+	requestsPerSecond: z.coerce.number().positive().max(2000).default(10),
 	maxInFlight: z.coerce.number().int().min(1).max(1000).default(50)
 });
 
