@@ -118,8 +118,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // The target's own time, ending at its first response header rather than at the last byte
-  // of the body, which is what an ALB reports as target response time
-  putMetric('latency', Date.now() - started, 'Milliseconds', dimension);
+  // of the body, as an ALB reports it. Named for the span it covers, so it cannot be read as
+  // the round trip a client sees, which a request generator reports as response time
+  putMetric('target response time', Date.now() - started, 'Milliseconds', dimension);
   if (upstream.statusCode >= 500) putMetric('failures', 1, 'Count', dimension);
 
   res.writeHead(upstream.statusCode, upstream.headers);
