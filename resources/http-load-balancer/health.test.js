@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Health, matches } from './health.js';
 
+// What the canvas writes into config.json; the module defaults none of it
+const SETTINGS = {
+	path: '/',
+	interval: 5,
+	timeout: 2,
+	healthyThreshold: 2,
+	unhealthyThreshold: 2,
+	matcher: '200'
+};
+
 // A Health whose probe answers from `verdicts` and whose clock only moves when a test says so
 function setup() {
 	const verdicts = new Map();
@@ -15,9 +25,9 @@ function setup() {
 	const fail = (port, reason = 'HTTP 500') => verdicts.set(port, { ok: false, reason });
 	const advance = (seconds) => (clock += seconds * 1000);
 	// Each tick is an interval later, so every target is due again
-	const tick = (ports, settings) => {
+	const tick = (ports, overrides) => {
 		advance(5);
-		return health.tick(ports, settings);
+		return health.tick(ports, { ...SETTINGS, ...overrides });
 	};
 	return { health, changes, pass, fail, advance, tick };
 }
@@ -105,21 +115,21 @@ describe('scheduling', () => {
 	it('checks a new target on the tick it appears', async () => {
 		const { health, changes, pass } = setup();
 		pass(3000);
-		await health.tick([3000]);
+		await health.tick([3000], SETTINGS);
 		expect(changes).toEqual([{ port: 3000, state: 'healthy', reason: undefined }]);
 	});
 
 	it('waits a full interval between checks of a target', async () => {
 		const { health, changes, pass, fail, advance } = setup();
 		pass(3000);
-		await health.tick([3000]);
+		await health.tick([3000], SETTINGS);
 		changes.length = 0;
 		fail(3000);
 		advance(4);
-		await health.tick([3000], { unhealthyThreshold: 1 });
+		await health.tick([3000], { ...SETTINGS, unhealthyThreshold: 1 });
 		expect(changes).toEqual([]);
 		advance(1);
-		await health.tick([3000], { unhealthyThreshold: 1 });
+		await health.tick([3000], { ...SETTINGS, unhealthyThreshold: 1 });
 		expect(changes).toEqual([{ port: 3000, state: 'unhealthy', reason: 'HTTP 500' }]);
 	});
 
@@ -133,8 +143,8 @@ describe('scheduling', () => {
 			},
 			now: () => 0
 		});
-		const first = health.tick([3000]);
-		health.tick([3000], { interval: 0 });
+		const first = health.tick([3000], SETTINGS);
+		health.tick([3000], { ...SETTINGS, interval: 0 });
 		expect(started).toBe(1);
 		finish({ ok: true });
 		await first;
@@ -147,8 +157,8 @@ describe('scheduling', () => {
 			probe: () => new Promise((resolve) => (finish = resolve)),
 			now: () => 0
 		});
-		const check = health.tick([3000]);
-		health.tick([]);
+		const check = health.tick([3000], SETTINGS);
+		health.tick([], SETTINGS);
 		finish({ ok: true });
 		await check;
 		expect(health.states([3000])).toEqual([{ port: 3000, state: 'initial' }]);
@@ -162,10 +172,10 @@ describe('scheduling', () => {
 			now: () => 0,
 			onChange: (port, state) => changes.push({ port, state })
 		});
-		const stale = health.tick([3000]);
+		const stale = health.tick([3000], SETTINGS);
 		const finishStale = finish;
-		health.tick([]);
-		const fresh = health.tick([3000]);
+		health.tick([], SETTINGS);
+		const fresh = health.tick([3000], SETTINGS);
 		finishStale({ ok: false, reason: 'gone' });
 		await stale;
 		expect(changes).toEqual([]);

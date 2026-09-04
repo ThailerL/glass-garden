@@ -1,14 +1,5 @@
 import http from 'node:http';
 
-// ALB's names and ranges, on a faster clock: an experiment here is a minute long
-const HEALTH_CHECK_DEFAULTS = {
-	path: '/',
-	interval: 5,
-	timeout: 2,
-	healthyThreshold: 2,
-	unhealthyThreshold: 2,
-	matcher: '200'
-};
 const HEALTH_CHECKER = 'ELB-HealthChecker/2.0';
 
 // A refused connection arrives as an AggregateError whose own message is empty, one entry per
@@ -66,8 +57,7 @@ export class Health {
 
 	// Registers what is there, drops what is not, and checks each target that is due.
 	// Resolves when this tick's checks have all landed
-	tick(ports, healthCheck) {
-		const settings = { ...HEALTH_CHECK_DEFAULTS, ...healthCheck };
+	tick(ports, settings) {
 		for (const port of ports) {
 			if (this.#targets.has(port)) continue;
 			// Never checked, so due now
