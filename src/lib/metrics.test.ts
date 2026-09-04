@@ -274,6 +274,8 @@ describe('breakdown', () => {
 		at({ instance: 'b', route: '/' }, 4),
 		at({ instance: 'b', route: '/x' }, 8)
 	];
+	// Read once the period holding the samples is over, which is when a row is drawn
+	const clock = t0 + PERIOD_MS;
 
 	it('offers only the dimensions that separate something', () => {
 		expect(breakdownOptions(grid)).toEqual(['instance', 'route']);
@@ -285,7 +287,7 @@ describe('breakdown', () => {
 		const { lines, hidden } = breakDown(grid, 'instance');
 		expect(hidden).toEqual([]);
 		expect(lines.map((line) => line.key)).toEqual(['a', 'b']);
-		const rows = metricWindow(lines, 'Sum', t0, PERIOD_MS);
+		const rows = metricWindow(lines, 'Sum', clock, PERIOD_MS);
 		expect(rows[0].values).toEqual({ a: 3, b: 12 });
 		expect(rows[0].all).toBe(15);
 	});
@@ -293,14 +295,14 @@ describe('breakdown', () => {
 	it('folds everything into one line for no breakdown', () => {
 		const { lines } = breakDown(grid, NO_BREAKDOWN);
 		expect(lines).toHaveLength(1);
-		expect(metricWindow(lines, 'Sum', t0, PERIOD_MS)[0].values.all).toBe(15);
+		expect(metricWindow(lines, 'Sum', clock, PERIOD_MS)[0].values.all).toBe(15);
 	});
 
 	// The publisher's own dimensionless series is already the whole; folding it in with the
 	// per-instance ones would count every observation twice
 	it('prefers a dimensionless series as the whole over a fold of the rest', () => {
 		const { lines } = breakDown([...grid, at({}, 15)], NO_BREAKDOWN);
-		expect(metricWindow(lines, 'Sum', t0, PERIOD_MS)[0].values.all).toBe(15);
+		expect(metricWindow(lines, 'Sum', clock, PERIOD_MS)[0].values.all).toBe(15);
 	});
 
 	it('draws the first values of a breakdown and hands back the rest', () => {
@@ -314,15 +316,16 @@ describe('breakdown', () => {
 	it('totals every line, drawn or not', () => {
 		const many = Array.from({ length: MAX_LINES + 3 }, (_, i) => at({ id: String(i) }, 1));
 		const { lines, hidden } = breakDown(many, 'id');
-		expect(metricWindow(lines, 'Sum', t0, PERIOD_MS)[0].all).toBe(MAX_LINES);
-		expect(metricWindow([...lines, ...hidden], 'Sum', t0, PERIOD_MS)[0].all).toBe(MAX_LINES + 3);
+		expect(metricWindow(lines, 'Sum', clock, PERIOD_MS)[0].all).toBe(MAX_LINES);
+		expect(metricWindow([...lines, ...hidden], 'Sum', clock, PERIOD_MS)[0].all).toBe(MAX_LINES + 3);
 	});
 });
 
 describe('metricWindow', () => {
 	const key = '3000';
-	// The window ends at the datapoint after `now`, so this is its last column
+	// The last column, read once the clock is past it: a row is drawn only when it is complete
 	const now = t0 + 5 * PERIOD_MS;
+	const clock = now + PERIOD_MS;
 	const windowMs = 4 * PERIOD_MS;
 
 	function column(rows: ReturnType<typeof metricWindow>, offset: number) {
@@ -331,7 +334,7 @@ describe('metricWindow', () => {
 
 	it('spans the full window whatever the series holds', () => {
 		const series = newSeries(now);
-		const rows = metricWindow([{ key, series: [series] }], 'Sum', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'Sum', clock, windowMs);
 
 		expect(rows).toHaveLength(4);
 		expect(rows[0].time.getTime()).toBe(now - 3 * PERIOD_MS);
@@ -350,7 +353,7 @@ describe('metricWindow', () => {
 				{ key: '3001', series: [late] }
 			],
 			'Sum',
-			now,
+			clock,
 			windowMs
 		);
 
@@ -364,7 +367,7 @@ describe('metricWindow', () => {
 	// Otherwise an instance that has served nothing reads differently from one that has been
 	// idle a minute, though both counted nothing just now
 	it('counts zero for a line that has never reported', () => {
-		const rows = metricWindow([{ key, series: [] }], 'Sum', now, windowMs);
+		const rows = metricWindow([{ key, series: [] }], 'Sum', clock, windowMs);
 
 		expect(rows).toHaveLength(4);
 		expect(rows.every((row) => row.values[key] === 0)).toBe(true);
@@ -373,8 +376,8 @@ describe('metricWindow', () => {
 	// The fold is associative, so a coarser interval must give the same answer over fewer
 	// points, not a different one
 	it('folds several base intervals into one point without changing the answer', () => {
-		// Read at the end of a grid interval, so the single wide row is the one holding them
-		const last = t0 + 3 * PERIOD_MS;
+		// Read once the grid interval holding them is over, so the single wide row is that one
+		const last = t0 + 4 * PERIOD_MS;
 		const series = newSeries(t0);
 		for (const [offset, value] of [
 			[0, 2],
@@ -401,7 +404,7 @@ describe('metricWindow', () => {
 		record(series, now - PERIOD_MS, 3);
 		record(series, now, 5);
 
-		const rows = metricWindow([{ key, series: [series] }], 'RunningSum', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'RunningSum', clock, windowMs);
 
 		// Climbs and never falls, holding its level through the silent interval
 		expect(rows.map((row) => row.values[key])).toEqual([2, 2, 5, 10]);
@@ -414,7 +417,7 @@ describe('metricWindow', () => {
 		record(series, now - 3 * PERIOD_MS, 2);
 		record(series, now, 5);
 
-		const narrow = metricWindow([{ key, series: [series] }], 'RunningSum', now, 2 * PERIOD_MS);
+		const narrow = metricWindow([{ key, series: [series] }], 'RunningSum', clock, 2 * PERIOD_MS);
 
 		expect(narrow.map((row) => row.values[key])).toEqual([0, 5]);
 	});
@@ -432,7 +435,7 @@ describe('metricWindow', () => {
 				{ key: '3002', series: [] }
 			],
 			'Sum',
-			now,
+			clock,
 			windowMs
 		);
 
@@ -453,7 +456,7 @@ describe('metricWindow', () => {
 				{ key: '3001', series: [two] }
 			],
 			'Average',
-			now,
+			clock,
 			windowMs
 		);
 
@@ -482,8 +485,8 @@ describe('metricWindow', () => {
 		record(series, now - PERIOD_MS, 3);
 		record(series, now, 5);
 
-		expect(metricTotals([{ key, series: [] }], 'Sum', now, windowMs).values[key]).toBe(0);
-		expect(metricTotals([{ key, series: [series] }], 'Sum', now, windowMs).values[key]).toBe(10);
+		expect(metricTotals([{ key, series: [] }], 'Sum', clock, windowMs).values[key]).toBe(0);
+		expect(metricTotals([{ key, series: [series] }], 'Sum', clock, windowMs).values[key]).toBe(10);
 	});
 
 	// The readout is folded from the same datapoints as the chart, so it cannot contradict it:
@@ -494,8 +497,8 @@ describe('metricWindow', () => {
 		record(series, now, 5);
 		const lines = [{ key, series: [series] }];
 
-		const drawn = metricWindow(lines, 'RunningSum', now, windowMs);
-		expect(metricTotals(lines, 'RunningSum', now, windowMs).values[key]).toBe(
+		const drawn = metricWindow(lines, 'RunningSum', clock, windowMs);
+		expect(metricTotals(lines, 'RunningSum', clock, windowMs).values[key]).toBe(
 			drawn[drawn.length - 1].values[key]
 		);
 	});
@@ -503,7 +506,7 @@ describe('metricWindow', () => {
 	it('draws silence either side of a count as zero', () => {
 		const series = newSeries(now - PERIOD_MS);
 		record(series, now - PERIOD_MS, 2);
-		const rows = metricWindow([{ key, series: [series] }], 'SampleCount', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'SampleCount', clock, windowMs);
 
 		expect(column(rows, -3)).toBe(0);
 		expect(column(rows, -1)).toBe(1);
@@ -513,7 +516,7 @@ describe('metricWindow', () => {
 	it('leaves a gap either side for a statistic nothing can be averaged into', () => {
 		const series = newSeries(now - PERIOD_MS);
 		record(series, now - PERIOD_MS, 2);
-		const rows = metricWindow([{ key, series: [series] }], 'Average', now, windowMs);
+		const rows = metricWindow([{ key, series: [series] }], 'Average', clock, windowMs);
 
 		expect(column(rows, -3)).toBeNull();
 		expect(column(rows, -1)).toBe(2);

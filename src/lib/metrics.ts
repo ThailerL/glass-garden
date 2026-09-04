@@ -253,9 +253,10 @@ export type MetricWindowRow = {
 // Rows sit on a fixed grid rather than being measured back from the clock, so a row keeps its
 // value once the clock is past it. Anchored to `now`, every boundary slides a second at a time
 // and samples fold into a different row on each tick, which shuffles the points sideways and
-// opens and closes gaps in a line that has not changed
+// opens and closes gaps in a line that has not changed. The window ends at the start of the
+// interval `now` falls in, so the last row is complete rather than still filling
 function windowEnd(now: number, gridMs: number) {
-	return Math.floor(now / gridMs) * gridMs + gridMs;
+	return Math.floor(now / gridMs) * gridMs;
 }
 
 // The stored datapoints covering [from, to). Out-of-range ends just shorten the slice
