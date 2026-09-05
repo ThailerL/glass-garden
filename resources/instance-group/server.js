@@ -15,11 +15,21 @@ const metrics = new Metrics();
 // code declares. Remove it and the instances' lines merge into one
 metrics.setDefaultDimensions({ instance: String(port) });
 
+// What the load balancer's health checks call themselves. AWS gives them a user agent of
+// their own precisely so an app can tell them apart from real traffic, and this app has to,
+// because the path being checked and the path being counted are the same "/"
+const HEALTH_CHECKER = 'ELB-HealthChecker/2.0';
+
 const app = express();
 
 app.get('/', (req, res) => {
-  metrics.addMetric('requests', MetricUnit.Count, 1);
-  metrics.publishStoredMetrics();
+  // The balancer requests this same path on every instance every few seconds. Counting those
+  // would leave a steady stream of requests on the Metrics tab with nobody visiting - which is
+  // why a real load balancer leaves its own health checks out of the request count it reports
+  if (req.get('user-agent') !== HEALTH_CHECKER) {
+    metrics.addMetric('requests', MetricUnit.Count, 1);
+    metrics.publishStoredMetrics();
+  }
 
   res.type('text/plain').send(`Hello from the instance on :${port}\n`);
 });

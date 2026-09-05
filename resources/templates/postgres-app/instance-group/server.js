@@ -16,6 +16,11 @@ if (!port) {
 
 const pool = new pg.Pool({ connectionString: url });
 
+// What the load balancer's health checks call themselves. AWS gives them a user agent of
+// their own precisely so an app can tell them apart from real traffic, and this app has to,
+// because the path being checked and the page being counted are the same "/"
+const HEALTH_CHECKER = 'ELB-HealthChecker/2.0';
+
 // An idle connection breaks when the database restarts; unhandled, that error stops the server
 pool.on('error', (error) => console.error('idle client error:', error.message));
 
@@ -33,6 +38,12 @@ app.use(express.static('public', { index: false }));
 
 app.get('/', async (req, res) => {
   try {
+    // The balancer requests this same path on every instance every few seconds. Counting
+    // those would fill every bar below with nobody visiting
+    if (req.get('user-agent') === HEALTH_CHECKER) {
+      return res.type('text/plain').send('ok');
+    }
+
     // Done here so the server can start without a running database
     await pool.query(`CREATE TABLE IF NOT EXISTS views (
       instance INTEGER PRIMARY KEY,
