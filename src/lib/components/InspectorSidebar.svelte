@@ -44,6 +44,14 @@
 	const name = $derived(node && nodeName(node));
 	const editable = $derived(!!definition && definition.hasEditableFiles);
 
+	// The preview only requests the app once the tab has been opened, and stays mounted
+	// afterwards so switching tabs does not reload it
+	let previewedNode = $state<string>();
+	const previewOpened = $derived(previewedNode === nodeId);
+	$effect(() => {
+		if (inspectorState.tab === 'preview') previewedNode = nodeId;
+	});
+
 	// Preview is the one tab a node can lack, so a resource without one falls back rather
 	// than showing an empty panel for a tab it never rendered
 	$effect(() => {
@@ -88,7 +96,9 @@
 					</UnderlineTabs.Content>
 					{#if definition?.hasPreview}
 						<UnderlineTabs.Content value="preview">
-							<PreviewTab {nodeId} />
+							{#if previewOpened}
+								<PreviewTab {nodeId} />
+							{/if}
 						</UnderlineTabs.Content>
 					{/if}
 					<UnderlineTabs.Content value="metrics" class="min-h-0 flex-1">
