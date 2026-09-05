@@ -38,14 +38,6 @@ function putMetric(name, value, unit) {
 // Once at startup, so the name is in the Metrics tab before anybody signs up
 putMetric('signups', 0, 'Count');
 
-// One datapoint per second is what the host stores, so a second's signups go out as one line
-// rather than one per request
-let accepted = 0;
-setInterval(() => {
-  if (accepted > 0) putMetric('signups', accepted, 'Count');
-  accepted = 0;
-}, 1000);
-
 const page = await readFile('public/index.html', 'utf8');
 
 function render(values) {
@@ -75,7 +67,12 @@ app.post('/signup', async (req, res) => {
       MessageBody: JSON.stringify({ email, password })
     })
   );
-  accepted++;
+
+  // One line per signup, the way a Lambda reports one line per invocation. There is nothing to
+  // batch here: Glass Garden folds every line printed in the same second into the one datapoint
+  // it stores, so reporting each signup as it happens is what keeps the sample count honest -
+  // a hundred signups in a second is a hundred samples, not one reading of 100
+  putMetric('signups', 1, 'Count');
 
   // Answering here, before a single password has been hashed, is the entire point of the
   // pattern. This response takes a couple of milliseconds whether the worker is keeping up or
