@@ -8,12 +8,16 @@ Build cloud architecture by dragging load balancers, instance groups, and AWS se
 
 Everything on your canvas is running real code, and your app talks to it the same way it would in production:
 
-- instance groups run actual Node processes whose code you can edit
+- instance groups running actual Node processes with editable code
 - Lambda functions with the standard handler shape, running in execution environments that scale to zero
 - a Postgres server you connect to with the ordinary `pg` client
 - an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK
 
-Click on any resource to pull up its metrics and logs, plus a live preview of whatever it's serving. Access between resources works by drawing edges between them.
+Click on any resource for its metrics, logs, and a window into whatever it's serving. Or pin their charts to the canvas to create a live dashboard. Access between resources works by drawing edges between them.
+
+![A signup API, a queue, and a Lambda function, each with a chart of its metrics](https://github.com/user-attachments/assets/1cfe9994-29bc-42d0-93bc-d3c8be8283be)
+
+*A signup API drops each new password onto a queue for a Lambda function to hash. Signups come in faster than one execution environment can keep up, so the backlog grows until the function's concurrency is raised and it drains.*
 
 It's all inside a WebAssembly VM in the tab, so there's nothing to install or sign up for. Nothing leaves your machine, and the whole thing is easily self-hostable.
 
