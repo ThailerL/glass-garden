@@ -1,5 +1,4 @@
 import express from 'express';
-import { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';
 import { readFile } from 'node:fs/promises';
 
 // Glass Garden gives every instance its own PORT, because they all share one machine here.
@@ -8,18 +7,6 @@ const port = Number(process.env.PORT);
 if (!port) {
   throw new Error('PORT is not set');
 }
-
-// CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the
-// Metrics tab reads. Each addMetric is one observation, not a running total
-const metrics = new Metrics();
-// What tells one instance's numbers from another's, here and in CloudWatch: a dimension the
-// code declares. Remove it and the instances' lines merge into one
-metrics.setDefaultDimensions({ instance: String(port) });
-
-// What the load balancer's health checks call themselves. AWS gives them a user agent of
-// their own precisely so an app can tell them apart from real traffic, and this app has to,
-// because the path being checked and the page being served are the same "/"
-const HEALTH_CHECKER = 'ELB-HealthChecker/2.0';
 
 // The fault this template exists to show, and the reason health checks exist at all. A crashed
 // process is the easy failure: the instance goes red on the canvas and everyone can see it.
@@ -36,13 +23,10 @@ function render(values) {
 const app = express();
 
 app.get('/', (req, res) => {
-  // The balancer requests this same path on every instance every few seconds. Counting those
-  // would leave a steady stream of requests on the Metrics tab with nobody visiting, which is
-  // why a real load balancer leaves its own health checks out of the request count it reports
-  if (req.get('user-agent') !== HEALTH_CHECKER) {
-    metrics.addMetric('requests', MetricUnit.Count, 1);
-    metrics.publishStoredMetrics();
-  }
+  // This app counts nothing, though the templates with a database and a bucket do. The load
+  // balancer in front of it already reports requests per instance on its own Metrics tab, and
+  // it leaves its own health checks out of that count the way a real one does. A second count
+  // of the same requests under the same name would be one more number to reconcile
 
   // A load balancer adds X-Forwarded-For so the app behind it can see the client rather than
   // the balancer. Its presence answers a different question here: whether this page was
@@ -63,7 +47,8 @@ app.get('/', (req, res) => {
         label: 'Fix this instance',
         caption:
           'Still running, so the canvas keeps it green. Two bad answers in a row and the balancer ' +
-          'stops sending it traffic. Watch its line on the Metrics tab fall to zero.'
+          "stops sending it traffic. Watch this instance's line fall to zero on the load " +
+          "balancer's Metrics tab."
       }
     : {
         code: 200,
