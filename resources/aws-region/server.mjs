@@ -31,7 +31,9 @@ const TOPOLOGY_FILE = path.resolve('topology.json');
 const STATE_ROOT = '/state';
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
 const SAVE_DEBOUNCE_MS = 500;
-const SAVE_MAX_WAIT_MS = 10_000;
+// Caps how much a reload can lose: nothing stops the region on unload, so unsaved state
+// is gone. A save costs 7-18ms at 5-55KB of state and 46ms at 677KB
+const SAVE_MAX_WAIT_MS = 1000;
 const SAMPLE_INTERVAL_MS = 1000;
 // Executed in this order into one shared global namespace; threads.py must land before
 // helpers.py imports the emulator, and api.py defines the gg_* functions the bridge calls
