@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SaveScheduler } from './save-scheduler.mjs';
+import { SaveScheduler } from './save-scheduler.js';
 
-// What server.mjs passes, so the numbers in the assertions are the real windows
+// What server.js passes, so the numbers in the assertions are the real windows
 const DEBOUNCE_MS = 500;
 const MAX_WAIT_MS = 1000;
 

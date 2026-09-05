@@ -6,7 +6,7 @@ import {
 	extractResourceName,
 	parseCredential,
 	type Topology
-} from '../../resources/aws-region/lib.mjs';
+} from '../../resources/aws-region/lib.js';
 
 const auth = (service: string, accessKeyId = 'ggweb') =>
 	`AWS4-HMAC-SHA256 Credential=${accessKeyId}/20260901/us-east-1/${service}/aws4_request, ` +

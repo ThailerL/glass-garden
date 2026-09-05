@@ -12,8 +12,8 @@ import {
   denialResponse,
   extractResourceName,
   parseCredential,
-} from './lib.mjs';
-import { SaveScheduler } from './save-scheduler.mjs';
+} from './lib.js';
+import { SaveScheduler } from './save-scheduler.js';
 
 const PORT = Number(process.env.PORT);
 // A per-boot secret the host manager generates and passes at spawn. /control/* shares

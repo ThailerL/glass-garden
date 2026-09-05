@@ -1,13 +1,13 @@
 import { toast } from 'svelte-sonner';
 import type { Vivari, VivariProcess } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
-import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.mjs';
-import type { RegionEvent, Service, Topology } from '../../resources/aws-region/lib.mjs';
+import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
+import type { RegionEvent, Service, Topology } from '../../resources/aws-region/lib.js';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
 import { withTrailingSlash } from '$lib/utils';
 
-export type { Principal, RegionEvent, Service, Topology } from '../../resources/aws-region/lib.mjs';
+export type { Principal, RegionEvent, Service, Topology } from '../../resources/aws-region/lib.js';
 
 // Outside the orchestrator's minting range (1024-49151), so it can never collide with
 // an instance port
@@ -200,7 +200,7 @@ function boot(): Region {
 				resolve(url);
 			});
 		});
-		const process = await container.spawn('node', ['server.mjs'], {
+		const process = await container.spawn('node', ['server.js'], {
 			cwd: directory,
 			env: { PORT: String(REGION_PORT), GG_CONTROL_TOKEN: created.token }
 		});
