@@ -314,9 +314,8 @@
 
 		{#if tour.step === 'done'}
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				The <PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar starts
-				a new canvas from a template, including a version where the instances share one view-count in
-				a database instead of each keeping its own.
+				Click <PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar to
+				start a new canvas from a template.
 			</p>
 		{/if}
 

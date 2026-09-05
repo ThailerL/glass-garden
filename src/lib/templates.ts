@@ -13,12 +13,17 @@ export type Template = {
 
 export const templates = {
 	loadBalancedApp: {
-		name: 'Load-balanced app',
-		description: 'Spread real requests across three Node servers you can edit and watch respond.',
+		name: 'Load balancer health checks',
+		description:
+			'Break one instance on purpose and watch the load balancer stop sending it traffic.',
 		icon: LoadBalancerIcon,
 		build: (graph) => {
 			const balancer = graph.addNode('httpLoadBalancer', { x: -100, y: 0 });
-			const app = graph.addNode('instanceGroup', { x: 100, y: 0 }, { config: { name: 'Web App' } });
+			const app = graph.addNode(
+				'instanceGroup',
+				{ x: 100, y: 0 },
+				{ files: 'load-balanced-app/instance-group', config: { name: 'Web App' } }
+			);
 			graph.addEdge(balancer.id, app.id);
 		}
 	},

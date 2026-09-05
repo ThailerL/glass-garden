@@ -95,6 +95,11 @@ export const httpLoadBalancer = {
 	consumes: ['http'],
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,
+	metricDefaults: {
+		'target health': 'Average',
+		'healthy hosts': 'Average',
+		'unhealthy hosts': 'Average'
+	},
 	instanceCount: () => 1,
 	runsProcesses: true,
 	start: async (node: Node, container: Vivari, port: number, targets: readonly ConnectedNode[]) => {

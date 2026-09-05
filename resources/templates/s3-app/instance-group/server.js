@@ -44,8 +44,6 @@ function escape(text) {
 
 const app = express();
 
-// Serves style.css. index.html is read above instead, since it has holes to fill
-app.use(express.static('public', { index: false }));
 app.use(express.urlencoded({ extended: false }));
 
 app.get('/', async (req, res) => {

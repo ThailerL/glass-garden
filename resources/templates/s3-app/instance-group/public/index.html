@@ -4,7 +4,91 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Notes</title>
-    <link rel="stylesheet" href="/style.css" />
+    <!-- Inline rather than a stylesheet of its own, so a page load is one request, and the
+         balancer's request count is a count of page loads rather than of pages and stylesheets -->
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100dvh;
+        font: 16px/1.5 serif;
+      }
+
+      main {
+        width: min(32rem, 100% - 3rem);
+        padding: 3rem 0;
+      }
+
+      .total {
+        margin: 0;
+        font-size: 4rem;
+        font-weight: 600;
+        line-height: 1;
+      }
+
+      .caption {
+        margin: 0.5rem 0 0;
+        opacity: 0.7;
+        font-size: 0.875rem;
+      }
+
+      form {
+        display: flex;
+        gap: 0.5rem;
+        margin: 2rem 0 0;
+      }
+
+      input,
+      button {
+        font: inherit;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+        background: transparent;
+        color: inherit;
+      }
+
+      input {
+        flex: 1;
+        min-width: 0;
+      }
+
+      button {
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .notes {
+        margin: 1.5rem 0 2rem;
+        padding: 0;
+        list-style: none;
+      }
+
+      .notes li {
+        padding: 0.75rem 0;
+        border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+      }
+
+      .notes p {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .notes span {
+        font-size: 0.8125rem;
+        opacity: 0.6;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .notes .empty {
+        opacity: 0.7;
+      }
+    </style>
   </head>
   <body>
     <main>

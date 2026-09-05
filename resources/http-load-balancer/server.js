@@ -116,6 +116,10 @@ async function loop() {
 }
 
 function forward(target, req, body) {
+  const forwardedFor = [req.headers['x-forwarded-for'], req.socket.remoteAddress]
+    .filter(Boolean)
+    .join(', ');
+
   return new Promise((resolve, reject) => {
     const upstream = http.request(
       {
@@ -123,7 +127,7 @@ function forward(target, req, body) {
         port: target,
         path: req.url,
         method: req.method,
-        headers: req.headers
+        headers: { ...req.headers, 'x-forwarded-for': forwardedFor }
       },
       resolve
     );

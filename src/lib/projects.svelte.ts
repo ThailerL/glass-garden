@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { templates, type TemplateId } from './templates';
+import { buildTourCanvas } from './tour.svelte';
 import { onContainerBoot, projectDirectory, PROJECTS_ROOT, removeProjectFiles } from './container';
 import { GRAPH_PREFIX, GraphState, graphKeyPrefix } from './graph-state.svelte';
 import { keysWithPrefix, readByPrefix } from './storage';
@@ -43,17 +43,17 @@ export function renameProject(id: string, name: string) {
 	writeProject(project);
 }
 
-export function createProject(name: string, templateId: TemplateId): Project {
+export function createProject(name: string, build: (graph: GraphState) => void): Project {
 	const project: Project = { id: nanoid(8), name, createdAt: Date.now() };
 	writeProject(project);
 	projects = [...projects, project];
-	templates[templateId].build(new GraphState(project.id));
+	build(new GraphState(project.id));
 	return project;
 }
 
 // The app always has a project open, so one is made when none exist yet or the last is deleted
 export function ensureProject(): Project {
-	return projects.at(-1) ?? createProject('My first project', 'loadBalancedApp');
+	return projects.at(-1) ?? createProject('My first project', buildTourCanvas);
 }
 
 export function deleteProject(id: string) {

@@ -1,4 +1,5 @@
 import type { Node } from '@xyflow/svelte';
+import type { GraphState } from './graph-state.svelte';
 
 const ORDER = ['run', 'select', 'preview', 'refresh', 'app', 'metrics', 'done'] as const;
 
@@ -8,6 +9,15 @@ export type TourStep = (typeof ORDER)[number];
 export const NUMBERED_STEPS: readonly TourStep[] = ORDER.slice(0, ORDER.indexOf('done'));
 
 const SEEN_KEY = 'tourSeen';
+const PROJECT_KEY = 'tourProjectId';
+
+// Fixed shape: the tour's steps name what is on this canvas
+export function buildTourCanvas(graph: GraphState) {
+	const balancer = graph.addNode('httpLoadBalancer', { x: -100, y: 0 });
+	const app = graph.addNode('instanceGroup', { x: 100, y: 0 }, { config: { name: 'Web App' } });
+	graph.addEdge(balancer.id, app.id);
+	localStorage.setItem(PROJECT_KEY, graph.projectId);
+}
 
 class TourState {
 	step = $state<TourStep | undefined>();
@@ -17,8 +27,9 @@ class TourState {
 	// carries on from where it stood rather than starting over
 	#begun = false;
 
-	begin(nodes: readonly Node[]) {
-		if (this.#begun || localStorage.getItem(SEEN_KEY)) return;
+	begin(projectId: string, nodes: readonly Node[]) {
+		if (this.#begun || localStorage.getItem(PROJECT_KEY) !== projectId) return;
+		if (localStorage.getItem(SEEN_KEY)) return;
 
 		const balancer = nodes.find((node) => node.type === 'httpLoadBalancer');
 		if (!balancer) return;

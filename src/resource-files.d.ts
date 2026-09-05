@@ -11,7 +11,7 @@ declare module 'virtual:resource-files' {
 	export const postgres: FileSystemTree;
 	// One entry per directory under a template, keyed by the path to it
 	export const templates: Record<
-		'postgres-app/instance-group' | 's3-app/instance-group',
+		'load-balanced-app/instance-group' | 'postgres-app/instance-group' | 's3-app/instance-group',
 		FileSystemTree
 	>;
 }

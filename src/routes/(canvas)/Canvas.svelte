@@ -44,7 +44,7 @@
 	const { screenToFlowPosition } = useSvelteFlow();
 
 	// Offered once, on a first visit: the tour reads the canvas it is about to point at
-	tour.begin(graphState.nodes);
+	tour.begin(graphState.projectId, graphState.nodes);
 
 	// Every resource type renders through the same component, which reads its icon and
 	// handles from the node's own definition

@@ -28,7 +28,7 @@
 
 	function create(event: SubmitEvent) {
 		event.preventDefault();
-		onCreated(createProject(name.trim(), templateId));
+		onCreated(createProject(name.trim(), templates[templateId].build));
 		open = false;
 	}
 </script>

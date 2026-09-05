@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web App</title>
+    <!-- Inline rather than a stylesheet of its own, so a page load is one request. The balancer
+         picks a target per request, so a page that fetched a second file would have its two
+         requests land on two different instances, and the port shown would be true of only half
+         of what is on screen -->
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100dvh;
+        font: 16px/1.5 serif;
+      }
+
+      main {
+        width: min(32rem, 100% - 3rem);
+        padding: 3rem 0;
+      }
+
+      .port {
+        margin: 0;
+        font-size: 3rem;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        /* Narrow the preview pane far enough and the address runs past the edge. Wrapping it is the
+           better answer than a sideways scrollbar; the wbr below picks where it breaks */
+        overflow-wrap: break-word;
+      }
+
+      .status {
+        margin: 0.5rem 0 0;
+        font-weight: 600;
+      }
+
+      /* Red is the state, not the styling: this instance is failing every request it is given */
+      .broken .status {
+        color: crimson;
+      }
+
+      .caption {
+        margin: 1rem 0 0;
+        opacity: 0.7;
+        font-size: 0.875rem;
+      }
+
+      form {
+        margin: 2rem 0 0;
+      }
+
+      button {
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+        background: transparent;
+        color: inherit;
+      }
+
+      /* Through the balancer there is no knowing which instance the button would land on, so it
+         goes, and the caption the server sends instead says where to find one */
+      .proxied form {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="{{state}} {{via}}">
+      <p class="port">Instance :{{port}}</p>
+      <p class="status">{{status}}</p>
+
+      <!-- The action is relative on purpose: the preview serves this app under a path prefix,
+           the way an app behind a path-routing proxy is. "/break" would leave the app entirely -->
+      <form method="post" action="./{{action}}">
+        <button type="submit">{{label}}</button>
+      </form>
+
+      <p class="caption">{{caption}}</p>
+    </main>
+  </body>
+</html>
