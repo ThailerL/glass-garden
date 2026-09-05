@@ -5,7 +5,6 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { getGraphState } from '$lib/graph-state.svelte';
-	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import {
 		deleteProject,
 		ensureProject,
@@ -17,18 +16,17 @@
 	import ProjectMenuItem from './ProjectMenuItem.svelte';
 
 	const graphState = getGraphState();
-	const orchestrator = getOrchestrator();
 	const projects = $derived(listProjects());
 
 	let creating = $state(false);
 
+	// Reloads rather than switching in place: a switch tears the container down and boots a new
+	// one, and on Chromium the preview relay does not survive that, so the page loses its control
+	// channel to the region while VM-side callers still reach it
 	function openProject(id: string) {
 		if (id === graphState.projectId) return;
 		setLastProjectId(id);
-		orchestrator.reset();
-		graphState.switchTo(id);
-		// A template-built project reserved nothing yet; a stored one should already hold
-		orchestrator.reconcileAllReservations();
+		location.reload();
 	}
 
 	function confirmDeleteProject(project: Project) {
