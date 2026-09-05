@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign up</title>
+    <!-- Inline rather than a stylesheet of its own, so a page load is one request and the
+         charts count page loads rather than pages and stylesheets -->
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100dvh;
+        font: 16px/1.5 serif;
+      }
+
+      main {
+        width: min(32rem, 100% - 3rem);
+        padding: 3rem 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 2rem;
+      }
+
+      .caption {
+        margin: 0.5rem 0 0;
+        opacity: 0.7;
+        font-size: 0.875rem;
+      }
+
+      form {
+        display: grid;
+        gap: 0.5rem;
+        margin: 2rem 0;
+      }
+
+      input,
+      button {
+        font: inherit;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+        background: transparent;
+        color: inherit;
+      }
+
+      button {
+        cursor: pointer;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Create an account</h1>
+      <p class="caption">Handing work to the queue <strong>{{queue}}</strong></p>
+
+      <form method="post" action="./signup">
+        <input name="email" type="email" placeholder="you@example.com" autocomplete="off" />
+        <input name="password" type="password" placeholder="Password" autocomplete="off" />
+        <button type="submit">Sign up</button>
+      </form>
+
+      <p class="caption">
+        Signing up puts a message on the queue and answers straight away, before the password has
+        been hashed. Watch the queue's chart: one execution environment cannot hash as fast as
+        the signups arrive, so the backlog grows. Raise <strong>max concurrency</strong> in the
+        function's Config tab and it drains, while the number on this side of the queue never
+        moves.
+      </p>
+    </main>
+  </body>
+</html>

@@ -69,6 +69,57 @@ export const templates = {
 			graph.addEdge(app.id, bucket.id);
 		}
 	},
+	queueApp: {
+		name: 'Async work behind a queue',
+		description:
+			"Signups arrive faster than passwords can be hashed. Raise the worker's concurrency and watch the backlog drain.",
+		icon: resourceDefinitions.sqsQueue.icon,
+		build: (graph) => {
+			const generator = graph.addNode(
+				'requestGenerator',
+				{ x: -300, y: 0 },
+				{
+					chart: 'response time',
+					config: {
+						name: 'Signup Traffic',
+						method: 'POST',
+						path: '/signup',
+						body: JSON.stringify({ email: 'someone@example.com', password: 'hunter2' }),
+						// Above what one execution environment can hash
+						requestsPerSecond: 5
+					}
+				}
+			);
+			const app = graph.addNode(
+				'instanceGroup',
+				{ x: -100, y: 0 },
+				{
+					files: 'queue-app/instance-group',
+					// One instance, since the lesson is behind the queue rather than in front of it
+					config: { name: 'Signup API', instanceCount: 1 },
+					chart: 'signups'
+				}
+			);
+			const queue = graph.addNode(
+				'sqsQueue',
+				{ x: 100, y: 0 },
+				{ config: { name: 'Signups', queueName: 'signups' }, chart: 'messages' }
+			);
+			const worker = graph.addNode(
+				'lambdaFunction',
+				{ x: 300, y: 0 },
+				{
+					files: 'queue-app/lambda-function',
+					// One at a time to start with, so the backlog is the first thing seen
+					config: { name: 'Hash Password', timeout: 30, maxConcurrency: 1 },
+					chart: 'concurrent executions'
+				}
+			);
+			graph.addEdge(generator.id, app.id);
+			graph.addEdge(app.id, queue.id);
+			graph.addEdge(queue.id, worker.id);
+		}
+	},
 	blank: {
 		name: 'Blank canvas',
 		description: 'Start from nothing and drag in resources yourself.',
