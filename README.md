@@ -2,9 +2,9 @@
 
 Build cloud architecture by dragging load balancers, instance groups, and AWS services onto a canvas. Press play, use your app, and watch where requests go.
 
-[demo.webm](https://github.com/user-attachments/assets/14e35425-c4ba-49d7-9904-4961689ca222)
+[demo.webm](https://github.com/user-attachments/assets/61624e15-d5bb-4fe2-9222-10edca690b3e)
 
-[Try it live](https://glass.garden/) - a two-minute guided tour starts you off.
+*Three instances of a page-view counter behind a load balancer, with nowhere to keep the count until a Postgres database is dragged in and connected to the app. Each refresh is answered by a different instance.*
 
 Everything on your canvas is running real code, and your app talks to it the same way it would in production:
 
@@ -16,6 +16,8 @@ Everything on your canvas is running real code, and your app talks to it the sam
 Click on any resource to pull up its metrics and logs, plus a live preview of whatever it's serving. Access between resources works by drawing edges between them.
 
 It's all inside a WebAssembly VM in the tab, so there's nothing to install or sign up for. Nothing leaves your machine, and the whole thing is easily self-hostable.
+
+A two-minute guided tour starts you off at [glass.garden](https://glass.garden/).
 
 ## Self-hosting
 
