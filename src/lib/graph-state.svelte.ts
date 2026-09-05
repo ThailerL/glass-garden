@@ -12,6 +12,8 @@ export type NodeData = {
 	ports: number[];
 	// Set by a template whose node starts on files other than its resource type's
 	files?: FileSetId;
+	// The one metric charted under the node on the canvas
+	chart?: string;
 };
 
 // Takes anything carrying node data, so a NodeProps in a component reads it the same way
@@ -21,6 +23,10 @@ export function nodeConfig<T = Record<string, unknown>>(node: { data: Node['data
 
 export function nodePorts(node: Node): readonly number[] {
 	return (node.data as NodeData).ports;
+}
+
+export function nodeChart(node: { data: Node['data'] }): string | undefined {
+	return (node.data as NodeData).chart;
 }
 
 export function nodeName(node: { data: Node['data'] }): string {
@@ -96,7 +102,11 @@ export class GraphState {
 	addNode(
 		type: ResourceType,
 		position: { x: number; y: number },
-		{ files, config }: { files?: FileSetId; config?: Record<string, unknown> } = {}
+		{
+			files,
+			config,
+			chart
+		}: { files?: FileSetId; config?: Record<string, unknown>; chart?: string } = {}
 	) {
 		const definition = getResourceDefinition(type);
 		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
@@ -105,7 +115,8 @@ export class GraphState {
 			// Anything not supplied falls back to the schema's default
 			config: definition.configSchema.parse(config ?? {}),
 			ports: [],
-			files
+			files,
+			chart
 		};
 		const node: Node = {
 			id: nanoid(8),
@@ -142,6 +153,10 @@ export class GraphState {
 	// Called from event and reconcile contexts, never during reads, so replacing state is safe
 	setNodePorts(id: string, ports: number[]) {
 		this.#patchNodeData(id, { ports });
+	}
+
+	setNodeChart(id: string, chart: string | undefined) {
+		this.#patchNodeData(id, { chart });
 	}
 
 	#patchNodeData(id: string, patch: Partial<NodeData>) {

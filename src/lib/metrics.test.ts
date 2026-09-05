@@ -12,6 +12,9 @@ import {
 	dimensionKey,
 	breakdownOptions,
 	breakDown,
+	chartSeries,
+	chartStat,
+	metricChart,
 	NO_BREAKDOWN,
 	MAX_LINES,
 	parseEmfLine,
@@ -318,6 +321,45 @@ describe('breakdown', () => {
 		const { lines, hidden } = breakDown(many, 'id');
 		expect(metricWindow(lines, 'Sum', clock, PERIOD_MS)[0].all).toBe(MAX_LINES);
 		expect(metricWindow([...lines, ...hidden], 'Sum', clock, PERIOD_MS)[0].all).toBe(MAX_LINES + 3);
+	});
+
+	describe('metricChart', () => {
+		it('keeps a chosen breakdown while the metric still has it', () => {
+			expect(metricChart(grid, 'route').breakdown).toBe('route');
+			expect(metricChart(grid, NO_BREAKDOWN).breakdown).toBe(NO_BREAKDOWN);
+		});
+
+		it('falls back to the first dimension that separates anything', () => {
+			expect(metricChart(grid, undefined).breakdown).toBe('instance');
+			expect(metricChart(grid, 'gone').breakdown).toBe('instance');
+			expect(metricChart([at({}, 1)], 'gone').breakdown).toBe(NO_BREAKDOWN);
+		});
+
+		it('colours lines in order so every chart agrees on them', () => {
+			const { lines } = metricChart(grid, 'instance');
+			expect(lines.map((line) => line.color)).toEqual(['var(--chart-1)', 'var(--chart-2)']);
+		});
+	});
+
+	describe('chartSeries', () => {
+		it('names the one line of an un-broken-down metric after the metric', () => {
+			const whole = chartSeries(metricChart(grid, NO_BREAKDOWN).lines, 'requests');
+			expect(whole.series.map((s) => s.label)).toEqual(['requests']);
+			expect(whole.config).toEqual({ all: { label: 'requests', color: 'var(--chart-1)' } });
+			const split = chartSeries(metricChart(grid, 'instance').lines, 'requests');
+			expect(split.series.map((s) => s.label)).toEqual(['a', 'b']);
+		});
+	});
+
+	describe('chartStat', () => {
+		const measured = [newSeries(t0, 'Milliseconds')];
+
+		it('takes the choice over the resource default over the unit', () => {
+			expect(chartStat('Maximum', 'Average', measured)).toBe('Maximum');
+			expect(chartStat(undefined, 'Average', [newSeries(t0, 'Count')])).toBe('Average');
+			expect(chartStat(undefined, undefined, measured)).toBe('Average');
+			expect(chartStat(undefined, undefined, [newSeries(t0, 'Count')])).toBe('Sum');
+		});
 	});
 });
 

@@ -1,4 +1,4 @@
-import type { ChartReading } from '$lib/metrics';
+import { chartStat, metricChart, type ChartReading, type MetricSeries } from '$lib/metrics';
 
 // Each carries the interval its points are folded to, holding every window to 60 points
 export const METRIC_WINDOWS = [
@@ -14,6 +14,13 @@ export type MetricWindow = (typeof METRIC_WINDOWS)[number];
 // than one that is occasionally set to the wrong thing
 class MetricsView {
 	window = $state<MetricWindow>(METRIC_WINDOWS[1]);
+
+	// A reading goes stale on its own, so charts move without new samples
+	now = $state(Date.now());
+
+	constructor() {
+		setInterval(() => (this.now = Date.now()), 1000);
+	}
 
 	// Keyed by resource type as well as by name
 	#stats = $state<Partial<Record<string, ChartReading>>>({});
@@ -35,6 +42,19 @@ class MetricsView {
 
 	setBreakdown(type: string, name: string, dimension: string) {
 		this.#breakdowns[`${type}:${name}`] = dimension;
+	}
+
+	// A metric as it is drawn, wherever it is drawn, so no two charts of it can disagree
+	chart(
+		type: string,
+		name: string,
+		series: readonly MetricSeries[],
+		resourceDefault: ChartReading | undefined
+	) {
+		return {
+			...metricChart(series, this.breakdown(type, name)),
+			stat: chartStat(this.stat(type, name), resourceDefault, series)
+		};
 	}
 
 	// By width, since that is what a select can carry: the interval it folds to travels with it

@@ -18,7 +18,13 @@ export const templates = {
 			'Break one instance on purpose and watch the load balancer stop sending it traffic.',
 		icon: LoadBalancerIcon,
 		build: (graph) => {
-			const balancer = graph.addNode('httpLoadBalancer', { x: -100, y: 0 });
+			// Charted on the canvas so an instance leaving the pool is seen from there. Aggregate
+			// requests would not show it: the balancer serves the same total from fewer targets
+			const balancer = graph.addNode(
+				'httpLoadBalancer',
+				{ x: -100, y: 0 },
+				{ chart: 'healthy hosts' }
+			);
 			const app = graph.addNode(
 				'instanceGroup',
 				{ x: 100, y: 0 },

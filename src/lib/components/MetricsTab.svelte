@@ -1,16 +1,9 @@
 <script lang="ts">
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeChart } from '$lib/graph-state.svelte';
 	import { getResourceDefinition, type Instance } from '$lib/resources';
 	import { STATUS_TEXT, uptimeText } from '$lib/status';
 	import { METRIC_WINDOWS, metricsView } from '$lib/metrics-view.svelte';
-	import {
-		NO_BREAKDOWN,
-		breakDown,
-		breakdownOptions,
-		defaultStatisticFor,
-		unitOf
-	} from '$lib/metrics';
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import MetricChart from '$lib/components/MetricChart.svelte';
@@ -29,42 +22,18 @@
 	const instances = $derived(orchestrator.getInstances(nodeId));
 	const metrics = $derived(orchestrator.getMetrics(nodeId));
 
-	// A reading goes stale on its own, so the readout has to move without new samples
-	let now = $state(Date.now());
-	$effect(() => {
-		const clock = setInterval(() => (now = Date.now()), 1000);
-		return () => clearInterval(clock);
-	});
+	const now = $derived(metricsView.now);
 
 	const metricNames = $derived(Object.keys(metrics).sort());
 
 	// Every series a name has been published under, whatever its dimensions
-	const seriesOf = (name: string) => Object.values(metrics[name] ?? {});
-
-	// A resource says how its own metrics are read; otherwise the unit decides
-	const statFor = (name: string) =>
-		metricsView.stat(type, name) ??
-		definition?.metricDefaults?.[name] ??
-		defaultStatisticFor(unitOf(seriesOf(name)));
-
-	function chartFor(name: string) {
-		const series = seriesOf(name);
-		const options = breakdownOptions(series);
-		// The choice made, while it still names a dimension the metric has; else the first that
-		// separates anything, which lands the default app on its instances without naming them
-		const chosen = metricsView.breakdown(type, name);
-		const breakdown =
-			chosen === NO_BREAKDOWN || (chosen !== undefined && options.includes(chosen))
-				? chosen
-				: (options[0] ?? NO_BREAKDOWN);
-		const { lines, hidden } = breakDown(series, breakdown);
-		return {
-			options,
-			breakdown,
-			hidden,
-			lines: lines.map((line, index) => ({ ...line, color: `var(--chart-${(index % 5) + 1})` }))
-		};
-	}
+	const chartFor = (name: string) =>
+		metricsView.chart(
+			type,
+			name,
+			Object.values(metrics[name] ?? {}),
+			definition?.metricDefaults?.[name]
+		);
 
 	function statusLabel(instance: Instance | undefined) {
 		if (!instance) return STATUS_TEXT.stopped;
@@ -160,10 +129,11 @@
 						hidden={chart.hidden}
 						dimensions={chart.options}
 						canAddDimensions={definition?.hasEditableFiles ?? false}
-						windowMs={metricsView.window.ms}
-						intervalMs={metricsView.window.intervalMs}
-						{now}
-						bind:stat={() => statFor(name), (value) => metricsView.setStat(type, name, value)}
+						bind:pinned={
+							() => node !== undefined && nodeChart(node) === name,
+							(value) => graphState.setNodeChart(nodeId, value ? name : undefined)
+						}
+						bind:stat={() => chart.stat, (value) => metricsView.setStat(type, name, value)}
 						bind:breakdown={
 							() => chart.breakdown, (value) => metricsView.setBreakdown(type, name, value)
 						}

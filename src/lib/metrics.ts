@@ -243,6 +243,51 @@ export function breakDown(
 	return { lines: lines.slice(0, MAX_LINES), hidden: lines.slice(MAX_LINES) };
 }
 
+export type ChartLine = MetricLine & { color: string };
+
+// Falling back to the first dimension that separates anything lands the default app on its
+// instances without naming them. Coloured here so every chart agrees on colour
+export function metricChart(series: readonly MetricSeries[], chosen: string | undefined) {
+	const options = breakdownOptions(series);
+	const breakdown =
+		chosen === NO_BREAKDOWN || (chosen !== undefined && options.includes(chosen))
+			? chosen
+			: (options[0] ?? NO_BREAKDOWN);
+	const { lines, hidden } = breakDown(series, breakdown);
+	return {
+		options,
+		breakdown,
+		hidden,
+		lines: lines.map((line, index) => ({ ...line, color: `var(--chart-${(index % 5) + 1})` }))
+	};
+}
+
+// The lines as layerchart draws them, plus where its tooltip reads labels and colours from.
+// The one line of an un-broken-down metric is the metric, so it is named that rather than "all"
+export function chartSeries(lines: readonly ChartLine[], name: string) {
+	const series = lines.map(({ key, color }) => ({
+		key,
+		label: key === ALL_LINES ? name : key,
+		color,
+		value: (row: MetricWindowRow) => row.values[key] ?? null
+	}));
+	const config = Object.fromEntries(series.map(({ key, label, color }) => [key, { label, color }]));
+	return { series, config };
+}
+
+// Axis labels compete with the plot for width wherever a chart is drawn
+export const compact = (value: number) =>
+	Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(Math.round(value * 10) / 10);
+
+// A resource says how its own metrics are read; otherwise the unit decides
+export function chartStat(
+	chosen: ChartReading | undefined,
+	resourceDefault: ChartReading | undefined,
+	series: readonly MetricSeries[]
+): ChartReading {
+	return chosen ?? resourceDefault ?? defaultStatisticFor(unitOf(series));
+}
+
 // One value per line, keyed as the line is, plus the same reading across every line at once
 export type MetricWindowRow = {
 	time: Date;

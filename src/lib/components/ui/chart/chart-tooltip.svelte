@@ -167,10 +167,14 @@
 									{itemConfig?.label || item.label}
 								</span>
 							</div>
-							{#if item.value !== undefined}
+							<!-- Loose, so a gap's null is skipped too: a metric reports nothing for an
+							     interval it was silent in, and a dash is what the legend shows -->
+							{#if item.value != null}
 								<span class="font-mono font-medium text-foreground tabular-nums">
 									{item.value.toLocaleString()}
 								</span>
+							{:else}
+								<span class="font-mono font-medium text-muted-foreground">-</span>
 							{/if}
 						</div>
 					{/if}

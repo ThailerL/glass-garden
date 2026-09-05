@@ -3,11 +3,13 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import { nodeName } from '$lib/graph-state.svelte';
+	import { nodeChart, nodeName } from '$lib/graph-state.svelte';
 	import { STATUS_TEXT } from '$lib/status';
+	import NodeChart from './NodeChart.svelte';
 
 	const node: NodeProps = $props();
 	const name = $derived(nodeName(node));
+	const chart = $derived(nodeChart(node));
 
 	const orchestrator = getOrchestrator();
 	const status = $derived(orchestrator.getStatus(node.id));
@@ -58,6 +60,15 @@
 >
 	{name}
 </span>
+{#if chart}
+	<!-- Hung below the card so pinning a chart does not move the handles -->
+	<div
+		class="absolute top-full left-1/2 mt-2 w-44 -translate-x-1/2 space-y-1 rounded-md border
+		       bg-card px-2 py-1.5 text-left shadow-sm"
+	>
+		<NodeChart nodeId={node.id} type={node.type} name={chart} />
+	</div>
+{/if}
 {#if definition.provides.length > 0}
 	<Handle type="target" position={Position.Left} />
 {/if}

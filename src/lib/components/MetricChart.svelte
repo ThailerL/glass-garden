@@ -1,25 +1,25 @@
-<script lang="ts" module>
-	import type { MetricLine } from '$lib/metrics';
-
-	// Colour comes from the tab, so every chart agrees on it
-	export type ChartLine = MetricLine & { color: string };
-</script>
-
 <script lang="ts">
 	import { LineChart } from 'layerchart';
 	import * as Chart from '$lib/components/ui/chart';
 	import * as Select from '$lib/components/ui/select';
+	import { Button } from '$lib/components/ui/button';
+	import PinIcon from '@lucide/svelte/icons/pin';
+	import PinOffIcon from '@lucide/svelte/icons/pin-off';
 	import {
 		ALL_LINES,
 		CHART_READINGS,
 		NO_BREAKDOWN,
 		READING_TEXT,
+		chartSeries,
+		compact,
 		metricTotals,
 		metricWindow,
 		unitOf,
+		type ChartLine,
 		type ChartReading,
-		type MetricWindowRow
+		type MetricLine
 	} from '$lib/metrics';
+	import { metricsView } from '$lib/metrics-view.svelte';
 
 	let {
 		name,
@@ -29,9 +29,7 @@
 		canAddDimensions,
 		breakdown = $bindable(),
 		stat = $bindable(),
-		windowMs,
-		intervalMs,
-		now
+		pinned = $bindable()
 	}: {
 		name: string;
 		lines: ChartLine[];
@@ -45,10 +43,10 @@
 		canAddDimensions: boolean;
 		breakdown: string;
 		stat: ChartReading;
-		windowMs: number;
-		intervalMs: number;
-		now: number;
+		pinned: boolean;
 	} = $props();
+
+	const { now, window } = $derived(metricsView);
 
 	// A select cannot carry an empty value, so none travels under a name of its own
 	const NONE = '(none)';
@@ -58,38 +56,22 @@
 		stat === 'SampleCount' ? undefined : unitOf(lines.flatMap((l) => l.series))
 	);
 
-	// The one line of an un-broken-down metric is the metric, so the tooltip names it that
-	// rather than "all", which here would be the whole of nothing in particular
-	const series = $derived(
-		lines.map(({ key, color }) => ({
-			key,
-			label: key === ALL_LINES ? name : key,
-			color,
-			value: (row: MetricWindowRow) => row.values[key] ?? null
-		}))
-	);
-
-	// Where the tooltip reads its labels and colours from
-	const config = $derived(
-		Object.fromEntries(series.map(({ key, label, color }) => [key, { label, color }]))
-	);
+	const { series, config } = $derived(chartSeries(lines, name));
 
 	const pad = (part: number) => String(part).padStart(2, '0');
 	const clock = (time: Date) => `${pad(time.getMinutes())}:${pad(time.getSeconds())}`;
-
-	// Axis labels compete with the plot for width in a sidebar this narrow
-	const compact = (value: number) =>
-		Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(Math.round(value * 10) / 10);
 
 	// A dash where there is nothing, so a gap never reads as a measured zero
 	const format = (value: number | null | undefined) =>
 		value === null || value === undefined ? '-' : compact(value);
 
-	const rows = $derived(metricWindow(lines, stat, now, windowMs, intervalMs));
+	const rows = $derived(metricWindow(lines, stat, now, window.ms, window.intervalMs));
 
 	// The whole window rather than its last point, which the end of the line already shows.
 	// Over every line including the undrawn ones, so "all" is the metric and not the legend
-	const total = $derived(metricTotals([...lines, ...hidden], stat, now, windowMs, intervalMs));
+	const total = $derived(
+		metricTotals([...lines, ...hidden], stat, now, window.ms, window.intervalMs)
+	);
 </script>
 
 <!-- A section rather than a figure: a figcaption has to be a figure's immediate child, and
@@ -99,6 +81,19 @@
 	     statistic, the metric and what its lines are, in that order. The legend drops to its
 	     own line when the lines outgrow the row -->
 	<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+		<Button
+			variant="ghost"
+			size="icon-xs"
+			class="-mr-1 w-4 shrink-0"
+			aria-label={pinned
+				? `Take ${name} off the canvas`
+				: `Show ${name} under the node on the canvas`}
+			aria-pressed={pinned}
+			title={pinned ? 'Shown on the canvas' : 'Show on the canvas'}
+			onclick={() => (pinned = !pinned)}
+		>
+			{#if pinned}<PinOffIcon />{:else}<PinIcon />{/if}
+		</Button>
 		<Select.Root type="single" bind:value={stat}>
 			<!-- Height needs the trigger's own data-size variant, or its h-9 wins -->
 			<Select.Trigger
