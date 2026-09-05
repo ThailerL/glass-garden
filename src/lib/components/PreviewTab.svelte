@@ -12,6 +12,8 @@
 
 	let frame: { reload: () => void } | undefined = $state();
 
+	let path = $state('/');
+
 	// Settled by the select, which resolves nothing chosen yet to the node's first instance
 	let selected = $state<number>();
 
@@ -36,6 +38,27 @@
 		>
 			<RefreshCwIcon />
 		</Button>
+		<!-- The address the app itself sees rather than the proxy path, and the port picks the instance -->
+		<form
+			onsubmit={(event) => {
+				event.preventDefault();
+				frame?.reload();
+			}}
+			class="flex h-9 min-w-0 flex-1 items-center gap-1 rounded-md border bg-background px-3 font-mono text-xs shadow-xs dark:bg-input/30"
+			title={previewUrl}
+		>
+			<span class="flex shrink-0 items-center text-muted-foreground">
+				localhost<InstanceSelect {nodeId} bind:selected />
+			</span>
+			<input
+				bind:value={path}
+				disabled={!previewUrl}
+				spellcheck="false"
+				autocomplete="off"
+				aria-label="Path to open in the preview"
+				class="min-w-0 flex-1 bg-transparent outline-none"
+			/>
+		</form>
 		{#if previewUrl}
 			<!-- Served by the preview service worker rather than by SvelteKit routing, so there
 			     is no route for resolve() to take, and Button's href only takes resolved ones -->
@@ -58,9 +81,8 @@
 				<ExternalLinkIcon />
 			</Button>
 		{/if}
-		<InstanceSelect {nodeId} bind:selected />
 	</div>
 	<div class="min-h-0 flex-1">
-		<PreviewFrame bind:this={frame} {previewUrl} />
+		<PreviewFrame bind:this={frame} {previewUrl} bind:path />
 	</div>
 </div>

@@ -5,6 +5,7 @@ import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.mjs'
 import type { RegionEvent, Service, Topology } from '../../resources/aws-region/lib.mjs';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
+import { withTrailingSlash } from '$lib/utils';
 
 export type { Principal, RegionEvent, Service, Topology } from '../../resources/aws-region/lib.mjs';
 
@@ -238,8 +239,7 @@ function onExit(exited: Region, code: number) {
 }
 
 async function control(current: Region, pathname: string, init?: RequestInit) {
-	const base = current.previewUrl.endsWith('/') ? current.previewUrl : `${current.previewUrl}/`;
-	const response = await fetch(base + pathname, {
+	const response = await fetch(withTrailingSlash(current.previewUrl) + pathname, {
 		...init,
 		headers: { 'x-gg-token': current.token },
 		signal: AbortSignal.timeout(CONTROL_TIMEOUT_MS)

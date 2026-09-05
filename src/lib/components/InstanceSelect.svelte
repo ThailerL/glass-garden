@@ -23,15 +23,18 @@
 	// the list doesn't reshuffle as they come and go
 	const ports = $derived(orchestrator.getReservedPorts(nodeId));
 
-	// Whether the choice still names something this node has
-	const offered = $derived(
-		selected === ALL ? all : selected !== undefined && ports.includes(selected)
+	// Nothing chosen yet, or a choice a scale-down removed, falls back to the first instance
+	const shown = $derived(
+		selected !== undefined && (selected === ALL ? all : ports.includes(selected))
+			? selected
+			: all
+				? ALL
+				: ports[0]
 	);
 
-	// Settles what nothing chosen yet means, and takes back a choice a scale-down has removed,
-	// so a caller reads a real port back rather than carrying its own fallback
+	// Written back so a caller reads a real port rather than carrying its own fallback
 	$effect(() => {
-		if (!offered) selected = all ? ALL : ports[0];
+		selected = shown;
 	});
 
 	function status(port: number | 'all') {
@@ -41,22 +44,30 @@
 	}
 </script>
 
-{#snippet option(port: number | 'all')}
-	{@const dot = status(port)}
-	<StatusDot status={dot} label={STATUS_TEXT[dot]} />
+{#snippet label(port: number | 'all')}
 	{port === ALL ? 'All instances' : `:${port}`}
 {/snippet}
 
-<!-- One instance is not a choice, and the row closes up around the missing control -->
-{#if ports.length > 1 && selected !== undefined}
+{#snippet option(port: number | 'all')}
+	{@const dot = status(port)}
+	<StatusDot status={dot} label={STATUS_TEXT[dot]} />
+	{@render label(port)}
+{/snippet}
+
+<!-- Part of an address, so the trigger is a chip in the text rather than a field, and the
+     status dot stays in the list where it is what you pick by -->
+{#if ports.length > 1}
 	<Select.Root
 		type="single"
-		value={String(selected)}
+		value={String(shown)}
 		onValueChange={(value) => (selected = value === ALL ? ALL : Number(value))}
 	>
-		<Select.Trigger class="min-w-0 flex-1 overflow-hidden" aria-label="Which instance is shown">
-			<!-- One child, so the trigger's justify-between keeps the label off the middle -->
-			<span class="flex items-center gap-1.5">{@render option(selected)}</span>
+		<Select.Trigger
+			title="Choose which instance to preview"
+			class="gap-0.5 rounded-sm border-0 bg-accent px-0.5 py-0 font-mono text-xs text-foreground shadow-none hover:bg-muted focus-visible:ring-0 data-[size=default]:h-auto dark:bg-accent dark:hover:bg-muted [&_svg]:size-3"
+			aria-label="Which instance is shown"
+		>
+			{@render label(shown)}
 		</Select.Trigger>
 		<Select.Content>
 			{#if all}
@@ -67,4 +78,6 @@
 			{/each}
 		</Select.Content>
 	</Select.Root>
+{:else if ports.length}
+	{@render label(shown)}
 {/if}
