@@ -25,14 +25,16 @@
 	--border: oklch(0.909 0.007 250);
 	--input: oklch(0.9 0.008 250);
 	--ring: oklch(0.6 0.11 153);
-	/* The canvas is the glass enclosure, so it carries the favicon's blue and the nodes
-	   stay plain cards. Both are mixed from --glass, which keeps the tint to one knob */
+	/* The favicon's blue: the tint on node borders, and the same hue at line strength for
+	   every canvas interaction (hover, selection, connecting), so green means status */
 	--glass: oklch(0.86 0.08 230);
+	--glass-deep: oklch(0.58 0.12 230);
 	/* The leaf inside the glass: one knob for every resource icon, wherever it is drawn */
 	--resource-icon: var(--primary);
-	/* Still a shade under the panels, so the nodes read as objects on it */
-	--canvas: color-mix(in oklab, var(--glass) 15%, oklch(0.958 0.008 250));
-	--canvas-pattern: color-mix(in oklab, var(--glass) 36%, oklch(0.86 0.014 250));
+	/* Warm paper under the panels: a shade darker so the nodes read as objects on it, and
+	   warm so their blue borders read as borders rather than as the ground bleeding in */
+	--canvas: oklch(0.965 0.007 80);
+	--canvas-pattern: oklch(0.87 0.012 80);
 	/* Categorical: a series keeps its hue however many are drawn, and the slots are handed
 	   out in this fixed order, which is what keeps adjacent lines apart under colour blindness.
 	   Dark's values are chosen against the dark surface, not lightened copies of these. */
@@ -72,8 +74,10 @@
 	--input: oklch(1 0 0 / 15%);
 	--ring: oklch(0.6 0.11 155);
 	--glass: oklch(0.86 0.08 230);
-	--canvas: color-mix(in oklab, var(--glass) 15%, oklch(0.148 0.011 258));
-	--canvas-pattern: color-mix(in oklab, var(--glass) 36%, oklch(0.32 0.014 258));
+	--glass-deep: oklch(0.72 0.11 230);
+	/* Plain: warm goes brown on dark, and lightness alone separates the cards here */
+	--canvas: oklch(0.148 0.011 258);
+	--canvas-pattern: oklch(0.32 0.014 258);
 	--chart-1: #3987e5;
 	--chart-2: #d95926;
 	--chart-3: #199e70;
