@@ -13,6 +13,7 @@ import {
   extractResourceName,
   parseCredential,
 } from './lib.mjs';
+import { SaveScheduler } from './save-scheduler.mjs';
 
 const PORT = Number(process.env.PORT);
 // A per-boot secret the host manager generates and passes at spawn. /control/* shares
@@ -30,9 +31,10 @@ const TOPOLOGY_FILE = path.resolve('topology.json');
 // The MEMFS staging dir for persistence; injected into Python, which names the files
 const STATE_ROOT = '/state';
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
+// A lone action is saved at once; these two bound the burst behind it. They also bound what a
+// reload loses, since nothing stops the region on unload. A save costs 7-18ms at 5-55KB of
+// state and 46ms at 677KB
 const SAVE_DEBOUNCE_MS = 500;
-// Caps how much a reload can lose: nothing stops the region on unload, so unsaved state
-// is gone. A save costs 7-18ms at 5-55KB of state and 46ms at 677KB
 const SAVE_MAX_WAIT_MS = 1000;
 const SAMPLE_INTERVAL_MS = 1000;
 // Executed in this order into one shared global namespace; threads.py must land before
@@ -166,42 +168,21 @@ function currentTopology() {
 // Reported once rather than every tick, so a lasting failure does not bury the log
 let sampleFailed = false;
 
-// Save on quiesce: every successful data-plane request re-arms a short debounce, with a
-// max wait so a sustained burst cannot hold the window open indefinitely
-let saveTimer;
-let saveDeadline;
-let saveRunning = false;
-let savePending = false;
-let stopping = false;
-
-function armSave() {
-  if (stopping) return;
-  const now = Date.now();
-  saveDeadline ??= now + SAVE_MAX_WAIT_MS;
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(runSave, Math.max(Math.min(SAVE_DEBOUNCE_MS, saveDeadline - now), 0));
-}
-
-function runSave() {
-  saveDeadline = undefined;
-  if (saveRunning) {
-    savePending = true;
-    return;
-  }
-  saveRunning = true;
-  try {
-    // Written into MEMFS, then mirrored to the persistent data dir
-    saveState();
-    persistState();
-  } catch (error) {
-    emitLog('error', `Saving state failed: ${error?.message || error}`);
-  }
-  saveRunning = false;
-  if (savePending) {
-    savePending = false;
-    armSave();
-  }
-}
+// Every successful data-plane request tells the scheduler something changed; it decides when
+// the write happens. Both calls are synchronous, so a save can never overlap another
+const saves = new SaveScheduler({
+  debounceMs: SAVE_DEBOUNCE_MS,
+  maxWaitMs: SAVE_MAX_WAIT_MS,
+  save: () => {
+    try {
+      // Written into MEMFS, then mirrored to the persistent data dir
+      saveState();
+      persistState();
+    } catch (error) {
+      emitLog('error', `Saving state failed: ${error?.message || error}`);
+    }
+  },
+});
 
 // A resource's own node hears about the traffic reaching it. Denials are reported against
 // the caller instead - that is who has to draw the edge - so they are not counted here
@@ -251,18 +232,17 @@ async function handleControl(req, res, url, body) {
   if (route === 'POST /control/provision') {
     const { service, name, config } = JSON.parse(body.toString());
     const result = await provision(service, name, JSON.stringify(config ?? {}));
-    armSave();
-    return respond(res, 200, 'application/json', result);
+    respond(res, 200, 'application/json', result);
+    return saves.arm();
   }
   if (route === 'POST /control/deprovision') {
     const { service, name } = JSON.parse(body.toString());
     await deprovision(service, name);
-    armSave();
-    return json(res, 200, { removed: name });
+    json(res, 200, { removed: name });
+    return saves.arm();
   }
   if (route === 'POST /control/stop') {
-    stopping = true;
-    clearTimeout(saveTimer);
+    saves.stop();
     // Lifespan shutdown writes the state files on its way out; the mirror follows
     try {
       await shutdownEmulator();
@@ -315,7 +295,7 @@ async function handleAws(req, res, url, body) {
   reportRequest(topology.owners, service, resourceName, req.method, url.pathname, status);
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
-  if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') armSave();
+  if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') saves.arm();
 }
 
 function isEmptyReceive(target, responseBody) {
