@@ -24,12 +24,12 @@
 			body: 'Switch to the Preview tab to load the page the load balancer hands back.'
 		},
 		refresh: {
-			title: 'Refresh, and watch the port change',
-			body: 'Every refresh is sent to a different instance of your app. The port on the page tells you which one answered.'
+			title: 'Refresh, and follow the request',
+			body: 'Press refresh and watch the canvas: a dot leaves the load balancer and lands on the instance that answers. The port on the page is that instance.'
 		},
 		app: {
 			title: 'Open your app',
-			body: 'Click it on the canvas. Every refresh you just did went to one of its instances.'
+			body: 'Click it on the canvas. Each green dot on its edge is one instance, and every refresh you did landed on one of them.'
 		},
 		metrics: {
 			title: 'See where the refreshes landed',
@@ -47,7 +47,8 @@
 	};
 
 	// Replaces the refresh step's opening line once the user has refreshed
-	const REFRESHED = 'Look at the port on the page, it moves on to the next instance every time.';
+	const REFRESHED =
+		'Keep refreshing. The load balancer takes the next lane every time, and the port on the page changes with it.';
 
 	// Replaces the metrics step's opening line once its charts are on screen
 	const CHARTS_OPEN =
@@ -86,8 +87,8 @@
 		tour.step === 'metrics' && appOpen && inspectorState.tab === 'metrics'
 	);
 
-	// Both steps that point at a node on the canvas
-	const onNode = $derived(tour.step === 'select' || tour.step === 'app');
+	// The edge the refresh step lights up alongside the page, so the dot crossing it is visible
+	const edgeId = $derived(graphState.edges.find((edge) => edge.source === tour.balancerId)?.id);
 
 	const everythingRunning = $derived(
 		graphState.nodes.length > 0 &&
@@ -107,28 +108,32 @@
 	const dimmed = $derived(!wholeControls && tour.step !== 'done');
 
 	// Both halves of the tour widen once the user has acted: the thing they pressed stays
-	// lit, and what it changed comes into the light beside it
-	const selector = $derived.by(() => {
+	// lit, and what it changed comes into the light beside it. The first one is what the
+	// card points at
+	const selectors = $derived.by((): string[] => {
 		switch (tour.step) {
 			case 'run':
-				return wholeControls ? '[data-tour="controls"]' : '[data-tour="run"]';
+				return [wholeControls ? '[data-tour="controls"]' : '[data-tour="run"]'];
 			// Svelte Flow tags each node wrapper with its id, and the wrapper is the whole box
 			// worth highlighting rather than the contents rendered inside it
 			case 'select':
-				return `.svelte-flow__node[data-id="${tour.balancerId}"]`;
+				return [`.svelte-flow__node[data-id="${tour.balancerId}"]`];
 			case 'preview':
-				return '[data-tour="preview-tab"]';
+				return ['[data-tour="preview-tab"]'];
 			case 'refresh':
-				return tour.refreshed ? '[data-tour="preview-panel"]' : '[data-tour="refresh"]';
+				return [
+					tour.refreshed ? '[data-tour="preview-panel"]' : '[data-tour="refresh"]',
+					`.svelte-flow__edge[data-id="${edgeId}"] path.svelte-flow__edge-path`
+				];
 			case 'app':
-				return `.svelte-flow__node[data-id="${editableNodeId}"]`;
+				return [`.svelte-flow__node[data-id="${editableNodeId}"]`];
 			// Widens from the tab to the charts it opens, the way refresh widens to the page
 			case 'metrics':
-				return chartsOpen ? '[data-tour="metrics-charts"]' : '[data-tour="metrics-tab"]';
+				return [chartsOpen ? '[data-tour="metrics-charts"]' : '[data-tour="metrics-tab"]'];
 			case 'done':
-				return '[data-tour="edit-code"]';
+				return ['[data-tour="edit-code"]'];
 			default:
-				return undefined;
+				return [];
 		}
 	});
 
@@ -144,30 +149,50 @@
 		return CARD_TEXT[tour.step];
 	});
 
-	let target = $state<Box | undefined>();
+	let targets = $state<(Box | undefined)[]>([]);
 	let measuredCardHeight = $state(0);
+
+	// Everything a selector matches, so an edge can be measured as the lines it draws rather
+	// than as the group around them, which is padded out by its own click target
+	function boxOf(selector: string): Box | undefined {
+		let box: { top: number; left: number; right: number; bottom: number } | undefined;
+		for (const element of document.querySelectorAll(selector)) {
+			const rect = element.getBoundingClientRect();
+			// A tab the reader has switched away from leaves its panel in the page, hidden and
+			// measuring nothing, which is as good as absent for something meant to be pointed at
+			if (rect.width <= 0 && rect.height <= 0) continue;
+			box = {
+				top: Math.min(box?.top ?? rect.top, rect.top),
+				left: Math.min(box?.left ?? rect.left, rect.left),
+				right: Math.max(box?.right ?? rect.right, rect.right),
+				bottom: Math.max(box?.bottom ?? rect.bottom, rect.bottom)
+			};
+		}
+		if (!box) return undefined;
+		return {
+			top: box.top,
+			left: box.left,
+			width: box.right - box.left,
+			height: box.bottom - box.top
+		};
+	}
 
 	// Measure overlay every frame
 	$effect(() => {
-		if (!selector) {
-			target = undefined;
+		const measuring = selectors;
+		if (measuring.length === 0) {
+			targets = [];
 			return;
 		}
 
 		// Compared against a plain local, so measuring never depends on what it last wrote
-		let measured: Box | undefined;
+		let measured: (Box | undefined)[] = [];
 		let frame = requestAnimationFrame(function measure() {
-			const rect = document.querySelector(selector)?.getBoundingClientRect();
-			// A tab the reader has switched away from leaves its panel in the page, hidden and
-			// measuring nothing, which is as good as absent for something meant to be pointed at
-			const next =
-				rect && rect.width > 0 && rect.height > 0
-					? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-					: undefined;
+			const next = measuring.map(boxOf);
 
-			if (!same(measured, next)) {
+			if (next.some((box, i) => !same(measured[i], box))) {
 				measured = next;
-				target = next;
+				targets = next;
 			}
 			frame = requestAnimationFrame(measure);
 		});
@@ -175,10 +200,10 @@
 		return () => cancelAnimationFrame(frame);
 	});
 
-	const spot = $derived.by(() => {
-		if (!target) return undefined;
-
-		const pad = onNode ? 8 : 6;
+	function toSpot(target: Box, selector: string) {
+		const onNode = selector.startsWith('.svelte-flow__node');
+		// The edge is measured as bare lines, so it takes the widest padding
+		const pad = selector.startsWith('.svelte-flow__edge') ? 12 : onNode ? 8 : 6;
 		const height = target.height + pad * 2;
 
 		// The controls are a rounded pill and a node is a large box; everything else is a
@@ -194,7 +219,20 @@
 			height,
 			radius
 		};
+	}
+
+	// A step holds off entirely while the thing its card points at is off screen, even when
+	// something it lights up alongside is there. Driven by the selectors, since the boxes are
+	// a frame behind them and a step that lights up fewer things leaves spare ones there
+	const spots = $derived.by(() => {
+		if (!targets[0]) return [];
+		return selectors.flatMap((selector, i) => {
+			const target = targets[i];
+			return target ? [toSpot(target, selector)] : [];
+		});
 	});
+
+	const spot = $derived(spots[0]);
 
 	// Both of these sit in the narrow panel on the right, which leaves no room for a card
 	// above or below them and plenty of it alongside
@@ -235,7 +273,7 @@
 
 	// A step that points at something waits for it: with the panel it lives in closed the card
 	// holds off, and comes back on its own once the reader is looking at it again
-	const showCard = $derived(!!cardText && (!!card || !selector));
+	const showCard = $derived(!!cardText && (!!card || selectors.length === 0));
 
 	const stepNumber = $derived(tour.step ? NUMBERED_STEPS.indexOf(tour.step) + 1 : 0);
 
@@ -268,18 +306,39 @@
 </script>
 
 {#if showCard && cardText}
-	{#if spot}
-		<!-- The shadow is what dims the app; the element itself is the hole, and stays out of the
-		way so the control underneath is still the one the user clicks. Undimmed, the ring has to
-		carry the emphasis on its own, and a white one would be invisible against the app -->
+	<!-- The veil is what dims the app, and every spot is cut out of it, so a step can light up
+	two things at once without either dimming the other. It stays out of the way so the control
+	underneath is still the one the user clicks -->
+	{#if dimmed && spots.length > 0}
+		<svg class="pointer-events-none fixed inset-0 z-60 h-full w-full">
+			<mask id="tour-veil">
+				<rect width="100%" height="100%" fill="white" />
+				{#each spots as spot, i (i)}
+					<rect
+						x={spot.left}
+						y={spot.top}
+						width={spot.width}
+						height={spot.height}
+						rx={spot.radius}
+						fill="black"
+					/>
+				{/each}
+			</mask>
+			<rect width="100%" height="100%" fill="rgb(0 0 0 / 0.55)" mask="url(#tour-veil)" />
+		</svg>
+	{/if}
+
+	<!-- Undimmed, the ring has to carry the emphasis on its own, and a white one would be
+	invisible against the app -->
+	{#each spots as spot, i (i)}
 		<div
 			class="pointer-events-none fixed z-60 outline-2 {dimmed
-				? 'shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] outline-white/90'
+				? 'outline-white/90'
 				: 'outline-primary'}"
 			style="top: {spot.top}px; left: {spot.left}px; width: {spot.width}px;
              height: {spot.height}px; border-radius: {spot.radius}px"
 		></div>
-	{/if}
+	{/each}
 
 	<!-- A step's card sits against whatever it points at. The closing pair have nothing to sit
 	against, so they take the middle of the window and let the canvas come back around them -->

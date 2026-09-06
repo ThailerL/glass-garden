@@ -64,7 +64,7 @@
 			begin="indefinite"
 			fill="freeze"
 			calcMode="spline"
-			keySplines="0 0 0.2 1"
+			keySplines="0.4 0 0.6 1"
 			keyPoints={flight.reverse ? '1;0' : '0;1'}
 			keyTimes="0;1"
 			use:begin
