@@ -109,6 +109,35 @@
 		background-color 120ms ease;
 }
 
+/* On a node showing its instances the target handle is the whole left side, so a drop on
+   an instance dot connects. Centred on the border like the round handle, so edge endpoints
+   do not move */
+.svelte-flow__handle.strip {
+	top: 0;
+	left: -5px;
+	width: 10px;
+	height: 100%;
+	transform: none;
+	border: 0;
+	border-radius: 5px;
+	background-color: transparent;
+}
+
+.svelte-flow__handle.strip.connectionindicator:hover,
+.svelte-flow__handle.strip.connectingto {
+	background-color: color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+/* A lane whose instance is not running */
+.svelte-flow__edge-path.lane.out {
+	opacity: 0.3;
+}
+
+.svelte-flow__edge .packet {
+	fill: var(--primary);
+	pointer-events: none;
+}
+
 /* :focus is deliberately absent: a handle keeps focus after the mouseup that ends a
    connection, so it would stay filled long after the drag is over */
 .svelte-flow__handle.connectionindicator:hover,

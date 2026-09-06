@@ -33,6 +33,10 @@ function putMetric(name, value, unit, status) {
   );
 }
 
+// A request leaving, for the canvas to draw; the generator is the side left unnamed
+const reportHop = (port) =>
+  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), to: { port } }));
+
 // Says a message only while it is new, so a failure that repeats every request is said once.
 // Called with nothing it forgets, so the next failure is said again
 function onChange(say) {
@@ -111,6 +115,7 @@ function send() {
     return;
   }
   inFlight++;
+  reportHop(target);
   const { method, path, body } = config;
   const started = Date.now();
   const fail = (error) => {

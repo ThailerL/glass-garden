@@ -72,6 +72,10 @@ function putMetric(name, value, unit, dimensions = {}) {
   );
 }
 
+// What is running here, for the function's gauge; arrivals are the region's to report
+const reportLevel = (value, capacity) =>
+  console.log('gg:event ' + JSON.stringify({ kind: 'level', at: Date.now(), value, capacity }));
+
 // ── Config ────────────────────────────────────────────────────────────────────────────────
 
 let config;
@@ -135,6 +139,7 @@ let concurrencyBeat;
 function reportConcurrency() {
   const busy = countEnvironments((env) => env.invocation);
   putMetric('concurrent executions', busy, 'Count');
+  reportLevel(busy, config.maxConcurrency);
   if (busy > 0 && !concurrencyBeat) {
     concurrencyBeat = setInterval(reportConcurrency, METRIC_PERIOD_MS);
   } else if (busy === 0 && concurrencyBeat) {

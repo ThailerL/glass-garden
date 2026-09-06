@@ -2,6 +2,7 @@ import type { Edge, Node } from '@xyflow/svelte';
 import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
 import { getResourceDefinition } from '$lib/resources';
 import type { Principal, Service, Topology } from '$lib/aws-region';
+import { notificationQueueName } from '../../resources/aws-region/lib.js';
 
 // One table maps every AWS node type to the service it serves and where its name lives in
 // config. The name the emulator enforces on is not always the value a consumer's code wants
@@ -32,11 +33,7 @@ export function accessKeyFor(nodeId: string) {
 	return `gg${nodeId}`;
 }
 
-// The hidden queue a bucket's notifications reach a function through. Named for the function
-// and owned by no node, so the bridge reports nothing about it
-export function notificationQueueName(nodeId: string) {
-	return `gg-notifications-${nodeId}`;
-}
+export { notificationQueueName } from '../../resources/aws-region/lib.js';
 
 const emptyResources = (): Record<Service, string[]> => ({ s3: [], sqs: [], dynamodb: [] });
 

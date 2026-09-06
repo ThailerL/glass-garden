@@ -27,7 +27,9 @@
 	// the conventional names
 	const lines = $derived(Object.entries(env));
 	// Named so a variable the user expected never just vanishes from this list
-	const withheld = $derived(withheldConventionalNames(orchestrator.getNeighbours(nodeId)));
+	const withheld = $derived(
+		node ? withheldConventionalNames(node, orchestrator.getNeighbours(nodeId)) : []
+	);
 </script>
 
 <ReadOnlyValue

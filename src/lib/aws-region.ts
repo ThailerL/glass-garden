@@ -2,12 +2,17 @@ import { toast } from 'svelte-sonner';
 import type { Vivari, VivariProcess } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
 import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
-import type { RegionEvent, Service, Topology } from '../../resources/aws-region/lib.js';
+import type { NodeReport, Service, Topology } from '../../resources/aws-region/lib.js';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
+import type { Hop, Level } from '$lib/traffic.svelte';
 import { withTrailingSlash } from '$lib/utils';
 
-export type { Principal, RegionEvent, Service, Topology } from '../../resources/aws-region/lib.js';
+export type { Principal, Service, Topology } from '../../resources/aws-region/lib.js';
+
+// Everything the region prints on its event channel: what it reports about a node, and
+// traffic for the canvas in the vocabulary every hidden process shares
+export type RegionEvent = NodeReport | Hop | (Level & { nodeId: string });
 
 // Outside the orchestrator's minting range (1024-49151), so it can never collide with
 // an instance port

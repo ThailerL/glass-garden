@@ -4,7 +4,6 @@
 		SvelteFlow,
 		Controls,
 		Background,
-		MarkerType,
 		useSvelteFlow,
 		type Node,
 		useOnSelectionChange,
@@ -28,6 +27,7 @@
 	import { buildNameValidator } from '$lib/resources/name-on-create';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import ResourceNode from './ResourceNode.svelte';
+	import TrafficEdge from './TrafficEdge.svelte';
 	import ProjectsGroup from './ProjectsGroup.svelte';
 	import ResourcesGroup from './ResourcesGroup.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
@@ -51,6 +51,8 @@
 	const nodeTypes = Object.fromEntries(
 		Object.keys(resourceDefinitions).map((resource) => [resource, ResourceNode])
 	);
+	// Every edge fans into its target's instances and carries the dots in flight
+	const edgeTypes = { default: TrafficEdge };
 
 	// A node's directory goes with it, so the resources holding anything worth keeping ask
 	// before the graph has parted with them
@@ -188,13 +190,13 @@
 			bind:nodes={graphState.nodes}
 			bind:edges={graphState.edges}
 			{nodeTypes}
+			{edgeTypes}
 			deleteKey="Delete"
 			onbeforedelete={onBeforeDelete}
 			ondelete={onDelete}
 			onnodedragstop={onNodeDragStop}
 			onconnect={onConnect}
 			{isValidConnection}
-			defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
 			onmoveend={(_, viewport) => (graphState.viewport = viewport)}
 			initialViewport={savedViewport}
 			fitView={!savedViewport}

@@ -35,6 +35,10 @@ function putMetric(name, value, unit, target, fold = true) {
   );
 }
 
+// A request forwarded, for the canvas to draw; the balancer is the side left unnamed
+const reportHop = (port) =>
+  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), to: { port } }));
+
 async function readConfig() {
   let contents;
   try {
@@ -166,6 +170,7 @@ const server = http.createServer(async (req, res) => {
   const target = pick(algorithm, health.choose(targets));
   const dimension = String(target);
   putMetric('requests', 1, 'Count', dimension);
+  reportHop(target);
 
   const started = Date.now();
   let upstream;

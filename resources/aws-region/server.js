@@ -11,7 +11,10 @@ import {
   emptyTopology,
   denialResponse,
   extractResourceName,
+  isNotificationQueue,
+  notifiedBuckets,
   parseCredential,
+  receivedMessages,
 } from './lib.js';
 import { SaveScheduler } from './save-scheduler.js';
 
@@ -47,6 +50,8 @@ const emit = (event) => console.log(EVENT_PREFIX + JSON.stringify(event));
 const emitLog = (level, message, nodeId) => emit({ kind: 'log', level, message, nodeId });
 const putMetric = (nodeId, name, value, unit) =>
   emit({ kind: 'metric', nodeId, name, value, unit });
+const emitHop = (from, to, count) =>
+  emit({ kind: 'hop', at: Date.now(), from: { node: from }, to: { node: to }, count });
 
 // Explicit try/catch around the whole boot: Vivari neither surfaces uncaught VM errors
 // nor implements the process-level error events
@@ -186,12 +191,21 @@ const saves = new SaveScheduler({
 
 // A resource's own node hears about the traffic reaching it. Denials are reported against
 // the caller instead - that is who has to draw the edge - so they are not counted here
-function reportRequest(owners, service, resourceName, method, pathname, status) {
-  const nodeId = owners[service]?.[resourceName];
-  if (!nodeId) return;
-  putMetric(nodeId, 'requests', 1, 'Count');
-  if (status >= 400) putMetric(nodeId, 'errors', 1, 'Count');
-  emitLog('info', `${method} ${pathname} ${status}`, nodeId);
+function reportRequest(owner, method, pathname, status) {
+  putMetric(owner, 'requests', 1, 'Count');
+  if (status >= 400) putMetric(owner, 'errors', 1, 'Count');
+  emitLog('info', `${method} ${pathname} ${status}`, owner);
+}
+
+// The same request as a hop for the canvas, which only the region can name both ends of:
+// toward the resource for most calls, back from a queue for what a receive returned, and
+// nothing for a delete, which is the receive's housekeeping
+function reportHop(owner, caller, target, received) {
+  if (target === 'AmazonSQS.ReceiveMessage') {
+    if (received.length > 0) emitHop(owner, caller, received.length);
+  } else if (!target?.startsWith('AmazonSQS.DeleteMessage')) {
+    emitHop(caller, owner);
+  }
 }
 
 // What a resource is holding, sampled on a timer because there is no request to hang it off.
@@ -214,6 +228,10 @@ async function sampleResources() {
       if (!nodeId) continue;
       for (const [metric, [value, unit]] of Object.entries(readings)) {
         putMetric(nodeId, metric, value, unit);
+      }
+      // What is waiting, for the queue's gauge
+      if (service === 'sqs') {
+        emit({ kind: 'level', at: Date.now(), nodeId, value: readings.messages[0] });
       }
     }
   }
@@ -289,18 +307,26 @@ async function handleAws(req, res, url, body) {
   );
   res.writeHead(status, Object.fromEntries(JSON.parse(headersJson)));
   res.end(responseBody);
-  // A long poll that found nothing changed nothing and is not traffic anyone sent: a
-  // function polls its trigger queue every 20 s forever
-  if (status < 300 && isEmptyReceive(req.headers['x-amz-target'], responseBody)) return;
-  reportRequest(topology.owners, service, resourceName, req.method, url.pathname, status);
+  const target = req.headers['x-amz-target'];
+  const receive = target === 'AmazonSQS.ReceiveMessage';
+  const received = receive ? receivedMessages(Buffer.from(responseBody).toString('utf8')) : [];
+  // A long poll that found nothing is not traffic anyone sent: a function polls forever
+  if (status < 300 && receive && received.length === 0) return;
+  const caller = topology.principals[credential.accessKeyId]?.nodeId;
+  const owner = topology.owners[service]?.[resourceName];
+  if (owner) {
+    reportRequest(owner, req.method, url.pathname, status);
+    if (caller) reportHop(owner, caller, target, received);
+  } else if (caller && resourceName && isNotificationQueue(resourceName)) {
+    // The hidden queue has no owner, but each notification names its bucket
+    for (const bucket of notifiedBuckets(received)) {
+      const from = topology.owners.s3?.[bucket];
+      if (from) emitHop(from, caller);
+    }
+  }
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
   if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') saves.arm();
-}
-
-function isEmptyReceive(target, responseBody) {
-  if (target !== 'AmazonSQS.ReceiveMessage') return false;
-  return !Buffer.from(responseBody).toString('utf8').includes('"Messages"');
 }
 
 const server = http.createServer((req, res) => {

@@ -19,13 +19,18 @@ export type Denial = {
 	nodeId?: string;
 };
 export type Decision = { allow: true } | Denial;
-// Two things the bridge reports over one stdout channel: sentences for a node's log, and
-// measurements for its metric store
-export type RegionEvent =
+// What the bridge reports about a node over its stdout channel: sentences for its log and
+// measurements for its metric store. Traffic for the canvas rides the same channel in the
+// vocabulary every hidden process shares (src/lib/traffic.svelte.ts)
+export type NodeReport =
 	| { kind: 'log'; level: 'info' | 'error'; message: string; nodeId?: string }
 	| { kind: 'metric'; nodeId: string; name: string; value: number; unit?: string };
 
 export const EVENT_PREFIX: string;
+export function receivedMessages(responseText: string): { Body?: string }[];
+export function notificationQueueName(nodeId: string): string;
+export function isNotificationQueue(name: string): boolean;
+export function notifiedBuckets(messages: { Body?: string }[]): string[];
 export function emptyTopology(): Topology;
 export function parseCredential(authorization: string | undefined): Credential | undefined;
 export function bucketFromPath(path: string): string | undefined;

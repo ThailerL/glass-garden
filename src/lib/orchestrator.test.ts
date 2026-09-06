@@ -109,6 +109,17 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+describe('Orchestrator instance statuses', () => {
+	it('lists every configured slot, stopped until an instance fills it', async () => {
+		const { orchestrator, nodeIds } = setup([3]);
+		const [id] = nodeIds;
+		expect(orchestrator.getInstanceStatuses(id)).toEqual(['stopped', 'stopped', 'stopped']);
+		orchestrator.start(id);
+		await settle();
+		expect(orchestrator.getInstanceStatuses(id)).toEqual(['running', 'running', 'running']);
+	});
+});
+
 describe('Orchestrator port reservations', () => {
 	it('reserves every node to its configured count on construction, without collisions', () => {
 		const { orchestrator, nodeIds } = setup([2, 1]);

@@ -43,6 +43,13 @@ describe('consumerEnv', () => {
 		expect(env.DATABASE_URL).toBe(env.ORDERS_DATABASE_URL);
 	});
 
+	it('hands each consumer a database user named for it, so queries name their caller', () => {
+		const db = [neighbour(database('p1', 'Orders'), 5433)];
+		expect(consumerEnv(web, db).DATABASE_URL).toBe(
+			`postgres://gg${web.id}@localhost:5433/postgres`
+		);
+	});
+
 	it('mixes providers of different kinds in one environment', () => {
 		const env = consumerEnv(web, [
 			neighbour(bucket('b1', 'Assets', 'assets')),
@@ -82,7 +89,7 @@ describe('consumerEnv', () => {
 			neighbour(bucket('b1', 'Assets', 'assets')),
 			neighbour(bucket('b2', 'Backups', 'backups'))
 		];
-		expect(withheldConventionalNames(two)).toEqual(['S3_BUCKET']);
+		expect(withheldConventionalNames(web, two)).toEqual(['S3_BUCKET']);
 		expect(consumerEnv(web, two).S3_BUCKET).toBeUndefined();
 	});
 
@@ -91,6 +98,6 @@ describe('consumerEnv', () => {
 			neighbour(bucket('b1', 'Assets', 'assets')),
 			neighbour(database('p1', 'Orders'))
 		];
-		expect(withheldConventionalNames(mixed)).toEqual([]);
+		expect(withheldConventionalNames(web, mixed)).toEqual([]);
 	});
 });

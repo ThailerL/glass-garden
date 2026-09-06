@@ -16,6 +16,7 @@ import type { MetricStore, OutputLine, ResourceEvent, Stream } from './resource-
 import { getContainer, removeNodeFiles, shutdownContainer } from './container';
 import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
 import { buildTopology } from './aws-topology';
+import { Traffic } from './traffic.svelte';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -35,13 +36,26 @@ export class Orchestrator {
 	#slowBoot = $state(false);
 	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
 	#warmingRegion = $state(false);
+	readonly traffic = new Traffic({
+		instanceAt: (port) => {
+			for (const node of this.#graphState.nodes) {
+				const lane = nodePorts(node).indexOf(port);
+				if (lane !== -1) return { nodeId: node.id, lane };
+			}
+			return undefined;
+		},
+		edgeBetween: (source, target) =>
+			this.#graphState.edges.find((edge) => edge.source === source && edge.target === target)?.id
+	});
 
 	constructor(graphState: GraphState) {
 		this.#graphState = graphState;
-		// Both kinds carry the node they belong to: a denial names the code that was refused,
-		// so it reads in that node's log rather than somewhere the user would never look, and
-		// a measurement lands in that node's charts
+		// Every kind carries the node it belongs to: a denial names the code that was refused,
+		// so it reads in that node's log rather than somewhere the user would never look, a
+		// measurement lands in that node's charts, and traffic names both ends of its edge
 		onRegionEvent((event) => {
+			if (event.kind === 'hop') return this.traffic.ingest(undefined, event);
+			if (event.kind === 'level') return this.traffic.ingest(event.nodeId, event);
 			const log = event.nodeId ? this.#controllers.get(event.nodeId)?.log : undefined;
 			if (!log) return;
 			// The region observes a resource whole, so its readings carry no dimensions
@@ -109,6 +123,11 @@ export class Orchestrator {
 		return (
 			this.getInstances(nodeId).find((instance) => instance.port === port)?.status ?? 'stopped'
 		);
+	}
+
+	// One per reserved port, in a fixed order, so a slot is stopped rather than missing
+	getInstanceStatuses(nodeId: string): ResourceStatus[] {
+		return this.getReservedPorts(nodeId).map((port) => this.getInstanceStatus(nodeId, port));
 	}
 
 	getUpCount(nodeId: string): number {
@@ -288,6 +307,7 @@ export class Orchestrator {
 			getSources: () => this.getSources(nodeId),
 			getNeighbours: () => this.getNeighbours(nodeId),
 			scheduleNeighbours: () => this.#scheduleNeighbours(nodeId),
+			onTraffic: (event) => this.traffic.ingest(nodeId, event),
 			unregister: () => {
 				this.#controllers.delete(nodeId);
 				// Only reached after the node is deleted and its last instance is gone

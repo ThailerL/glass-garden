@@ -7,6 +7,7 @@ import {
 	type MetricDatum,
 	type MetricSeries
 } from './metrics';
+import { looksLikeTraffic, parseTrafficLine, type TrafficEvent } from './traffic.svelte';
 
 const MAX_EVENTS = 50;
 const MAX_OUTPUT_LINES = 500;
@@ -56,6 +57,11 @@ export class ResourceLog {
 	// So a flood of new names does not fill the log with the complaint about it
 	#warnedNameCap = false;
 	#warnedSeriesCap = false;
+	#onTraffic: (event: TrafficEvent) => void;
+
+	constructor(onTraffic: (event: TrafficEvent) => void) {
+		this.#onTraffic = onTraffic;
+	}
 
 	capture(source: LogSource, output: ReadableStream<string>) {
 		captureLines(output, (line) => this.#routeLine(source, line));
@@ -82,9 +88,9 @@ export class ResourceLog {
 		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 
-	// A captured line is either an Embedded Metric Format line, a line a manager forwards
-	// from one of its execution environments, or something the process printed. Metric
-	// lines stay out of the log: one JSON blob per request would bury it
+	// A captured line is an Embedded Metric Format line, a traffic event, a line a manager
+	// forwards from one of its execution environments, or something the process printed.
+	// Metric and traffic lines stay out of the log: one JSON blob per request would bury it
 	#routeLine(source: LogSource, line: string) {
 		const forwarded = /^gg:env(-exit)? (\S+)(?: (.*))?$/.exec(line);
 		if (forwarded) {
@@ -98,6 +104,16 @@ export class ResourceLog {
 			this.#routeLine(source, text ?? '');
 			return;
 		}
+		if (looksLikeTraffic(line)) {
+			const parsed = parseTrafficLine(line);
+			if (parsed.ok) {
+				this.#onTraffic(parsed.event);
+				return;
+			}
+			this.#logOutput(source, line);
+			this.event(source, 'warning', `Ignored a traffic line. It is ${parsed.reason}`);
+			return;
+		}
 		if (!looksLikeEmf(line)) {
 			this.#logOutput(source, line);
 			return;
@@ -105,7 +121,7 @@ export class ResourceLog {
 		const parsed = parseEmfLine(line);
 		if (!parsed.ok) {
 			this.#logOutput(source, line);
-			this.event(source, 'warning', `Ignored a metric line - it is ${parsed.reason}`);
+			this.event(source, 'warning', `Ignored a metric line. It is ${parsed.reason}`);
 			return;
 		}
 		for (const datum of parsed.data) this.putMetric(source, datum);

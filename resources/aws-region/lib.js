@@ -9,6 +9,33 @@ const noun = (service) => NODE_LABELS[service].toLowerCase();
 // The stdout line prefix for events the bridge reports and the host routes
 export const EVENT_PREFIX = 'gg:event ';
 
+const parseJson = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+
+// The messages a ReceiveMessage answer carried
+export function receivedMessages(responseText) {
+  return parseJson(responseText)?.Messages ?? [];
+}
+
+// The hidden queue a bucket's notifications reach a function through, named for the
+// function and owned by no node
+const NOTIFICATION_QUEUE_PREFIX = 'gg-notifications-';
+export const notificationQueueName = (nodeId) => NOTIFICATION_QUEUE_PREFIX + nodeId;
+export const isNotificationQueue = (name) => name.startsWith(NOTIFICATION_QUEUE_PREFIX);
+
+// The bucket behind each S3 notification; S3's test event names none and is skipped
+export function notifiedBuckets(messages) {
+  return messages.flatMap((message) => {
+    const bucket = parseJson(message.Body)?.Records?.[0]?.s3?.bucket?.name;
+    return bucket ? [bucket] : [];
+  });
+}
+
 // What every holder of a topology starts from, before the canvas has said anything
 export function emptyTopology() {
   return { principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
@@ -36,13 +63,8 @@ export function bucketFromPath(path) {
 export function extractResourceName(service, path, bodyText) {
   if (service === 's3') return bucketFromPath(path);
   if (service !== 'sqs' && service !== 'dynamodb') return undefined;
-  if (!bodyText) return undefined;
-  let parsed;
-  try {
-    parsed = JSON.parse(bodyText);
-  } catch {
-    return undefined;
-  }
+  const parsed = bodyText ? parseJson(bodyText) : undefined;
+  if (!parsed) return undefined;
   if (service === 'dynamodb') {
     return typeof parsed.TableName === 'string' ? parsed.TableName : undefined;
   }

@@ -1,5 +1,6 @@
 // The generator under real Node: the same code the VM runs, minus the VM
 import { afterEach, describe, expect, it } from 'vitest';
+import { EVENT_PREFIX } from '../aws-region/lib.js';
 import http from 'node:http';
 import net from 'node:net';
 import readline from 'node:readline';
@@ -94,7 +95,9 @@ async function generator(config) {
   const stdout = [];
   const stderr = [];
   const metrics = [];
+  const traffic = [];
   readline.createInterface({ input: child.stdout }).on('line', (line) => {
+    if (line.startsWith(EVENT_PREFIX)) return traffic.push(JSON.parse(line.slice(EVENT_PREFIX.length)));
     if (!line.startsWith('{')) return stdout.push(line);
     const parsed = JSON.parse(line);
     const [{ Metrics, Dimensions }] = parsed._aws.CloudWatchMetrics;
@@ -115,6 +118,7 @@ async function generator(config) {
     stdout,
     stderr,
     metrics,
+    traffic,
     exited,
     write,
     // Readings of one metric, less the zero each count is announced with at boot
@@ -148,6 +152,19 @@ describe('sending', () => {
       body,
       contentType: 'application/json'
     });
+  });
+
+  it('reports each request as a hop to its target', async () => {
+    // Held open at a cap of one, so exactly one request is ever sent
+    const { port, requests } = target(() => undefined);
+    const gen = await generator({ target: port, maxInFlight: 1 });
+    // The hop is printed as the request leaves, before it lands
+    await waitUntil(
+      () => gen.traffic.length > 0 && requests.length > 0,
+      () => `Never reported a hop; stdout: ${gen.stdout.join('\n')}`
+    );
+    expect(requests).toHaveLength(1);
+    expect(gen.traffic).toEqual([{ kind: 'hop', at: expect.any(Number), to: { port } }]);
   });
 
   it('sends a body that is not JSON as plain text', async () => {
@@ -244,6 +261,8 @@ describe('metrics', () => {
     const errors = g.of('connection errors');
     expect(errors.length).toBeGreaterThanOrEqual(2);
     expect(errors[0].dimensions).toEqual([[]]);
+    // stderr is its own pipe, so the complaint can land after the metric it was printed with
+    await waitUntil(() => g.stderr.length > 0, () => 'Never complained');
     expect(g.stderr).toEqual([expect.stringMatching(new RegExp(`^:${port} unreachable: `))]);
   });
 
@@ -256,6 +275,7 @@ describe('metrics', () => {
     );
     expect(app.requests.length).toBe(3);
     expect(g.of('response time')).toEqual([]);
+    await waitUntil(() => g.stderr.length > 0, () => 'Never complained');
     expect(g.stderr).toEqual([
       expect.stringMatching(/^3 requests in flight and no answers yet, so \d+ were skipped this second$/)
     ]);

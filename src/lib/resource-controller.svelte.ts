@@ -7,6 +7,7 @@ import { nodeFiles } from './files/node-files';
 import { nodeName } from './graph-state.svelte';
 import { messageOf } from './errors';
 import { ResourceLog } from './resource-log.svelte';
+import type { TrafficEvent } from './traffic.svelte';
 
 const MAX_FAILED_DEPLOYMENTS = 3;
 // Before a crashed instance is respawned
@@ -43,6 +44,8 @@ export type ControllerServices = {
 	getNeighbours: () => readonly ConnectedNode[];
 	// Everything connected to this node, at either end, reads its instances
 	scheduleNeighbours: () => void;
+	// A hop or level one of this node's processes printed
+	onTraffic: (event: TrafficEvent) => void;
 	unregister: () => void;
 };
 
@@ -58,7 +61,7 @@ export class ResourceController {
 	instances = $state<Instance[]>([]);
 	// Auto-restarts since the last explicit start
 	restarts = $state(0);
-	readonly log = new ResourceLog();
+	readonly log = new ResourceLog((event) => this.#services.onTraffic(event));
 
 	#services: ControllerServices;
 	#dirty = false;

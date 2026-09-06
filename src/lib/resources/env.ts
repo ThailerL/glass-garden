@@ -21,13 +21,13 @@ function awsCredentials(consumer: Node): Record<string, string> {
 
 // Everything the nodes connected to this one hand it, in either direction. Sorted so the
 // set - and with it the configStamp - never depends on edge order
-function suppliedBy(neighbours: readonly ConnectedNode[]) {
+function suppliedBy(consumer: Node, neighbours: readonly ConnectedNode[]) {
 	return neighbours
 		.flatMap(({ node, reservedPorts }) => {
 			const { supplies } = getResourceDefinition(node.type);
 			// The reservation rather than a live port, so the stamp survives a restart there
 			const [port] = reservedPorts;
-			return supplies && port !== undefined ? [{ node, ...supplies(node, port) }] : [];
+			return supplies && port !== undefined ? [{ node, ...supplies(node, port, consumer) }] : [];
 		})
 		.sort(
 			(a, b) =>
@@ -38,9 +38,12 @@ function suppliedBy(neighbours: readonly ConnectedNode[]) {
 // The conventional names that are deliberately not set, because more than one resource of
 // that kind is connected and the name would have to pick one of them arbitrarily. Reported so
 // a panel can say why a variable a user expected is missing, rather than leaving it silent
-export function withheldConventionalNames(neighbours: readonly ConnectedNode[]): string[] {
+export function withheldConventionalNames(
+	consumer: Node,
+	neighbours: readonly ConnectedNode[]
+): string[] {
 	const perSoleName = new Map<string, number>();
-	for (const { soleName } of suppliedBy(neighbours)) {
+	for (const { soleName } of suppliedBy(consumer, neighbours)) {
 		perSoleName.set(soleName, (perSoleName.get(soleName) ?? 0) + 1);
 	}
 	return [...perSoleName]
@@ -57,7 +60,7 @@ export function consumerEnv(
 	consumer: Node,
 	neighbours: readonly ConnectedNode[]
 ): Record<string, string> {
-	const supplied = suppliedBy(neighbours);
+	const supplied = suppliedBy(consumer, neighbours);
 
 	// Credentials come with being able to call AWS at all, not with any particular resource:
 	// code can reach CloudWatch with nothing connected, and gets a signpost error otherwise.

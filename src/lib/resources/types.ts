@@ -129,8 +129,13 @@ export type ResourceDefinition = {
 	launchConfig?: (node: Node, neighbours: readonly ConnectedNode[]) => unknown;
 	// What a node connected to this one, at either end, finds in its environment. The suffix
 	// is appended to the consumer-facing slug of this node's name; soleName is the
-	// conventional variable, used only when this is the one resource of its kind connected
-	supplies?: (node: Node, port: number) => { suffix: string; value: string; soleName: string };
+	// conventional variable, used only when this is the one resource of its kind connected.
+	// consumer is who is being handed the value, for a provider that identifies its callers
+	supplies?: (
+		node: Node,
+		port: number,
+		consumer: Node
+	) => { suffix: string; value: string; soleName: string };
 	// Environment variables the resource sets at spawn from its own identity, outside what
 	// consumerEnv grants from its connections - shown in the config panel alongside them so
 	// the summary stays accurate to what the process actually receives

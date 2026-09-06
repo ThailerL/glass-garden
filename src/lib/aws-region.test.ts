@@ -5,6 +5,9 @@ import {
 	denialResponse,
 	extractResourceName,
 	parseCredential,
+	isNotificationQueue,
+	notifiedBuckets,
+	receivedMessages,
 	type Topology
 } from '../../resources/aws-region/lib.js';
 
@@ -145,5 +148,30 @@ describe('denialResponse', () => {
 			__type: 'AccessDenied',
 			message: 'not connected to "x" & <y>'
 		});
+	});
+});
+
+describe('receivedMessages', () => {
+	it('reads the messages a receive returned, and an empty or broken answer as none', () => {
+		expect(receivedMessages('{"Messages":[{"MessageId":"a"},{"MessageId":"b"}]}')).toHaveLength(2);
+		expect(receivedMessages('{}')).toEqual([]);
+		expect(receivedMessages('not json')).toEqual([]);
+	});
+});
+
+describe('notifiedBuckets', () => {
+	const notification = (bucket: string) =>
+		JSON.stringify({ Records: [{ s3: { bucket: { name: bucket }, object: { key: 'k' } } }] });
+
+	it('names the bucket behind each notification and skips what is not one', () => {
+		const messages = [
+			{ Body: notification('uploads') },
+			{ Body: JSON.stringify({ Service: 'Amazon S3', Event: 's3:TestEvent' }) },
+			{ Body: 'not json' },
+			{ Body: notification('archive') }
+		];
+		expect(notifiedBuckets(messages)).toEqual(['uploads', 'archive']);
+		expect(isNotificationQueue('gg-notifications-abc')).toBe(true);
+		expect(isNotificationQueue('jobs')).toBe(false);
 	});
 });

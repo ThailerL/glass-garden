@@ -1,5 +1,6 @@
 // The manager under real Node: the same code the VM runs, minus the VM
 import { afterEach, describe, expect, it } from 'vitest';
+import { EVENT_PREFIX } from '../aws-region/lib.js';
 import http from 'node:http';
 import net from 'node:net';
 import readline from 'node:readline';
@@ -160,6 +161,12 @@ const metrics = (lines, name) =>
 // Readings of a count, less the zero its name is announced with at boot
 const events = (lines, name) => metrics(lines, name).filter((line) => line[name] !== 0);
 
+const traffic = (lines, kind) =>
+  lines
+    .filter((line) => line.startsWith(EVENT_PREFIX))
+    .map((line) => JSON.parse(line.slice(EVENT_PREFIX.length)))
+    .filter((event) => event.kind === kind);
+
 const environmentIds = (lines) =>
   [...new Set(lines.filter((l) => l.startsWith('gg:env ')).map((l) => l.split(' ')[1]))];
 
@@ -243,6 +250,11 @@ describe('function URL', () => {
     expect(metrics(manager.lines, 'concurrent executions').at(-1)).toMatchObject({
       'concurrent executions': 0
     });
+    // The same level for the canvas, against the cap it can fill
+    const levels = traffic(manager.lines, 'level');
+    const at = expect.any(Number);
+    expect(levels[0]).toEqual({ kind: 'level', at, value: 1, capacity: DEFAULT_MAX_CONCURRENCY });
+    expect(levels.at(-1)).toEqual({ kind: 'level', at, value: 0, capacity: DEFAULT_MAX_CONCURRENCY });
   });
 
   it('takes its concurrency from the config file', async () => {
