@@ -7,7 +7,6 @@
 
 	const {
 		id,
-		source,
 		target,
 		sourceX,
 		sourceY,
@@ -40,9 +39,12 @@
 	}
 	// A batch is one dot, drawn heavier
 	const radius = (count: number) => Math.min(3.5 * Math.sqrt(count), 8);
-	// Nothing is going down a lane whose instance is down, or that this source is skipping
+	// The fan is the target's, and two sources drawing it can disagree, so a lane is lit while
+	// anything still reaches that instance rather than while this one source does
+	const senders = $derived(orchestrator.getSources(target).map((sender) => sender.node.id));
 	const carrying = (lane: number) =>
-		statuses[lane] === 'running' && orchestrator.traffic.routesTo(source, ports[lane]);
+		statuses[lane] === 'running' &&
+		senders.some((sender) => orchestrator.traffic.routesTo(sender, ports[lane]));
 
 	// SMIL begins are relative to the document, so an inserted animation is started by hand
 	const begin = (node: SVGAnimateMotionElement) => node.beginElement();
