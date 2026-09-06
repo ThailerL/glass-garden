@@ -7,6 +7,7 @@
 
 	const {
 		id,
+		source,
 		target,
 		sourceX,
 		sourceY,
@@ -18,6 +19,8 @@
 	const orchestrator = getOrchestrator();
 
 	const statuses = $derived(orchestrator.getInstanceStatuses(target));
+	// Same order as the statuses, so a lane's port is the one its dot stands for
+	const ports = $derived(orchestrator.getReservedPorts(target));
 	const offsets = $derived(laneOffsets(statuses.length));
 	// The trunk stops short of the target when it fans, and the lanes cover the rest
 	const splitX = $derived(offsets.length > 0 ? targetX - FAN_LENGTH : targetX);
@@ -37,6 +40,9 @@
 	}
 	// A batch is one dot, drawn heavier
 	const radius = (count: number) => Math.min(3.5 * Math.sqrt(count), 8);
+	// Nothing is going down a lane whose instance is down, or that this source is skipping
+	const carrying = (lane: number) =>
+		statuses[lane] === 'running' && orchestrator.traffic.routesTo(source, ports[lane]);
 
 	// SMIL begins are relative to the document, so an inserted animation is started by hand
 	const begin = (node: SVGAnimateMotionElement) => node.beginElement();
@@ -45,7 +51,7 @@
 <!-- No arrowhead: the lane's dot is the terminus -->
 <BaseEdge {id} path={trunk} />
 {#each lanes as lane, i (i)}
-	<path d={lane} class="svelte-flow__edge-path lane" class:out={statuses[i] !== 'running'} />
+	<path d={lane} class="svelte-flow__edge-path lane" class:out={!carrying(i)} />
 {/each}
 {#each flights as flight (flight.id)}
 	<!-- Frozen at its end until the store drops it, else it would snap back to the origin -->

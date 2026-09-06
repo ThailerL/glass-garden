@@ -6,7 +6,10 @@ import { EVENT_PREFIX } from '../../resources/aws-region/lib.js';
 export type Endpoint = { node: string } | { port: number };
 export type Hop = { kind: 'hop'; at: number; from?: Endpoint; to?: Endpoint; count?: number };
 export type Level = { kind: 'level'; at: number; value: number; capacity?: number };
-export type TrafficEvent = Hop | Level;
+// Which of a target's instances a node is sending to. Not "healthy": a balancer with nothing
+// healthy left routes to every target regardless, and those lanes are carrying dots
+export type Routing = { kind: 'routing'; at: number; ports: number[] };
+export type TrafficEvent = Hop | Level | Routing;
 
 export type ParsedTraffic = { ok: true; event: TrafficEvent } | { ok: false; reason: string };
 
@@ -21,12 +24,16 @@ export function parseTrafficLine(line: string): ParsedTraffic {
 	} catch {
 		return { ok: false, reason: 'not JSON' };
 	}
-	if (event.kind !== 'hop' && event.kind !== 'level') {
+	const kinds = ['hop', 'level', 'routing'];
+	if (typeof event.kind !== 'string' || !kinds.includes(event.kind)) {
 		return { ok: false, reason: `of an unknown kind "${String(event.kind)}"` };
 	}
 	if (typeof event.at !== 'number') return { ok: false, reason: `a ${event.kind} without a time` };
 	if (event.kind === 'level' && typeof event.value !== 'number') {
 		return { ok: false, reason: 'a level without a value' };
+	}
+	if (event.kind === 'routing' && !Array.isArray(event.ports)) {
+		return { ok: false, reason: 'a routing without its ports' };
 	}
 	return { ok: true, event: event as unknown as TrafficEvent };
 }
@@ -67,6 +74,8 @@ type PendingLevel = { nodeId: string; value: number; capacity?: number; applyAt:
 export class Traffic {
 	flights = $state.raw<Flight[]>([]);
 	levels = $state.raw<Record<string, NodeLevel>>({});
+	// By the node doing the sending, since two balancers on one group can disagree
+	routing = $state.raw<Record<string, number[]>>({});
 
 	#services: TrafficServices;
 	#held: Held[] = [];
@@ -81,10 +90,21 @@ export class Traffic {
 		this.#services = services;
 	}
 
+	// A node sends to every instance it names, and to no other. Unknown until it says
+	routesTo(nodeId: string, port: number) {
+		const ports = this.routing[nodeId];
+		return ports === undefined || ports.includes(port);
+	}
+
 	// nodeId is the process that printed the event, and the side a hop leaves unnamed
 	ingest(nodeId: string | undefined, event: TrafficEvent) {
 		const { at } = event;
 		const receivedAt = Date.now();
+		// Not caused by an arrival, so it is not held back for one
+		if (event.kind === 'routing') {
+			if (nodeId) this.routing = { ...this.routing, [nodeId]: event.ports };
+			return;
+		}
 		if (event.kind === 'level') {
 			if (!nodeId) return;
 			const { value, capacity } = event;

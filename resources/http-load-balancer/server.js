@@ -39,6 +39,11 @@ function putMetric(name, value, unit, target, fold = true) {
 const reportHop = (port) =>
   console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), to: { port } }));
 
+// Which targets are actually being sent to, so the canvas can dim the rest. Sent every tick
+// rather than on change, so a page that reloads mid-run gets the picture back
+const reportRouting = (ports) =>
+  console.log('gg:event ' + JSON.stringify({ kind: 'routing', at: Date.now(), ports }));
+
 async function readConfig() {
   let contents;
   try {
@@ -88,6 +93,8 @@ function reportHealth(targets) {
   for (const { port, state } of states) {
     putMetric('target health', state === 'healthy' ? 1 : 0, 'Count', String(port), false);
   }
+  // choose(), not the healthy ones: with none healthy an ALB routes to every target
+  reportRouting(health.choose(targets));
   announceFailOpen(
     healthy === 0 && unhealthy > 0
       ? `No healthy targets: routing to all ${targets.length} regardless, as an ALB does`

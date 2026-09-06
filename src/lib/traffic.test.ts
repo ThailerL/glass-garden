@@ -34,6 +34,10 @@ describe('parseTrafficLine', () => {
 			ok: false,
 			reason: 'a level without a time'
 		});
+		expect(parseTrafficLine('gg:event {"kind":"routing","at":5}')).toEqual({
+			ok: false,
+			reason: 'a routing without its ports'
+		});
 		expect(parseTrafficLine('gg:event {"kind":"log"}')).toEqual({
 			ok: false,
 			reason: 'of an unknown kind "log"'
@@ -122,6 +126,16 @@ describe('Traffic', () => {
 		expect(traffic.levels).toEqual({});
 		vi.advanceTimersByTime(TRAVEL_MS + TICK_MS);
 		expect(traffic.levels).toEqual({ fn: { value: 1, capacity: 5, peak: 1 } });
+	});
+
+	it('takes a node at its word about which instances it sends to', () => {
+		// Nothing said yet: every lane carries traffic until a sender says otherwise
+		expect(traffic.routesTo('lb', 3002)).toBe(true);
+		traffic.ingest('lb', { kind: 'routing', at: 1, ports: [3001, 3003] });
+		expect(traffic.routesTo('lb', 3001)).toBe(true);
+		expect(traffic.routesTo('lb', 3002)).toBe(false);
+		// One sender's verdict says nothing about another's
+		expect(traffic.routesTo('gen', 3002)).toBe(true);
 	});
 
 	it('keeps the latest level per node and the peak seen', () => {
