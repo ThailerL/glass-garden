@@ -80,6 +80,10 @@ export class GraphState {
 		this.edges = readByPrefix<Edge>(`${this.#prefix}edge:`).filter(
 			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
 		);
+		// Also asked for on load, since a template's nodes are added just before the reload that
+		// opens the project, and that navigation would dismiss Firefox's prompt
+		if (this.nodes.some((node) => getResourceDefinition(node.type as ResourceType).ownsStoredData))
+			void requestPersistentStorage();
 	}
 
 	#hasNode(id: string) {
