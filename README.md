@@ -2,9 +2,9 @@
 
 Build cloud architecture by dragging load balancers, instance groups, and AWS services onto a canvas. Press play, use your app, and watch where requests go.
 
-[demo.webm](https://github.com/user-attachments/assets/5f7b851c-0ac5-4eb7-804b-eda8d9372893)
+[demo.webm](https://github.com/user-attachments/assets/b7e0f4ca-5d52-4ecf-8c74-cd7caf46dc10)
 
-_Three instances of a page-view counter behind a load balancer, with nowhere to keep the count until a Postgres database is dragged in and connected to the app. Each refresh is answered by a different instance._
+_Three instances of a page-view counter behind a load balancer, with nowhere to keep the count until a Postgres database is dragged in and connected to the app. Each refresh is answered by the next instance in turn._
 
 Everything on your canvas is running real code, and your app talks to it the same way it would in production:
 
@@ -15,7 +15,7 @@ Everything on your canvas is running real code, and your app talks to it the sam
 
 Click on any resource for its metrics, logs, and a window into whatever it's serving. Or pin their charts to the canvas to create a live dashboard. Access between resources works by drawing edges between them.
 
-![A signup API, a queue, and a Lambda function, each with a chart of its metrics](https://github.com/user-attachments/assets/1cfe9994-29bc-42d0-93bc-d3c8be8283be)
+![A signup API, a queue, and a Lambda function, each with a chart of its metrics](https://github.com/user-attachments/assets/37ce6392-5535-4dba-b1e5-d9c20648cb86)
 
 _A signup API drops each new password onto a queue for a Lambda function to hash. Signups come in faster than one execution environment can keep up, so the backlog grows until the function's concurrency is raised and it drains._
 
