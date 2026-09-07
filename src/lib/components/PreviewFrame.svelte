@@ -29,7 +29,12 @@
 	let iframe: HTMLIFrameElement | undefined = $state();
 
 	export function reload() {
-		if (iframe && previewUrl) iframe.src = toPreviewUrl(previewUrl, path);
+		if (!iframe || !previewUrl) return;
+		const target = toPreviewUrl(previewUrl, path);
+		// Assigning the source it already has is not a navigation, so the frame would keep the
+		// document it is showing rather than asking for it again
+		if (iframe.src === target) iframe.contentWindow?.location.reload();
+		else iframe.src = target;
 	}
 
 	// Same origin through the proxy, so a link followed inside can be read back
