@@ -73,6 +73,7 @@ export const lambdaFunction = {
 	// Lambda's own guidance for ConcurrentExecutions: a level sampled at every start and finish
 	// averages to nothing meaningful, while its peak is the number of environments in use
 	metricDefaults: { 'concurrent executions': 'Maximum' },
+	gaugeLabel: 'Running invocations, against max concurrency',
 	// The one instance is the manager; execution environments spawned inside the manager
 	instanceCount: () => 1,
 	runsProcesses: true,

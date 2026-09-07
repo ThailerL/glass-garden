@@ -76,6 +76,8 @@ export const sqsQueue = {
 		]
 	},
 	metricDefaults: { messages: 'Average', 'in flight': 'Average' },
+	// A queue has no depth limit, so the bar fills against the busiest it has been
+	gaugeLabel: 'Messages waiting, against the most this session',
 	instanceCount: () => 1,
 	runsProcesses: false,
 	launchConfig,

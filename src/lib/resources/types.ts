@@ -112,6 +112,9 @@ export type ResourceDefinition = {
 	// Only for a Count that is a level rather than a tally of events - connections, items -
 	// which the unit cannot tell apart; everything else the unit decides
 	metricDefaults?: Partial<Record<string, ChartReading>>;
+	// What the node's gauge is filling with, for its tooltip. Required of a resource that
+	// reports a level, since the bar carries no number to read it by
+	gaugeLabel?: string;
 	instanceCount: (node: Node) => number;
 	// Whether an instance is a real process. A resource served by the AWS region still has one
 	// slot, but nothing listens on its port, so a port and a per-instance breakdown name

@@ -63,7 +63,7 @@
 	{name}
 </span>
 {#if level}
-	<NodeGauge {level} />
+	<NodeGauge {level} label={definition.gaugeLabel} />
 {/if}
 {#if chart}
 	<!-- Hung below the card so pinning a chart does not move the handles -->
