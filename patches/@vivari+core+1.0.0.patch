@@ -1,8 +1,8 @@
 diff --git a/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js b/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
-index a00b16a..82c766c 100644
+index a00b16a..b7ef202 100644
 --- a/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
 +++ b/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
-@@ -1,3 +1,185 @@
+@@ -1,3 +1,216 @@
 +// Prepended to @vivari/core's process worker by patch-package - that worker is the only one
 +// that runs in-VM user code. This patch is the only copy: to change it, edit
 +// node_modules/@vivari/core/dist/assets/process-worker-*.js and re-run
@@ -185,9 +185,67 @@ index a00b16a..82c766c 100644
 +
 +	if (!isHonoured(global.Error)) install(global.Error);
 +})(typeof globalThis !== 'undefined' ? globalThis : self);
++
++// How an uncaught error reaches the user's terminal. Two things are wrong with the raw
++// stack. SpiderMonkey's omits the "Error: message" header that V8's carries, dropping the
++// one line a user can act on; and both engines then list a dozen frames from this worker,
++// which are Vivari's own module loader and event loop rather than anything the user wrote.
++(function (global) {
++	// The worker's own URL, which is what every internal frame resolves to
++	var SELF = String((global.location && global.location.href) || '').split(/[?#]/)[0];
++
++	// Frames end in "file:line:column"; user code compiled by the loader ends in a synthetic
++	// file ("<anonymous>" on V8, "Function" on SpiderMonkey), never this worker's URL
++	function isInternalFrame(frame) {
++		var match = /([^\s()@]+):\d+:\d+\)?\s*$/.exec(frame);
++		if (!match || !SELF) return false;
++		return match[1].split(/[?#]/)[0] === SELF;
++	}
++
++	global.__vvFormatError = function (err) {
++		if (!err || typeof err !== 'object') return String(err);
++		var stack = typeof err.stack === 'string' ? err.stack : '';
++		var header = String(err.name || 'Error') + (err.message ? ': ' + err.message : '');
++		if (!stack) return header;
++
++		var frames = (stack.indexOf(header) === 0 ? stack.slice(header.length) : stack).split('\n');
++		var kept = [];
++		for (var i = 0; i < frames.length; i++) {
++			if (frames[i].trim() && !isInternalFrame(frames[i])) kept.push(frames[i]);
++		}
++		return kept.length ? header + '\n' + kept.join('\n') : header;
++	};
++})(typeof globalThis !== 'undefined' ? globalThis : self);
  //#region \0rolldown/runtime.js
  var __defProp = Object.defineProperty;
  var __exportAll = (all, no_symbols) => {
+@@ -234,7 +447,7 @@ function createEventLoop({ isAlive, doNet, doChildren, doThreads, doWatch, doStd
+ 		}
+ 	};
+ 	const reportError = (e) => {
+-		const msg = String(e && e.stack || e) + "\n";
++		const msg = __vvFormatError(e) + "\n";
+ 		try {
+ 			process.stderr.write(msg);
+ 		} catch {}
+@@ -54461,7 +54674,7 @@ function createRuntime({ ctrl, data, notify, pid = 1, ppid = 0, argv = [], env =
+ 				if (err && err.__processExit !== void 0) loop.requestExit(err.__processExit);
+ 				else {
+ 					try {
+-						process.stderr.write(String(err && err.stack || err) + "\n");
++						process.stderr.write(__vvFormatError(err) + "\n");
+ 					} catch {}
+ 					loop.requestExit(1);
+ 				}
+@@ -54521,7 +54734,7 @@ function bootProcess({ sab, spec, send, onReady, fsPort = null, codec = null, cr
+ 		memStats: runtime.memStats
+ 	});
+ 	runtime.run(spec.programPath).then((code) => send("exit", { code: code | 0 }), (err) => {
+-		send("stderr", { chunk: String(err && err.stack || err) + "\n" });
++		send("stderr", { chunk: __vvFormatError(err) + "\n" });
+ 		send("exit", { code: 1 });
+ 	});
+ }
 diff --git a/node_modules/@vivari/core/dist/fs.d.ts b/node_modules/@vivari/core/dist/fs.d.ts
 index 9ad1506..2d8d33e 100644
 --- a/node_modules/@vivari/core/dist/fs.d.ts
