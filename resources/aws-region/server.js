@@ -10,7 +10,7 @@ import {
   decideRequest,
   emptyTopology,
   denialResponse,
-  extractResourceName,
+  extractResourceNames,
   isNotificationQueue,
   notifiedBuckets,
   parseCredential,
@@ -281,8 +281,10 @@ async function handleAws(req, res, url, body) {
   const service = credential?.service;
   const bodyText =
     service === 'sqs' || service === 'dynamodb' ? body.toString('utf8') : undefined;
-  const resourceName = extractResourceName(service, url.pathname, bodyText);
-  const decision = decideRequest({ credential, resourceName }, topology);
+  const resourceNames = extractResourceNames(service, url.pathname, bodyText, req.headers);
+  // The first is the one the request is addressed to, which is where its traffic is attributed
+  const [resourceName] = resourceNames;
+  const decision = decideRequest({ credential, resourceNames }, topology);
   if (!decision.allow) {
     emitLog(
       'error',

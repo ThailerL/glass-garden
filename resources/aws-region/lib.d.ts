@@ -34,13 +34,14 @@ export function notifiedBuckets(messages: { Body?: string }[]): string[];
 export function emptyTopology(): Topology;
 export function parseCredential(authorization: string | undefined): Credential | undefined;
 export function bucketFromPath(path: string): string | undefined;
-export function extractResourceName(
+export function extractResourceNames(
 	service: string | undefined,
 	path: string,
-	bodyText: string | undefined
-): string | undefined;
+	bodyText: string | undefined,
+	headers?: Record<string, string | string[] | undefined>
+): string[];
 export function decideRequest(
-	request: { credential: Credential | undefined; resourceName: string | undefined },
+	request: { credential: Credential | undefined; resourceNames: string[] },
 	topology: Topology
 ): Decision;
 export function denialResponse(

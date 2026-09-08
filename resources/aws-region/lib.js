@@ -57,22 +57,28 @@ export function bucketFromPath(path) {
   return bucket ? decodeURIComponent(bucket) : undefined;
 }
 
-// The JSON protocols carry the resource name at a fixed top-level key. A body that does
-// not parse yields undefined, falling back to service-level enforcement so a malformed
-// request still gets the emulator's own error rather than a misleading denial
-export function extractResourceName(service, path, bodyText) {
-  if (service === 's3') return bucketFromPath(path);
-  if (service !== 'sqs' && service !== 'dynamodb') return undefined;
+// Every resource a request touches. S3 names its bucket in the path, and a copy names a
+// second one in a header - both must be granted, as S3 itself requires. The JSON protocols
+// carry the name at a fixed top-level key; a body that does not parse yields nothing, falling
+// back to service-level enforcement so a malformed request still gets the emulator's own error
+export function extractResourceNames(service, path, bodyText, headers = {}) {
+  if (service === 's3') {
+    const copySource = headers['x-amz-copy-source'];
+    const source = copySource ? bucketFromPath(`/${copySource.replace(/^\/+/, '')}`) : undefined;
+    return [bucketFromPath(path), source].filter((name) => name !== undefined);
+  }
+  if (service !== 'sqs' && service !== 'dynamodb') return [];
   const parsed = bodyText ? parseJson(bodyText) : undefined;
-  if (!parsed) return undefined;
+  if (!parsed) return [];
   if (service === 'dynamodb') {
-    return typeof parsed.TableName === 'string' ? parsed.TableName : undefined;
+    return typeof parsed.TableName === 'string' ? [parsed.TableName] : [];
   }
-  if (typeof parsed.QueueName === 'string') return parsed.QueueName;
+  if (typeof parsed.QueueName === 'string') return [parsed.QueueName];
   if (typeof parsed.QueueUrl === 'string') {
-    return parsed.QueueUrl.replace(/\/+$/, '').split('/').pop() || undefined;
+    const name = parsed.QueueUrl.replace(/\/+$/, '').split('/').pop();
+    return name ? [name] : [];
   }
-  return undefined;
+  return [];
 }
 
 // nodeId names the caller once the principal is known, so denials can be routed to
@@ -84,7 +90,7 @@ const deny = (status, code, message, nodeId) => ({ allow: false, status, code, m
 // The checks run most-general first so the signpost names the closest missing thing:
 // bad credentials, unknown service, unknown caller, no edge to the family, no edge to the
 // named resource
-export function decideRequest({ credential, resourceName }, topology) {
+export function decideRequest({ credential, resourceNames }, topology) {
   if (!credential) {
     return deny(
       403,
@@ -120,11 +126,12 @@ export function decideRequest({ credential, resourceName }, topology) {
       principal.nodeId,
     );
   }
-  if (resourceName !== undefined && !allowed.includes(resourceName)) {
+  const missing = resourceNames.find((name) => !allowed.includes(name));
+  if (missing !== undefined) {
     return deny(
       403,
       'AccessDenied',
-      `"${principal.name}" is not connected to the ${noun(service)} "${resourceName}". Draw an edge to that ${NODE_LABELS[service]} node to use it.`,
+      `"${principal.name}" is not connected to the ${noun(service)} "${missing}". Draw an edge to that ${NODE_LABELS[service]} node to use it.`,
       principal.nodeId,
     );
   }

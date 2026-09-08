@@ -8,6 +8,8 @@
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { anyDraftsDirty } from '$lib/files';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
+	import { onContainerBoot } from '$lib/container';
+	import { installAwsCli } from '$lib/aws-cli';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import type { LayoutProps } from './$types';
 
@@ -19,6 +21,7 @@
 	// and with it one container and one set of running instances
 	const orchestrator = setOrchestrator(graphState);
 
+	onContainerBoot(installAwsCli);
 	orchestrator.warmUp();
 
 	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a

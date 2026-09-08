@@ -7,7 +7,7 @@
 		"node": ">=22.12.0"
 	},
 	"scripts": {
-		"vendor": "node scripts/vendor-assets.mjs && node scripts/vendor-aws-region.mjs",
+		"vendor": "node scripts/vendor-assets.mjs && node scripts/vendor-aws-region.mjs && node scripts/vendor-aws-cli.mjs",
 		"predev": "npm run vendor",
 		"dev": "vite dev --port 3000",
 		"prebuild": "node scripts/check-no-runtime-deps.mjs && npm run vendor",
@@ -22,6 +22,9 @@
 		"postinstall": "patch-package"
 	},
 	"devDependencies": {
+		"@aws-sdk/client-dynamodb": "^3.1127.0",
+		"@aws-sdk/client-s3": "^3.1127.0",
+		"@aws-sdk/client-sqs": "^3.1127.0",
 		"@codemirror/lang-css": "^6.3.1",
 		"@codemirror/lang-html": "^6.4.12",
 		"@codemirror/lang-javascript": "^6.2.5",
@@ -41,6 +44,7 @@
 		"@uiw/codemirror-theme-dracula": "^4.25.11",
 		"@vivari/core": "^1.0.0",
 		"@xterm/addon-fit": "^0.11.0",
+		"@xterm/addon-web-links": "^0.12.0",
 		"@xterm/xterm": "^6.0.0",
 		"@xyflow/svelte": "^1.6.3",
 		"bits-ui": "^2.18.1",
@@ -58,6 +62,7 @@
 		"prettier": "^3.8.3",
 		"prettier-plugin-svelte": "^4.1.0",
 		"prettier-plugin-tailwindcss": "^0.8.0",
+		"rolldown": "^1.2.7",
 		"runed": "^0.37.1",
 		"shadcn-svelte": "^1.5.0",
 		"svelte": "^5.56.1",

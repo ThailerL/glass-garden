@@ -3,7 +3,7 @@ import {
 	bucketFromPath,
 	decideRequest,
 	denialResponse,
-	extractResourceName,
+	extractResourceNames,
 	parseCredential,
 	isNotificationQueue,
 	notifiedBuckets,
@@ -42,33 +42,42 @@ describe('parseCredential', () => {
 	});
 });
 
-describe('extractResourceName', () => {
+describe('extractResourceNames', () => {
 	it('takes the bucket from a path-style S3 path', () => {
 		expect(bucketFromPath('/assets/some/key.txt')).toBe('assets');
-		expect(extractResourceName('s3', '/assets?list-type=2', undefined)).toBe('assets');
-		expect(extractResourceName('s3', '/', undefined)).toBeUndefined();
+		expect(extractResourceNames('s3', '/assets?list-type=2', undefined)).toEqual(['assets']);
+		expect(extractResourceNames('s3', '/', undefined)).toEqual([]);
+	});
+
+	// A copy is addressed to its destination and names its source in a header; S3 requires
+	// access to both, so both are enforced
+	it('adds the source bucket of an S3 copy', () => {
+		const copy = (source: string) =>
+			extractResourceNames('s3', '/backup/key.txt', undefined, { 'x-amz-copy-source': source });
+		expect(copy('assets/some/key.txt')).toEqual(['backup', 'assets']);
+		expect(copy('/assets/some/key.txt?versionId=3')).toEqual(['backup', 'assets']);
 	});
 
 	it('reads TableName from DynamoDB bodies', () => {
-		expect(extractResourceName('dynamodb', '/', '{"TableName":"users"}')).toBe('users');
+		expect(extractResourceNames('dynamodb', '/', '{"TableName":"users"}')).toEqual(['users']);
 	});
 
 	it('reads the queue name from QueueUrl or QueueName', () => {
 		const url = 'http://sqs.us-east-1.amazonaws.com/123456789012/jobs';
-		expect(extractResourceName('sqs', '/', JSON.stringify({ QueueUrl: url }))).toBe('jobs');
-		expect(extractResourceName('sqs', '/', '{"QueueName":"jobs"}')).toBe('jobs');
+		expect(extractResourceNames('sqs', '/', JSON.stringify({ QueueUrl: url }))).toEqual(['jobs']);
+		expect(extractResourceNames('sqs', '/', '{"QueueName":"jobs"}')).toEqual(['jobs']);
 	});
 
-	it('falls back to undefined on unparseable or nameless bodies', () => {
-		expect(extractResourceName('sqs', '/', 'not json')).toBeUndefined();
-		expect(extractResourceName('dynamodb', '/', '{}')).toBeUndefined();
-		expect(extractResourceName('rds', '/', '{}')).toBeUndefined();
+	it('names nothing on unparseable or nameless bodies', () => {
+		expect(extractResourceNames('sqs', '/', 'not json')).toEqual([]);
+		expect(extractResourceNames('dynamodb', '/', '{}')).toEqual([]);
+		expect(extractResourceNames('rds', '/', '{}')).toEqual([]);
 	});
 });
 
 describe('decideRequest', () => {
-	const decide = (authorization: string | undefined, resourceName?: string) =>
-		decideRequest({ credential: parseCredential(authorization), resourceName }, topology);
+	const decide = (authorization: string | undefined, ...resourceNames: string[]) =>
+		decideRequest({ credential: parseCredential(authorization), resourceNames }, topology);
 
 	it('allows a connected resource', () => {
 		const decision = decide(auth('s3'), 'assets');
@@ -80,7 +89,7 @@ describe('decideRequest', () => {
 	});
 
 	it('denies requests without credentials', () => {
-		const decision = decideRequest({ credential: undefined, resourceName: undefined }, topology);
+		const decision = decideRequest({ credential: undefined, resourceNames: [] }, topology);
 		expect(decision).toMatchObject({ allow: false, status: 403, code: 'AccessDenied' });
 	});
 
@@ -113,7 +122,7 @@ describe('decideRequest', () => {
 			owners: { s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' }, dynamodb: {} }
 		};
 		const decision = decideRequest(
-			{ credential: parseCredential(auth('sqs')), resourceName: 'jobs' },
+			{ credential: parseCredential(auth('sqs')), resourceNames: ['jobs'] },
 			withoutSqsEdge
 		);
 		expect(decision).toMatchObject({ allow: false, nodeId: 'node-1' });
@@ -121,6 +130,13 @@ describe('decideRequest', () => {
 
 	it('denies a named resource the caller is not connected to', () => {
 		const decision = decide(auth('s3'), 'other-bucket');
+		expect(decision).toMatchObject({ allow: false, status: 403, nodeId: 'node-1' });
+		expect(decision.allow || decision.message).toContain('other-bucket');
+	});
+
+	it('requires every resource a request names, naming the first one missing', () => {
+		expect(decide(auth('s3'), 'assets', 'assets').allow).toBe(true);
+		const decision = decide(auth('s3'), 'assets', 'other-bucket');
 		expect(decision).toMatchObject({ allow: false, status: 403, nodeId: 'node-1' });
 		expect(decision.allow || decision.message).toContain('other-bucket');
 	});

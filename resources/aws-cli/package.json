@@ -1,0 +1,6 @@
+{
+	"name": "aws-cli",
+	"private": true,
+	"type": "module",
+	"main": "main.js"
+}

@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import type { VivariProcess } from '@vivari/core';
 import { getContainer, onContainerShutdown } from './container';
 import { messageOf } from './errors';
@@ -37,6 +38,10 @@ export class Shell {
 		// dimensions fit() cannot repair. Writes buffer until a view opens it
 		this.terminal = new Terminal({ convertEol: true });
 		this.terminal.loadAddon(this.fitAddon);
+		// Any URL a program prints becomes clickable, so it opens with no handle on this window
+		this.terminal.loadAddon(
+			new WebLinksAddon((_, uri) => window.open(uri, '_blank', 'noopener,noreferrer'))
+		);
 		this.terminal.write(`${launchOptions.banner}\r\n`);
 		this.port = launchOptions.port;
 		this.#release = launchOptions.release;
