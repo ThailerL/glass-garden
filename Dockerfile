@@ -14,4 +14,5 @@ COPY --from=builder /app/build build/
 COPY --from=builder /app/server.js ./
 EXPOSE 3000
 ENV NODE_ENV=production
+USER node
 CMD [ "node", "server.js" ]
