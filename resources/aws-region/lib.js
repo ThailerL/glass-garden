@@ -117,22 +117,23 @@ export function decideRequest({ credential, resourceNames }, topology) {
     );
   }
 
+  // A node earns access by drawing an edge; the admin, which is not a node, holds every
+  // resource on the canvas, so what it lacks is the node itself
+  const label = NODE_LABELS[service];
+  const denyAccess = (asNode, asAdmin) =>
+    deny(403, 'AccessDenied', principal.nodeId ? asNode : asAdmin, principal.nodeId);
   const allowed = principal.resources[service] ?? [];
   if (allowed.length === 0) {
-    return deny(
-      403,
-      'AccessDenied',
-      `"${principal.name}" is not connected to a ${NODE_LABELS[service]} node. Draw an edge to use ${service}.`,
-      principal.nodeId,
+    return denyAccess(
+      `"${principal.name}" is not connected to a ${label} node. Draw an edge to use ${service}.`,
+      `There is no ${label} node on the canvas. Add one to use ${service}.`,
     );
   }
   const missing = resourceNames.find((name) => !allowed.includes(name));
   if (missing !== undefined) {
-    return deny(
-      403,
-      'AccessDenied',
-      `"${principal.name}" is not connected to the ${noun(service)} "${missing}". Draw an edge to that ${NODE_LABELS[service]} node to use it.`,
-      principal.nodeId,
+    return denyAccess(
+      `"${principal.name}" is not connected to the ${noun(service)} "${missing}". Draw an edge to that ${label} node to use it.`,
+      `There is no ${noun(service)} "${missing}" on the canvas. Add a ${label} node with that name to use it.`,
     );
   }
 

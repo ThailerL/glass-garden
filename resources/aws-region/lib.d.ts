@@ -1,7 +1,8 @@
 export type Service = 's3' | 'sqs' | 'dynamodb';
 export type Credential = { accessKeyId: string; region: string; service: string };
+// nodeId is absent for the admin, who is not a node: denials then have no log to go to
 export type Principal = {
-	nodeId: string;
+	nodeId?: string;
 	name: string;
 	resources: Record<Service, string[]>;
 };

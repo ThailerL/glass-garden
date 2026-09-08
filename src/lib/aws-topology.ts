@@ -33,6 +33,9 @@ export function accessKeyFor(nodeId: string) {
 	return `gg${nodeId}`;
 }
 
+// Cannot collide with a node's: ids are eight characters
+export const ADMIN_ACCESS_KEY = accessKeyFor('admin');
+
 export { notificationQueueName } from '../../resources/aws-region/lib.js';
 
 const emptyResources = (): Record<Service, string[]> => ({ s3: [], sqs: [], dynamodb: [] });
@@ -82,13 +85,24 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 		}
 	}
 
-	// Sorted so an unchanged canvas always produces an identical document
-	for (const principal of Object.values(principals)) {
-		for (const names of Object.values(principal.resources)) names.sort();
-	}
 	const owners: Record<Service, Record<string, string>> = { s3: {}, sqs: {}, dynamodb: {} };
 	for (const [nodeId, resource] of awsNodes) {
 		owners[resource.service][resource.resourceName] = nodeId;
+	}
+
+	// The admin shell is not a node and draws no edges, so it holds every resource on the canvas
+	principals[ADMIN_ACCESS_KEY] = {
+		name: 'Admin',
+		resources: {
+			s3: Object.keys(owners.s3),
+			sqs: Object.keys(owners.sqs),
+			dynamodb: Object.keys(owners.dynamodb)
+		}
+	};
+
+	// Sorted so an unchanged canvas always produces an identical document
+	for (const principal of Object.values(principals)) {
+		for (const names of Object.values(principal.resources)) names.sort();
 	}
 	return { principals, owners };
 }

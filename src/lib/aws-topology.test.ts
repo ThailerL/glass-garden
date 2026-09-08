@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/svelte';
-import { accessKeyFor, buildTopology, notificationQueueName } from './aws-topology';
+import {
+	ADMIN_ACCESS_KEY,
+	accessKeyFor,
+	buildTopology,
+	notificationQueueName
+} from './aws-topology';
 
 const node = (id: string, type: string, config: Record<string, unknown>): Node =>
 	({ id, type, position: { x: 0, y: 0 }, data: { config } }) as unknown as Node;
@@ -80,8 +85,29 @@ describe('buildTopology', () => {
 
 	it('gives a resource node no principal of its own: it runs no code and gets no credentials', () => {
 		const topology = buildTopology([bucket('b1', 'Assets', 'assets')], []);
-		expect(topology.principals).toEqual({});
+		expect(Object.keys(topology.principals)).toEqual([ADMIN_ACCESS_KEY]);
 		expect(topology.owners.s3).toEqual({ assets: 'b1' });
+	});
+
+	it('grants the admin every resource on the canvas, edges or not, and no node to log to', () => {
+		const nodes = [
+			bucket('b1', 'Z', 'zebra'),
+			bucket('b2', 'A', 'apple'),
+			queue('q1', 'Q', 'jobs')
+		];
+		const topology = buildTopology(nodes, []);
+		expect(topology.principals[ADMIN_ACCESS_KEY]).toEqual({
+			name: 'Admin',
+			resources: { s3: ['apple', 'zebra'], sqs: ['jobs'], dynamodb: [] }
+		});
+	});
+
+	it('keeps the admin present on an empty canvas, so its calls get a signpost not a key error', () => {
+		expect(buildTopology([], []).principals[ADMIN_ACCESS_KEY].resources).toEqual({
+			s3: [],
+			sqs: [],
+			dynamodb: []
+		});
 	});
 
 	it('gives a caller with no aws edges a principal granting nothing, so denials can name it', () => {

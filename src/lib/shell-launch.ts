@@ -13,7 +13,7 @@ export function shellLaunchOptions(
 	return {
 		cwd: admin ? adminDirectory() : nodeDirectory(owner.nodeId),
 		// Spread last, so a PORT the user set wins, as it does for instances
-		env: admin ? base : { ...base, ...orchestrator.envFor(owner.nodeId) },
+		env: { ...base, ...(admin ? orchestrator.adminEnv() : orchestrator.envFor(owner.nodeId)) },
 		port,
 		prepare: admin ? ensureAdminDirectory : () => orchestrator.mountFiles(owner.nodeId),
 		release: () => orchestrator.releasePort(port),

@@ -17,7 +17,8 @@ function fakeOrchestrator(ports = [4001]) {
 		holdPort: () => ports[next++],
 		releasePort: (port: number) => void released.push(port),
 		mountFiles: async (nodeId: string) => void mounted.push(nodeId),
-		envFor: () => ({ AWS_ACCESS_KEY_ID: 'ggn1', SIGNUPS_QUEUE_URL: 'http://queue' })
+		envFor: () => ({ AWS_ACCESS_KEY_ID: 'ggn1', SIGNUPS_QUEUE_URL: 'http://queue' }),
+		adminEnv: () => ({ AWS_ACCESS_KEY_ID: 'ggadmin' })
 	} as unknown as Orchestrator;
 	return { orchestrator, released, mounted };
 }
@@ -37,13 +38,17 @@ describe('shellLaunchOptions', () => {
 		});
 	});
 
-	it('gives an admin shell its own directory and no node environment', () => {
+	it("gives an admin shell its own directory and the admin credentials, not a node's", () => {
 		const { orchestrator } = fakeOrchestrator();
 
 		const launch = shellLaunchOptions({ kind: 'admin' }, orchestrator);
 
 		expect(launch.cwd).toBe('/projects/p1/admin');
-		expect(launch.env).toEqual({ PORT: '4001', TERM: 'xterm-256color' });
+		expect(launch.env).toEqual({
+			PORT: '4001',
+			TERM: 'xterm-256color',
+			AWS_ACCESS_KEY_ID: 'ggadmin'
+		});
 	});
 
 	it('holds a distinct port per shell and releases the right one', () => {

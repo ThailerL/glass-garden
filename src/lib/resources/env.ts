@@ -3,21 +3,25 @@ import type { ConnectedNode } from './types';
 import { getResourceDefinition } from './index';
 import { envSlug } from './shared';
 import { nodeName } from '$lib/graph-state.svelte';
-import { accessKeyFor } from '$lib/aws-topology';
+import { accessKeyFor, ADMIN_ACCESS_KEY } from '$lib/aws-topology';
 import { regionEndpointUrl } from '$lib/aws-region';
 
 // The AWS SDK's own variables. Every node that can call AWS gets them, connected to something
 // or not: code reaches CloudWatch regardless, and an unconnected call should be refused by the
 // topology with a signpost rather than by having no credentials at all. The secret is a fixed
 // string - the region enforces on the access key's credential scope and never checks a signature
-function awsCredentials(consumer: Node): Record<string, string> {
+function awsCredentials(accessKeyId: string): Record<string, string> {
 	return {
 		AWS_ENDPOINT_URL: regionEndpointUrl,
 		AWS_REGION: 'us-east-1',
-		AWS_ACCESS_KEY_ID: accessKeyFor(consumer.id),
+		AWS_ACCESS_KEY_ID: accessKeyId,
 		AWS_SECRET_ACCESS_KEY: 'glass-garden'
 	};
 }
+
+// The admin shell's environment: the principal the topology grants every resource, and nothing
+// a node would be handed by its neighbours
+export const adminEnv = () => awsCredentials(ADMIN_ACCESS_KEY);
 
 // Everything the nodes connected to this one hand it, in either direction. Sorted so the
 // set - and with it the configStamp - never depends on edge order
@@ -66,7 +70,7 @@ export function consumerEnv(
 	// code can reach CloudWatch with nothing connected, and gets a signpost error otherwise.
 	// The namespace is read only by the metrics library, which warns on every line without one
 	const env: Record<string, string> = getResourceDefinition(consumer.type).consumes.includes('aws')
-		? { ...awsCredentials(consumer), POWERTOOLS_METRICS_NAMESPACE: 'glass-garden' }
+		? { ...awsCredentials(accessKeyFor(consumer.id)), POWERTOOLS_METRICS_NAMESPACE: 'glass-garden' }
 		: {};
 
 	for (const { node, suffix, value } of supplied) {

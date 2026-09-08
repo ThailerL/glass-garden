@@ -21,7 +21,9 @@ const topology: Topology = {
 			nodeId: 'node-1',
 			name: 'Web App',
 			resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [] }
-		}
+		},
+		// The admin holds everything on the canvas and belongs to no node
+		ggadmin: { name: 'Admin', resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [] } }
 	},
 	owners: { s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' }, dynamodb: {} }
 };
@@ -134,11 +136,25 @@ describe('decideRequest', () => {
 		expect(decision.allow || decision.message).toContain('other-bucket');
 	});
 
-	it('requires every resource a request names, naming the first one missing', () => {
+	// The admin cannot draw an edge, so its denials say what is missing from the canvas and
+	// carry no nodeId - there is no log to route them to
+	it('tells the admin what the canvas lacks, rather than to draw an edge', () => {
+		expect(decide(auth('s3', 'ggadmin'), 'assets').allow).toBe(true);
+
+		const noSuchBucket = decide(auth('s3', 'ggadmin'), 'other-bucket');
+		expect(noSuchBucket).toMatchObject({ allow: false, status: 403 });
+		expect(noSuchBucket.allow || noSuchBucket.message).toMatch(
+			/no bucket "other-bucket" on the canvas/
+		);
+		expect(noSuchBucket.allow || noSuchBucket.nodeId).toBeUndefined();
+
+		const noTables = decide(auth('dynamodb', 'ggadmin'), 'users');
+		expect(noTables.allow || noTables.message).toMatch(/no Table node on the canvas/);
+	});
+
+	it('requires every resource a request names: a granted one does not excuse another', () => {
 		expect(decide(auth('s3'), 'assets', 'assets').allow).toBe(true);
-		const decision = decide(auth('s3'), 'assets', 'other-bucket');
-		expect(decision).toMatchObject({ allow: false, status: 403, nodeId: 'node-1' });
-		expect(decision.allow || decision.message).toContain('other-bucket');
+		expect(decide(auth('s3'), 'assets', 'other-bucket').allow).toBe(false);
 	});
 });
 

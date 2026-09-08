@@ -9,7 +9,8 @@ Operations and flags are the real AWS CLI's: --kebab-case names the SDK input ke
 --queue-url is QueueUrl. A flag value that looks like JSON is passed as JSON; pass a whole
 input document with --cli-input-json instead when a value's type is ambiguous.
 
-Credentials, region and endpoint come from the environment, which the Config tab shows.
+Credentials, region and endpoint come from the environment, which the Config tab shows for shells
+spawned from resources on the canvas. The admin shell has access to every resource on the canvas.
 `;
 
 // Carries the service it is about, if any, so reportError can link its reference page
