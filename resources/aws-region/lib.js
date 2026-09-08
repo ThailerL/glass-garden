@@ -59,8 +59,9 @@ export function bucketFromPath(path) {
 
 // Every resource a request touches. S3 names its bucket in the path, and a copy names a
 // second one in a header - both must be granted, as S3 itself requires. The JSON protocols
-// carry the name at a fixed top-level key; a body that does not parse yields nothing, falling
-// back to service-level enforcement so a malformed request still gets the emulator's own error
+// are read by convention rather than per operation, so a new operation needs no code here.
+// A body that does not parse yields nothing, falling back to service-level enforcement so a
+// malformed request still gets the emulator's own error
 export function extractResourceNames(service, path, bodyText, headers = {}) {
   if (service === 's3') {
     const copySource = headers['x-amz-copy-source'];
@@ -69,17 +70,46 @@ export function extractResourceNames(service, path, bodyText, headers = {}) {
   }
   if (service !== 'sqs' && service !== 'dynamodb') return [];
   const parsed = bodyText ? parseJson(bodyText) : undefined;
-  if (!parsed) return [];
+  if (!parsed || typeof parsed !== 'object') return [];
   if (service === 'dynamodb') {
-    return typeof parsed.TableName === 'string' ? [parsed.TableName] : [];
+    // The batch operations name their tables in RequestItems, the transact ones per item
+    return unique([...requestItemTables(parsed), ...stringsAt(parsed, 'TableName')]);
   }
-  if (typeof parsed.QueueName === 'string') return [parsed.QueueName];
-  if (typeof parsed.QueueUrl === 'string') {
-    const name = parsed.QueueUrl.replace(/\/+$/, '').split('/').pop();
-    return name ? [name] : [];
-  }
-  return [];
+  return unique([
+    ...stringsAt(parsed, 'QueueName'),
+    ...stringsAt(parsed, 'QueueUrl').map(queueNameFromUrl),
+    ...attributeQueueArns(parsed),
+  ]).filter((name) => name !== undefined);
 }
+
+const unique = (names) => [...new Set(names)];
+
+const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+// Own keys before nested ones, so the resource a request is addressed to stays first
+function stringsAt(value, key, found = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) stringsAt(item, key, found);
+  } else if (isRecord(value)) {
+    if (typeof value[key] === 'string') found.push(value[key]);
+    for (const item of Object.values(value)) stringsAt(item, key, found);
+  }
+  return found;
+}
+
+const queueNameFromUrl = (url) => url.replace(/\/+$/, '').split('/').pop() || undefined;
+
+const requestItemTables = (parsed) =>
+  isRecord(parsed.RequestItems) ? Object.keys(parsed.RequestItems) : [];
+
+// A RedrivePolicy names its dead letter queue by ARN inside an attribute value
+const QUEUE_ARN = /arn:aws:sqs:[^:]*:[^:]*:([^"\s,}]+)/g;
+const attributeQueueArns = (parsed) =>
+  isRecord(parsed.Attributes)
+    ? Object.values(parsed.Attributes)
+        .filter((value) => typeof value === 'string')
+        .flatMap((value) => [...value.matchAll(QUEUE_ARN)].map((match) => match[1]))
+    : [];
 
 // nodeId names the caller once the principal is known, so denials can be routed to
 // that node's log

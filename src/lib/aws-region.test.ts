@@ -70,6 +70,64 @@ describe('extractResourceNames', () => {
 		expect(extractResourceNames('sqs', '/', '{"QueueName":"jobs"}')).toEqual(['jobs']);
 	});
 
+	it('reads every table a DynamoDB batch or transaction names', () => {
+		const batchGet = { RequestItems: { users: { Keys: [] }, orders: { Keys: [] } } };
+		expect(extractResourceNames('dynamodb', '/', JSON.stringify(batchGet))).toEqual([
+			'users',
+			'orders'
+		]);
+		const transact = {
+			TransactItems: [
+				{ Put: { TableName: 'users', Item: {} } },
+				{ Delete: { TableName: 'orders', Key: {} } }
+			]
+		};
+		expect(extractResourceNames('dynamodb', '/', JSON.stringify(transact))).toEqual([
+			'users',
+			'orders'
+		]);
+	});
+
+	it('keeps the addressed table first and names each table once', () => {
+		const body = { TableName: 'users', TransactItems: [{ Put: { TableName: 'orders' } }] };
+		expect(extractResourceNames('dynamodb', '/', JSON.stringify(body))).toEqual([
+			'users',
+			'orders'
+		]);
+		const repeated = { RequestItems: { users: {}, orders: {} }, TableName: 'users' };
+		expect(extractResourceNames('dynamodb', '/', JSON.stringify(repeated))).toEqual([
+			'users',
+			'orders'
+		]);
+	});
+
+	// An item attribute is always a typed map, never a bare string
+	it('ignores an item attribute called TableName', () => {
+		const body = { TableName: 'users', Item: { TableName: { S: 'orders' } } };
+		expect(extractResourceNames('dynamodb', '/', JSON.stringify(body))).toEqual(['users']);
+	});
+
+	it('reads the dead letter queue out of a redrive policy', () => {
+		const body = {
+			QueueUrl: 'http://sqs.us-east-1.amazonaws.com/123456789012/jobs',
+			Attributes: {
+				RedrivePolicy: JSON.stringify({
+					deadLetterTargetArn: 'arn:aws:sqs:us-east-1:123456789012:failed',
+					maxReceiveCount: 3
+				})
+			}
+		};
+		expect(extractResourceNames('sqs', '/', JSON.stringify(body))).toEqual(['jobs', 'failed']);
+	});
+
+	it('does not read a queue name out of a message body', () => {
+		const body = {
+			QueueUrl: 'http://sqs.us-east-1.amazonaws.com/123456789012/jobs',
+			MessageBody: JSON.stringify({ QueueUrl: 'secrets', arn: 'arn:aws:sqs:us-east-1:1:secrets' })
+		};
+		expect(extractResourceNames('sqs', '/', JSON.stringify(body))).toEqual(['jobs']);
+	});
+
 	it('names nothing on unparseable or nameless bodies', () => {
 		expect(extractResourceNames('sqs', '/', 'not json')).toEqual([]);
 		expect(extractResourceNames('dynamodb', '/', '{}')).toEqual([]);
