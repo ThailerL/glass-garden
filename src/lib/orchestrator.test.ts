@@ -242,17 +242,48 @@ describe('Orchestrator port reservations', () => {
 		expect(orchestrator.getReservedPorts(a)).toEqual([]);
 		expect(orchestrator.getInstanceStatus(a, draining)).toBe('unresponsive');
 
-		// Force the next mint to try the draining port first; the sampler must skip it
-		const realRandom = Math.random.bind(Math);
-		let offered = false;
-		vi.spyOn(Math, 'random').mockImplementation(() => {
-			if (offered) return realRandom();
-			offered = true;
-			return (draining - 1024 + 0.5) / (49151 - 1024 + 1);
-		});
+		const offered = offerPort(draining);
 		setCount(graphState, b, 2);
 		orchestrator.refresh(b);
-		expect(offered).toBe(true);
+		expect(offered.taken).toBe(true);
 		expect(orchestrator.getReservedPorts(b)).not.toContain(draining);
 	});
+
+	it('never mints a port held for something that is not an instance', () => {
+		const { graphState, orchestrator, nodeIds } = setup([1]);
+		const [a] = nodeIds;
+
+		const held = orchestrator.holdPort();
+		const offered = offerPort(held);
+		setCount(graphState, a, 2);
+		orchestrator.refresh(a);
+
+		expect(offered.taken).toBe(true);
+		expect(orchestrator.getReservedPorts(a)).not.toContain(held);
+	});
+
+	it('returns a released port to the pool', () => {
+		const { graphState, orchestrator, nodeIds } = setup([1]);
+		const [a] = nodeIds;
+
+		const held = orchestrator.holdPort();
+		orchestrator.releasePort(held);
+		offerPort(held);
+		setCount(graphState, a, 2);
+		orchestrator.refresh(a);
+
+		expect(orchestrator.getReservedPorts(a)).toContain(held);
+	});
 });
+
+// Makes the sampler try this port first, so a test can prove the mint skipped it
+function offerPort(port: number) {
+	const realRandom = Math.random.bind(Math);
+	const offered = { taken: false };
+	vi.spyOn(Math, 'random').mockImplementation(() => {
+		if (offered.taken) return realRandom();
+		offered.taken = true;
+		return (port - 1024 + 0.5) / (49151 - 1024 + 1);
+	});
+	return offered;
+}

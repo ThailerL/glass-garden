@@ -25,7 +25,11 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { askResourceName } from '$lib/components/ResourceNameDialog.svelte';
 	import { buildNameValidator } from '$lib/resources/name-on-create';
+	import SquareTerminalIcon from '@lucide/svelte/icons/square-terminal';
+	import { Button } from '$lib/components/ui/button';
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import ShellDock from '$lib/components/ShellDock.svelte';
+	import { shellSessions } from '$lib/shell-sessions.svelte';
 	import ResourceNode from './ResourceNode.svelte';
 	import TrafficEdge from './TrafficEdge.svelte';
 	import ProjectsGroup from './ProjectsGroup.svelte';
@@ -78,9 +82,14 @@
 		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
 		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
 
+		// Before remove, which deletes the node's directory: a shell must not be sitting in it
+		nodes.forEach((node) => shellSessions.closeForNode(node.id));
+
 		nodes.forEach((node) => orchestrator.remove(node));
 		edges.forEach((edge) => orchestrator.refreshEdge(edge));
 	};
+
+	let shellDock = $state<ReturnType<typeof ShellDock>>();
 
 	let selectedEdges: Edge[] = $state.raw([]);
 
@@ -179,10 +188,10 @@
 	</Sidebar.Root>
 {/snippet}
 
-{#snippet mainContent()}
+{#snippet flow()}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		class="h-full w-full"
+		class="relative h-full w-full"
 		ondragover={trackPointer}
 		use:droppable={{ container: 'canvas', callbacks: { onDrop } }}
 	>
@@ -201,11 +210,29 @@
 			initialViewport={savedViewport}
 			fitView={!savedViewport}
 			colorMode="system"
+			attributionPosition="top-left"
 		>
 			<Controls />
 			<Background />
 		</SvelteFlow>
+
+		<Button
+			variant="outline"
+			size="sm"
+			class="absolute right-0 bottom-0 z-40 rounded-none rounded-tl-md border-r-0 border-b-0 shadow-none"
+			onclick={() => shellDock?.toggle()}
+		>
+			<SquareTerminalIcon />
+			Terminal
+			{#if shellSessions.shells.length}
+				<span class="text-muted-foreground tabular-nums">{shellSessions.shells.length}</span>
+			{/if}
+		</Button>
 	</div>
+{/snippet}
+
+{#snippet mainContent()}
+	<ShellDock bind:this={shellDock} owner={{ kind: 'admin' }} main={flow} />
 {/snippet}
 
 {#snippet inspector()}

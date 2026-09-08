@@ -2,8 +2,6 @@ import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
 import type { ConnectedNode, Instance, ResourceDefinition, ResourceStatus } from './resources';
-import { mountNodeFiles } from './container';
-import { nodeFiles } from './files/node-files';
 import { nodeName } from './graph-state.svelte';
 import { messageOf } from './errors';
 import { ResourceLog } from './resource-log.svelte';
@@ -38,6 +36,8 @@ export type ControllerServices = {
 	regionReady: () => Promise<void>;
 	// A port for a new instance, free of whatever this node's live instances are on
 	takePort: () => number;
+	// This node's files on disk. Shared because a shell can be the first to ask for them
+	mountFiles: () => Promise<void>;
 	reconcileReservations: () => void;
 	getTargets: () => readonly ConnectedNode[];
 	getSources: () => readonly ConnectedNode[];
@@ -310,7 +310,7 @@ export class ResourceController {
 			const container = await this.#services.getContainer();
 			// Before anything this start captures, so no output exists that the region missed
 			await this.#services.regionReady();
-			await mountNodeFiles(this.nodeId, nodeFiles(node), !this.#definition.hasEditableFiles);
+			await this.#services.mountFiles();
 			// Runs once per pass rather than once per instance, so instances don't race each other
 			await this.#definition.prepare?.(node, container, (output) =>
 				this.log.capture('resource', output)

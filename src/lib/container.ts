@@ -72,6 +72,18 @@ export function nodeDirectory(nodeId: string) {
 	return `${activeProjectDirectory()}/nodes/${nodeId}`;
 }
 
+// Where an admin shell works. Its own directory rather than the project root, which holds
+// the region's saved state and the function manager - neither of which the editor shows
+export function adminDirectory() {
+	return `${activeProjectDirectory()}/admin`;
+}
+
+// Nothing lays this down the way a node's files are mounted, so the first shell makes it
+export async function ensureAdminDirectory() {
+	const container = await getContainer();
+	await container.fs.mkdir(adminDirectory(), { recursive: true });
+}
+
 let persistence: Promise<boolean> | undefined;
 
 // The VFS is best-effort storage by default, which WebKit clears after a week without a

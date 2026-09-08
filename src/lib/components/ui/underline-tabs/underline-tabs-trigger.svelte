@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { Tabs as TabsPrimitive } from 'bits-ui';
 	import { cn } from '$lib/utils.js';
 	import { receive, send, useUnderlineTabsTrigger } from './underline-tabs.svelte.js';
@@ -13,8 +14,11 @@
 		onfocus,
 		onblur,
 		children,
+		trailing,
 		...restProps
-	}: TabsPrimitive.TriggerProps = $props();
+		// trailing renders beside the trigger rather than inside it, so an interactive control
+		// there - a close button, say - is never a button within a button
+	}: TabsPrimitive.TriggerProps & { trailing?: Snippet } = $props();
 
 	const state = useUnderlineTabsTrigger({
 		value: box.with(() => value),
@@ -25,7 +29,7 @@
 	});
 </script>
 
-<div class="relative h-full">
+<div class="relative flex h-full items-center">
 	<TabsPrimitive.Trigger
 		bind:ref
 		data-slot="underline-tabs-trigger"
@@ -41,6 +45,10 @@
 	>
 		{@render children?.()}
 	</TabsPrimitive.Trigger>
+	{#if trailing}
+		<!-- Lifted over the hover fill, which is positioned and would otherwise take the clicks -->
+		<span class="relative z-2 flex items-center">{@render trailing()}</span>
+	{/if}
 	{#if state.rootState.hoveredTab === value}
 		<div
 			class={cn(

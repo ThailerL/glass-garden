@@ -64,6 +64,7 @@ function makeServices(getNode: () => Node | undefined): ControllerServices {
 		getContainer: async () => ({}) as Vivari,
 		regionReady: async () => {},
 		takePort: vi.fn(),
+		mountFiles: async () => {},
 		reconcileReservations: vi.fn(),
 		getTargets: () => [],
 		getSources: () => [],

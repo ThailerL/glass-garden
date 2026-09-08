@@ -2,13 +2,15 @@
 	import { untrack, type Snippet } from 'svelte';
 	import type { FileSystemTree } from '@vivari/core';
 	import { getContainer, mountNodeFiles, nodeDirectory } from '$lib/container';
-	import * as Resizable from '$lib/components/ui/resizable';
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import Terminal from '$lib/components/Terminal.svelte';
+	import ShellDock from '$lib/components/ShellDock.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
 	import { setFileDraftState, setFileRefresh } from '$lib/files';
+	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { shellLaunchOptions } from '$lib/shell-launch';
+	import { shellSessions, type ShellOwner } from '$lib/shell-sessions.svelte';
 
 	// Nothing inside the container announces what it writes, so the open listings re-read on
 	// a timer to catch the terminal, npm install, and running processes
@@ -43,6 +45,11 @@
 	const poll = setInterval(() => refresh.bump(), POLL_INTERVAL_MS);
 
 	$effect(() => () => clearInterval(poll));
+
+	// A shell for this node is here on arrival, as it was before tabs; the canvas opens none
+	const shellOwner: ShellOwner = { kind: 'node', nodeId: root };
+	const orchestrator = getOrchestrator();
+	shellSessions.ensureFor(shellOwner, () => shellLaunchOptions(shellOwner, orchestrator));
 </script>
 
 {#snippet leftSidebar()}
@@ -53,23 +60,17 @@
 	</Sidebar.Root>
 {/snippet}
 
+{#snippet editor()}
+	<div class="flex h-full flex-col">
+		<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
+		<div class="min-h-0 flex-1">
+			<TextEditor {container} root={rootPath} {selectedFilePath} />
+		</div>
+	</div>
+{/snippet}
+
 {#snippet mainContent()}
-	<Resizable.PaneGroup direction="vertical" autoSaveId="editor-main">
-		<Resizable.Pane defaultSize={60} minSize={20}>
-			<div class="flex h-full flex-col">
-				<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
-				<div class="min-h-0 flex-1">
-					<TextEditor {container} root={rootPath} {selectedFilePath} />
-				</div>
-			</div>
-		</Resizable.Pane>
-
-		<Resizable.Handle />
-
-		<Resizable.Pane defaultSize={40} minSize={10}>
-			<Terminal {container} cwd={rootPath} />
-		</Resizable.Pane>
-	</Resizable.PaneGroup>
+	<ShellDock owner={shellOwner} main={editor} />
 {/snippet}
 
 <Workspace {leftSidebar} {mainContent} {rightSidebar} />

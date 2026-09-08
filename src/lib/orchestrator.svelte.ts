@@ -11,9 +11,11 @@ import {
 	type ResourceStatus,
 	type ConnectedNode
 } from './resources';
+import { consumerEnv } from './resources/env';
 import { ResourceController, type ControllerServices } from './resource-controller.svelte';
 import type { MetricStore, OutputLine, ResourceEvent, Stream } from './resource-log.svelte';
-import { getContainer, removeNodeFiles, shutdownContainer } from './container';
+import { getContainer, mountNodeFiles, removeNodeFiles, shutdownContainer } from './container';
+import { nodeFiles } from './files/node-files';
 import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
 import { buildTopology } from './aws-topology';
 import { Traffic } from './traffic.svelte';
@@ -137,6 +139,45 @@ export class Orchestrator {
 	getConfiguredCount(nodeId: string): number {
 		const node = this.#graphState.getNode(nodeId);
 		return node ? getResourceDefinition(node.type).instanceCount(node) : 0;
+	}
+
+	// Bound by something that is not an instance, so a shell's server is never minted over
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	#heldPorts = new Set<number>();
+
+	holdPort(): number {
+		const port = this.#mintPort();
+		this.#heldPorts.add(port);
+		return port;
+	}
+
+	releasePort(port: number) {
+		this.#heldPorts.delete(port);
+	}
+
+	// Every route to a node's files: a start, the editor, or a shell opened for a node neither
+	// has ever touched. Mounting is deduped, so asking again is free
+	mountFiles(nodeId: string): Promise<void> {
+		const node = this.#graphState.getNode(nodeId);
+		if (!node) return Promise.resolve();
+		return mountNodeFiles(
+			nodeId,
+			nodeFiles(node),
+			!getResourceDefinition(node.type).hasEditableFiles
+		);
+	}
+
+	// What a node's process finds in its environment: its connections' grants plus what it
+	// sets from its own identity
+	envFor(nodeId: string): Record<string, string> {
+		const node = this.#graphState.getNode(nodeId);
+		if (!node) return {};
+		// ownEnv first, matching the order each definition's own launchConfig uses, so this is
+		// what the process really receives rather than a second opinion about it
+		return {
+			...getResourceDefinition(node.type).ownEnv?.(node),
+			...consumerEnv(node, this.getNeighbours(nodeId))
+		};
 	}
 
 	// Reserved before anything runs, so a node can be wired to one not yet started
@@ -302,6 +343,7 @@ export class Orchestrator {
 			// A region that cannot start must not stop a canvas that never calls it
 			regionReady: () => ensureRegion().catch(() => {}),
 			takePort: () => this.#takePort(nodeId),
+			mountFiles: () => this.mountFiles(nodeId),
 			reconcileReservations: () => this.#reconcileReservations(nodeId),
 			getTargets: () => this.getTargets(nodeId),
 			getSources: () => this.getSources(nodeId),
@@ -395,6 +437,7 @@ export class Orchestrator {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const reserved = new Set([
 			...alsoTaken,
+			...this.#heldPorts,
 			...this.#graphState.nodes.flatMap(nodePorts),
 			...[...this.#controllers.values()].flatMap((controller) =>
 				controller.instances.map((instance) => instance.port)
