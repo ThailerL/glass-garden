@@ -14,7 +14,6 @@ vi.mock('$lib/container', () => ({
 	requestPersistentStorage: vi.fn(),
 	setActiveProject: vi.fn()
 }));
-vi.mock('virtual:resource-files', () => ({ templates: { 'known/set': {} } }));
 vi.mock('$lib/resources', async () => {
 	const { z } = await import('zod');
 	const definition = {
@@ -49,7 +48,7 @@ const node = (id: string, extra: Partial<Node> = {}): Node => ({
 	id,
 	type: 'test',
 	position: { x: 1, y: 2 },
-	data: { config: { name: id, count: 2 }, ports: [3001], files: 'known/set', chart: 'requests' },
+	data: { config: { name: id, count: 2 }, ports: [3001], chart: 'requests' },
 	origin: [0.5, 0.5],
 	selected: true,
 	measured: { width: 10, height: 10 },
@@ -86,7 +85,6 @@ describe('buildProjectDocument', () => {
 			type: 'test',
 			position: { x: 1, y: 2 },
 			config: { name: 'a', count: 2 },
-			files: 'known/set',
 			chart: 'requests'
 		});
 		expect(doc.edges).toEqual([{ source: 'a', target: 'b' }]);
@@ -121,18 +119,12 @@ describe('applyProjectDocument', () => {
 		expect(nodeConfig(graph.nodes[0])).toEqual({ name: 'A', count: 5 });
 	});
 
-	it('falls back to defaults for a config the schema rejects, and drops a lost file set', () => {
+	it('falls back to defaults for a config the schema rejects', () => {
 		const doc = document();
 		doc.nodes[0].config = { name: 'A', count: 'five' };
-		doc.nodes[0].files = 'gone/set';
-		doc.nodes[1].files = 'known/set';
 		const graph = new GraphState('p1');
 		applyProjectDocument(graph, parseProjectDocument(JSON.stringify(doc)));
 		expect(nodeConfig(graph.nodes[0])).toEqual({ name: 'Test resource', count: 1 });
-		expect(graph.nodes.map((n) => (n.data as { files?: string }).files)).toEqual([
-			undefined,
-			'known/set'
-		]);
 	});
 });
 

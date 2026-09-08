@@ -188,6 +188,7 @@
 		}
 
 		const node = graphState.addNode(resource, position, { config });
+		void orchestrator.mountFiles(node.id);
 		// Reserves the new node's ports before it first renders
 		orchestrator.refresh(node.id);
 		graphState.select(node.id);

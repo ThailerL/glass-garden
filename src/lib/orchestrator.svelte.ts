@@ -99,6 +99,10 @@ export class Orchestrator {
 			})
 			// ensureRegion already toasts; a start that needs the region reports it again
 			.catch(() => {});
+		// Editable files are laid down on load rather than first use, so an export finds them
+		for (const node of this.#graphState.nodes)
+			if (getResourceDefinition(node.type).hasEditableFiles)
+				void this.mountFiles(node.id).catch(() => {});
 	}
 
 	reset() {

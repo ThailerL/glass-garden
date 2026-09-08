@@ -1,20 +1,10 @@
 import type { Edge, Node } from '@xyflow/svelte';
 import type { DirEnt } from '@vivari/core';
 import { z } from 'zod';
-import * as resourceFiles from 'virtual:resource-files';
 import { resourceDefinitions, type ResourceType } from './resources';
-import {
-	nodeChart,
-	nodeConfig,
-	parseStoredConfig,
-	type GraphState,
-	type NodeData
-} from './graph-state.svelte';
-import type { FileSetId } from './files/node-files';
+import { nodeChart, nodeConfig, parseStoredConfig, type GraphState } from './graph-state.svelte';
 
 export const PROJECT_FORMAT = 'gg:project/1';
-
-const keys = <T extends string>(record: Record<T, unknown>) => Object.keys(record) as [T, ...T[]];
 
 // Path -> contents, so an exported project reads and edits as plain text
 const nodeFilesSchema = z.record(z.string(), z.string());
@@ -26,11 +16,9 @@ const projectDocumentSchema = z.object({
 	nodes: z.array(
 		z.object({
 			id: z.string(),
-			type: z.enum(keys<ResourceType>(resourceDefinitions)),
+			type: z.enum(Object.keys(resourceDefinitions) as [ResourceType, ...ResourceType[]]),
 			position: z.object({ x: z.number(), y: z.number() }),
 			config: z.record(z.string(), z.unknown()),
-			// A file set this build no longer ships falls back to the resource's own files
-			files: z.enum(keys<FileSetId>(resourceFiles.templates)).optional().catch(undefined),
 			chart: z.string().optional()
 		})
 	),
@@ -54,7 +42,6 @@ export function buildProjectDocument(
 			type: node.type as ResourceType,
 			position: node.position,
 			config: nodeConfig(node),
-			files: (node.data as NodeData).files,
 			chart: nodeChart(node)
 		})),
 		edges: edges.map(({ source, target }) => ({ source, target })),
@@ -86,7 +73,6 @@ export function applyProjectDocument(graph: GraphState, doc: ProjectDocument) {
 	for (const node of doc.nodes) {
 		const added = graph.addNode(node.type, node.position, {
 			config: parseStoredConfig(resourceDefinitions[node.type], node.config),
-			files: node.files,
 			chart: node.chart
 		});
 		ids.set(node.id, added.id);

@@ -96,17 +96,16 @@ export async function exportProject(project: Project): Promise<string> {
 	const nodes = readByPrefix<Node>(`${prefix}node:`).flatMap((node) => loadNode(node) ?? []);
 	const edges = readByPrefix<Edge>(`${prefix}edge:`);
 	const editable = nodes.filter((node) => getResourceDefinition(node.type).hasEditableFiles);
-	const nodeFiles: Record<string, NodeFiles> = {};
+	const files: Record<string, NodeFiles> = {};
 	if (editable.length) {
 		const { fs } = await getContainer();
 		await Promise.all(
 			editable.map(async (node) => {
-				const directory = nodeDirectory(node.id, project.id);
-				if (await fs.exists(directory)) nodeFiles[node.id] = await readNodeFiles(fs, directory);
+				files[node.id] = await readNodeFiles(fs, nodeDirectory(node.id, project.id));
 			})
 		);
 	}
-	return buildProjectDocument(project.name, nodes, edges, nodeFiles);
+	return buildProjectDocument(project.name, nodes, edges, files);
 }
 
 // The record goes down before the files, so a boot in between cannot sweep them; like the
