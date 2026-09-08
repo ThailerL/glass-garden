@@ -1,6 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import type { Instance, InstanceStatus } from '$lib/resources';
-import { uptimeText } from '$lib/status';
+import type { Instance, InstanceStatus, ResourceDefinition } from '$lib/resources';
+import { statusText, uptimeText } from '$lib/status';
+
+describe('statusText', () => {
+	const alwaysOn = { alwaysOn: true } as ResourceDefinition;
+	const stoppable = { alwaysOn: false } as ResourceDefinition;
+
+	it('calls a region-provisioned resource available rather than running', () => {
+		expect(statusText('running', alwaysOn)).toBe('Available');
+		expect(statusText('running', stoppable)).toBe('Running');
+		expect(statusText('running', undefined)).toBe('Running');
+	});
+
+	it('leaves every other status alone', () => {
+		expect(statusText('starting', alwaysOn)).toBe('Starting');
+		expect(statusText('crashed', alwaysOn)).toBe('Crashed');
+	});
+});
 
 describe('uptimeText', () => {
 	const started = 1_700_000_000_000;

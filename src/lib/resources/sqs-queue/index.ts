@@ -80,6 +80,7 @@ export const sqsQueue = {
 	gaugeLabel: 'Messages waiting, against the most this session',
 	instanceCount: () => 1,
 	runsProcesses: false,
+	alwaysOn: true,
 	launchConfig,
 	// The URL rather than the name: it is what the AWS SDK takes for every call after
 	// creation, and it dials the region directly

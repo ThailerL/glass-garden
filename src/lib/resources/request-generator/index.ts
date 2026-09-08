@@ -67,6 +67,7 @@ export const requestGenerator = {
 	instanceCount: () => 1,
 	// A process, but one that serves no one, so its port names nothing
 	runsProcesses: false,
+	alwaysOn: false,
 	readyOnStart: true,
 	instanceLabel: 'generator',
 	start: async (

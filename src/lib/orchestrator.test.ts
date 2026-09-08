@@ -7,7 +7,7 @@ import type { ResourceType } from '$lib/resources';
 // Reservation logic is tested against a real GraphState (persistence and node
 // replacement are part of the contract) and real controllers for live-instance state;
 // only the container, the resource registry and the toaster are faked
-const fake = vi.hoisted(() => ({ stopFails: false }));
+const fake = vi.hoisted(() => ({ stopFails: false, alwaysOn: false }));
 
 vi.mock('$lib/container', () => ({
 	getContainer: vi.fn(async () => ({ on: vi.fn() })),
@@ -45,6 +45,9 @@ vi.mock('$lib/resources', async () => {
 		instanceCount: (node: Node) => (node.data as { config: Config }).config.instanceCount,
 		launchConfig: (node: Node) => ({ command: (node.data as { config: Config }).config.command }),
 		readyOnStart: true,
+		get alwaysOn() {
+			return fake.alwaysOn;
+		},
 		start: async () => ({
 			// Never exits on its own; a failing stop is how a test makes an instance stick
 			exited: new Promise<number>(() => {}),
@@ -103,6 +106,7 @@ async function settle() {
 beforeEach(() => {
 	globalThis.localStorage = makeLocalStorage();
 	fake.stopFails = false;
+	fake.alwaysOn = false;
 });
 
 afterEach(() => {
@@ -117,6 +121,41 @@ describe('Orchestrator instance statuses', () => {
 		orchestrator.start(id);
 		await settle();
 		expect(orchestrator.getInstanceStatuses(id)).toEqual(['running', 'running', 'running']);
+	});
+});
+
+describe('Orchestrator always-on resources', () => {
+	it('starts one as the graph loads and as it is dropped', async () => {
+		fake.alwaysOn = true;
+		const { graphState, orchestrator, nodeIds } = setup([1]);
+		await settle();
+		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
+
+		const dropped = graphState.addNode('test' as ResourceType, { x: 0, y: 0 });
+		orchestrator.refresh(dropped.id);
+		await settle();
+		expect(orchestrator.getStatus(dropped.id)).toBe('running');
+	});
+
+	it('cannot be stopped, even by stopping everything', async () => {
+		fake.alwaysOn = true;
+		const { orchestrator, nodeIds } = setup([1]);
+		await settle();
+		expect(orchestrator.canStop(nodeIds[0])).toBe(false);
+
+		orchestrator.stopAll();
+		await settle();
+		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
+	});
+
+	it('comes back after a container reset', async () => {
+		fake.alwaysOn = true;
+		const { orchestrator, nodeIds } = setup([1]);
+		await settle();
+
+		orchestrator.reset();
+		await settle();
+		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
 	});
 });
 

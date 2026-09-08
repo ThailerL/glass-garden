@@ -1,8 +1,10 @@
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import { STATUS_TEXT } from '$lib/status';
+	import { statusText } from '$lib/status';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getResourceDefinition } from '$lib/resources';
 	import type { Stream } from '$lib/resource-log.svelte';
 
 	const ALL = 'all';
@@ -18,6 +20,11 @@
 	} = $props();
 
 	const orchestrator = getOrchestrator();
+	const graphState = getGraphState();
+	const definition = $derived.by(() => {
+		const node = graphState.getNode(nodeId);
+		return node && getResourceDefinition(node.type);
+	});
 
 	// Newest first, and only the recent ones: an older stream keeps its lines in the "all"
 	// view and just leaves the list
@@ -40,11 +47,11 @@
 {#snippet option(stream: Stream | typeof ALL)}
 	{#if stream === ALL}
 		{@const all = orchestrator.getStatus(nodeId)}
-		<StatusDot status={all} label={STATUS_TEXT[all]} />
+		<StatusDot status={all} label={statusText(all, definition)} />
 		All streams
 	{:else}
 		{@const dot = status(stream)}
-		<StatusDot status={dot} label={STATUS_TEXT[dot]} />
+		<StatusDot status={dot} label={statusText(dot, definition)} />
 		{stream.label}
 	{/if}
 {/snippet}

@@ -65,6 +65,7 @@ export class Orchestrator {
 			else log.event('resource', event.level, event.message);
 		});
 		this.reconcileAllReservations();
+		for (const node of this.#graphState.nodes) this.#ensureAlwaysOn(node);
 	}
 
 	get containerReady(): boolean {
@@ -109,6 +110,7 @@ export class Orchestrator {
 		this.#endBootWatch();
 		shutdownContainer();
 		this.warmUp();
+		for (const node of this.#graphState.nodes) this.#ensureAlwaysOn(node);
 	}
 
 	getStatus(nodeId: string): ResourceStatus {
@@ -268,6 +270,12 @@ export class Orchestrator {
 		return this.#controllers.get(nodeId)?.canStop ?? false;
 	}
 
+	// Started the first time it is seen and never stopped, so having a controller is the check
+	#ensureAlwaysOn(node: Node) {
+		if (!getResourceDefinition(node.type).alwaysOn || this.#controllers.has(node.id)) return;
+		this.#controllerFor(node).start();
+	}
+
 	start(nodeId: string) {
 		const node = this.#graphState.getNode(nodeId);
 		if (!node) return;
@@ -303,6 +311,8 @@ export class Orchestrator {
 	// Config or edges changed: resize the reservation (even while stopped) and reconcile
 	refresh(nodeId: string) {
 		this.#reconcileReservations(nodeId);
+		const node = this.#graphState.getNode(nodeId);
+		if (node) this.#ensureAlwaysOn(node);
 		this.#pushTopology();
 		this.#controllers.get(nodeId)?.schedule();
 	}

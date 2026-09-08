@@ -38,6 +38,7 @@ export const postgres = {
 	// PGlite is single-writer, so a second instance would be a second database
 	instanceCount: () => 1,
 	runsProcesses: true,
+	alwaysOn: false,
 	supplies: (_node: Node, port: number, consumer: Node) => ({
 		suffix: 'DATABASE_URL',
 		value: connectionUrl(port, consumer.id),

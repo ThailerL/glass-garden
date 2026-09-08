@@ -120,6 +120,9 @@ export type ResourceDefinition = {
 	// slot, but nothing listens on its port, so a port and a per-instance breakdown name
 	// nothing the user could act on
 	runsProcesses: boolean;
+	// Provisioned rather than run: up from the moment the node exists, with no start or stop,
+	// because the region serves it and nothing spawned for it could be killed
+	alwaysOn: boolean;
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a server-ready that
 	// never comes

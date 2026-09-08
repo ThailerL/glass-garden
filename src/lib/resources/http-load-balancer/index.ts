@@ -102,6 +102,7 @@ export const httpLoadBalancer = {
 	},
 	instanceCount: () => 1,
 	runsProcesses: true,
+	alwaysOn: false,
 	start: async (node: Node, container: Vivari, port: number, targets: readonly ConnectedNode[]) => {
 		// Written before the process spawns so its first request already has the right targets
 		await updateConfig(node, container, targets);

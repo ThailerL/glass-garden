@@ -1,4 +1,4 @@
-import type { Instance, ResourceStatus } from './resources';
+import type { Instance, ResourceDefinition, ResourceStatus } from './resources';
 
 export const STATUS_TEXT: Record<ResourceStatus, string> = {
 	starting: 'Starting',
@@ -9,6 +9,12 @@ export const STATUS_TEXT: Record<ResourceStatus, string> = {
 	crashed: 'Crashed',
 	unresponsive: 'Unresponsive'
 };
+
+// Nothing of a region-provisioned resource's own runs, so it is available rather than running
+export function statusText(status: ResourceStatus, definition: ResourceDefinition | undefined) {
+	if (status === 'running' && definition?.alwaysOn) return 'Available';
+	return STATUS_TEXT[status];
+}
 
 // undefined once there is no process to have been up
 export function uptimeText(instance: Instance | undefined, now: number): string | undefined {

@@ -77,6 +77,7 @@ export const lambdaFunction = {
 	// The one instance is the manager; execution environments spawned inside the manager
 	instanceCount: () => 1,
 	runsProcesses: true,
+	alwaysOn: false,
 	instanceLabel: 'manager',
 	launchConfig,
 	ownEnv,

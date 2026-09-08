@@ -2,7 +2,7 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState, nodeChart } from '$lib/graph-state.svelte';
 	import { getResourceDefinition, type Instance } from '$lib/resources';
-	import { STATUS_TEXT, uptimeText } from '$lib/status';
+	import { STATUS_TEXT, statusText, uptimeText } from '$lib/status';
 	import { METRIC_WINDOWS, metricsView } from '$lib/metrics-view.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
@@ -41,7 +41,7 @@
 			return 'Waiting to retry';
 		}
 		if (instance.status === 'starting' && instance.replacement) return 'Retrying';
-		return STATUS_TEXT[instance.status];
+		return statusText(instance.status, definition);
 	}
 </script>
 

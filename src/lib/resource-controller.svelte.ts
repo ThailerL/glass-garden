@@ -114,6 +114,7 @@ export class ResourceController {
 	// Instances while not wantsRunning are still winding down or unresponsive, and
 	// another stop retries the kill
 	get canStop(): boolean {
+		if (this.#definition.alwaysOn) return false;
 		return this.wantsRunning || this.instances.some((instance) => instance.status !== 'stopping');
 	}
 
@@ -148,6 +149,7 @@ export class ResourceController {
 	}
 
 	stop() {
+		if (this.#definition.alwaysOn) return;
 		this.#standDown();
 		this.schedule();
 	}
@@ -162,7 +164,8 @@ export class ResourceController {
 	// last instance
 	forget() {
 		this.#forgotten = true;
-		this.stop();
+		this.#standDown();
+		this.schedule();
 	}
 
 	// Called when the container is going away, which kills every process in it: nothing here

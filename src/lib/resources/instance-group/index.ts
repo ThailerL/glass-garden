@@ -40,6 +40,7 @@ export const instanceGroup = {
 	configSchema,
 	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,
 	runsProcesses: true,
+	alwaysOn: false,
 	launchConfig,
 	prepare: npmInstall,
 	start: async (

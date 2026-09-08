@@ -4,7 +4,7 @@
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import { nodeChart, nodeName } from '$lib/graph-state.svelte';
-	import { STATUS_TEXT } from '$lib/status';
+	import { statusText } from '$lib/status';
 	import { fans } from '$lib/lanes';
 	import NodeChart from './NodeChart.svelte';
 	import NodeGauge from './NodeGauge.svelte';
@@ -45,12 +45,12 @@
 	}
 </script>
 
-<StatusDot {status} label={STATUS_TEXT[status]} class="absolute top-1.5 right-2" />
+<StatusDot {status} label={statusText(status, definition)} class="absolute top-1.5 right-2" />
 {#if fanned}
 	<!-- Decoration: the handle beneath is the whole left side -->
 	<div class="pointer-events-none absolute top-1/2 -left-1 flex -translate-y-1/2 flex-col gap-1">
 		{#each statuses as dotStatus, i (i)}
-			<StatusDot status={dotStatus} label={STATUS_TEXT[dotStatus]} />
+			<StatusDot status={dotStatus} label={statusText(dotStatus, definition)} />
 		{/each}
 	</div>
 {/if}

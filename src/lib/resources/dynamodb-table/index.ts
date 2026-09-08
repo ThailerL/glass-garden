@@ -86,6 +86,7 @@ export const dynamodbTable = {
 	metricDefaults: { items: 'Average' },
 	instanceCount: () => 1,
 	runsProcesses: false,
+	alwaysOn: true,
 	launchConfig,
 	supplies: (node: Node) => ({
 		suffix: 'TABLE',

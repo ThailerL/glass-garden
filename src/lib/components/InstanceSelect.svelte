@@ -1,8 +1,10 @@
 <script lang="ts">
 	import * as Select from '$lib/components/ui/select';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import { STATUS_TEXT } from '$lib/status';
+	import { statusText } from '$lib/status';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getResourceDefinition } from '$lib/resources';
 
 	const ALL = 'all';
 
@@ -18,6 +20,11 @@
 	} = $props();
 
 	const orchestrator = getOrchestrator();
+	const graphState = getGraphState();
+	const definition = $derived.by(() => {
+		const node = graphState.getNode(nodeId);
+		return node && getResourceDefinition(node.type);
+	});
 
 	// Reserved rather than live ports, so an instance that is down is still selectable and
 	// the list doesn't reshuffle as they come and go
@@ -50,7 +57,7 @@
 
 {#snippet option(port: number | 'all')}
 	{@const dot = status(port)}
-	<StatusDot status={dot} label={STATUS_TEXT[dot]} />
+	<StatusDot status={dot} label={statusText(dot, definition)} />
 	{@render label(port)}
 {/snippet}
 
