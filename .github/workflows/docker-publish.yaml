@@ -1,8 +1,13 @@
 name: Build and publish a Docker image to ghcr.io
+# Every push to main is built, smoke-tested and pushed as `main` (for the hosted deploy to
+# track), but `latest` — the tag the README names — moves only when a release is published
 on:
   push:
     branches:
       - main
+  release:
+    types:
+      - published
 
 jobs:
   check:
@@ -43,7 +48,15 @@ jobs:
       - id: image
         env:
           REPOSITORY: ${{ github.repository }}
-        run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          name="ghcr.io/${REPOSITORY,,}"
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            tags="$name:latest,$name:$RELEASE_TAG"
+          else
+            tags="$name:main,$name:$GITHUB_SHA"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       # Loaded into the local daemon first so the image is exercised before it is published;
       # the publish below reuses these layers from the cache
@@ -76,6 +89,4 @@ jobs:
           push: true
           # Keeps the package page to real architectures rather than an unknown/unknown entry
           provenance: false
-          tags: |
-            ${{ steps.image.outputs.name }}:latest
-            ${{ steps.image.outputs.name }}:${{ github.sha }}
+          tags: ${{ steps.image.outputs.tags }}
