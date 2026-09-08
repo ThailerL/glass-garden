@@ -6,9 +6,12 @@
 	import { getResourceDefinition } from '$lib/resources';
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { tour, NUMBERED_STEPS, type TourStep } from '$lib/tour.svelte';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
+
+	const isMobile = new IsMobile();
 
 	const CARD_TEXT: Record<TourStep, { title: string; body: string }> = {
 		run: {
@@ -17,7 +20,7 @@
 		},
 		select: {
 			title: 'Open the load balancer',
-			body: 'Click it on the canvas. Anything you put on the canvas opens a panel on the right, where you can see how it is set up.'
+			body: 'Select it on the canvas. Anything on the canvas opens a panel where you can see how it is set up.'
 		},
 		preview: {
 			title: 'See what it serves',
@@ -29,7 +32,7 @@
 		},
 		app: {
 			title: 'Open your app',
-			body: 'Click it on the canvas. Each green dot on its edge is one instance, and every refresh you did landed on one of them.'
+			body: 'Select it on the canvas. Each green dot on its edge is one instance, and every refresh you did landed on one of them.'
 		},
 		metrics: {
 			title: 'See where the refreshes landed',
@@ -49,6 +52,10 @@
 	// Replaces the refresh step's opening line once the user has refreshed
 	const REFRESHED =
 		'Keep refreshing. The load balancer takes the next lane every time, and the port on the page changes with it.';
+
+	// The closing step points at Edit Resource Code, which a phone does not carry
+	const DONE_ELSEWHERE =
+		'Every instance is running the same small server file. Open this canvas on a computer to change what the page says, and they all pick it up on their next boot.';
 
 	// Replaces the metrics step's opening line once its charts are on screen
 	const CHARTS_OPEN =
@@ -146,6 +153,9 @@
 		if (tour.step === 'metrics' && chartsOpen) {
 			return { ...CARD_TEXT.metrics, body: CHARTS_OPEN };
 		}
+		if (tour.step === 'done' && isMobile.current) {
+			return { ...CARD_TEXT.done, body: DONE_ELSEWHERE };
+		}
 		return CARD_TEXT[tour.step];
 	});
 
@@ -235,8 +245,11 @@
 	const spot = $derived(spots[0]);
 
 	// Both of these sit in the narrow panel on the right, which leaves no room for a card
-	// above or below them and plenty of it alongside
-	const beside = $derived(tour.step === 'refresh' || tour.step === 'done' || chartsOpen);
+	// above or below them and plenty of it alongside. The small layout's panel is along the
+	// bottom, so its room is all above
+	const beside = $derived(
+		!isMobile.current && (tour.step === 'refresh' || tour.step === 'done' || chartsOpen)
+	);
 
 	const card = $derived.by(() => {
 		if (!spot) return undefined;
@@ -263,17 +276,32 @@
 			WINDOW_EDGE_GAP,
 			window.innerWidth - CARD_WIDTH - WINDOW_EDGE_GAP
 		);
+		const offset = clamp(spot.left + spot.width / 2 - left, 18, CARD_WIDTH - 18);
+		const noRoomBelow =
+			spot.top + spot.height + HIGHLIGHT_GAP + measuredCardHeight >
+			window.innerHeight - WINDOW_EDGE_GAP;
+		if (noRoomBelow) {
+			return {
+				top: Math.max(WINDOW_EDGE_GAP, spot.top - HIGHLIGHT_GAP - measuredCardHeight),
+				left,
+				beak: 'down' as const,
+				offset
+			};
+		}
 		return {
 			top: spot.top + spot.height + HIGHLIGHT_GAP,
 			left,
 			beak: 'up' as const,
-			offset: clamp(spot.left + spot.width / 2 - left, 18, CARD_WIDTH - 18)
+			offset
 		};
 	});
 
 	// A step that points at something waits for it: with the panel it lives in closed the card
 	// holds off, and comes back on its own once the reader is looking at it again
-	const showCard = $derived(!!cardText && (!!card || selectors.length === 0));
+	// A step waits for what it points at; the closing note has nothing to wait for
+	const showCard = $derived(
+		!!cardText && (!!card || selectors.length === 0 || tour.step === 'done')
+	);
 
 	const stepNumber = $derived(tour.step ? NUMBERED_STEPS.indexOf(tour.step) + 1 : 0);
 
@@ -356,6 +384,11 @@
 				class="absolute -top-1.75 size-3 rotate-45 border-t border-l bg-popover"
 				style="left: {card.offset}px"
 			></div>
+		{:else if card?.beak === 'down'}
+			<div
+				class="absolute -bottom-1.75 size-3 rotate-45 border-r border-b bg-popover"
+				style="left: {card.offset}px"
+			></div>
 		{:else if card}
 			<div
 				class="absolute -right-1.75 size-3 rotate-45 border-t border-r bg-popover"
@@ -373,8 +406,14 @@
 
 		{#if tour.step === 'done'}
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				Click <PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar to
-				start a new canvas from a template.
+				{#if isMobile.current}
+					Open the menu at the top left and press
+					<PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects to start a new canvas
+					from a template.
+				{:else}
+					Click <PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar
+					to start a new canvas from a template.
+				{/if}
 			</p>
 		{/if}
 

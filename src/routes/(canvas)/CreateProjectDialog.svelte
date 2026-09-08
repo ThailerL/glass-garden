@@ -34,19 +34,21 @@
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content>
+	<!-- Five templates, a name field and a footer are taller than a phone; the list is what gives -->
+	<Dialog.Content class="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] gap-4">
 		<Dialog.Header>
 			<Dialog.Title>New project</Dialog.Title>
 			<Dialog.Description>Each project has its own canvas, files, and data.</Dialog.Description>
 		</Dialog.Header>
 
-		<form class="grid gap-4" onsubmit={create}>
+		<form class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-4" onsubmit={create}>
 			<div class="grid gap-2">
 				<Label for="project-name">Name</Label>
 				<Input id="project-name" bind:value={name} />
 			</div>
 
 			<RadioGroup.Root
+				class="min-h-0 overflow-y-auto"
 				value={templateId}
 				onValueChange={(value) => (templateId = value as TemplateId)}
 			>

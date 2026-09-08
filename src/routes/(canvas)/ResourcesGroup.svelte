@@ -1,7 +1,13 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { resourceDefinitions } from '$lib/resources';
+	import { resourceDefinitions, type ResourceType } from '$lib/resources';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { draggable } from '@thisux/sveltednd';
+
+	// A drag says where the node goes and a tap does not, so the canvas decides instead
+	const { onTap }: { onTap: (resource: ResourceType) => void } = $props();
+
+	const isMobile = new IsMobile();
 </script>
 
 <Sidebar.Group class="py-0">
@@ -12,9 +18,17 @@
 		<Sidebar.Menu>
 			{#each Object.entries(resourceDefinitions) as [resource, definition] (resource)}
 				<Sidebar.MenuItem>
-					<div use:draggable={{ container: 'component-sidebar', dragData: resource }}>
+					<div
+						use:draggable={{
+							container: 'component-sidebar',
+							dragData: resource,
+							disabled: isMobile.current
+						}}
+					>
 						<Sidebar.MenuButton
-							class="cursor-grab text-sm active:cursor-grabbing [&>svg]:size-4.5 [&>svg]:text-resource-icon"
+							class="text-sm [&>svg]:size-4.5 [&>svg]:text-resource-icon
+							       {isMobile.current ? '' : 'cursor-grab active:cursor-grabbing'}"
+							onclick={isMobile.current ? () => onTap(resource as ResourceType) : undefined}
 						>
 							<definition.icon />
 							{definition.name}

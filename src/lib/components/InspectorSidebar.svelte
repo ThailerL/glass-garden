@@ -18,12 +18,15 @@
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import { statusText } from '$lib/status';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
 	import MetricsTab from './MetricsTab.svelte';
 	import LogsTab from './LogsTab.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
+
+	const isMobile = new IsMobile();
 
 	const swappedNode = untrack(() => {
 		const previous = inspectorState.shownNodeId;
@@ -42,7 +45,8 @@
 	const editing = $derived(page.route.id === '/edit/[nodeId]');
 	const definition = $derived(node && getResourceDefinition(node.type));
 	const name = $derived(node && nodeName(node));
-	const editable = $derived(!!definition && definition.hasEditableFiles);
+	// The editor turns a narrow viewport away, so nothing here offers a way into it
+	const editable = $derived(!!definition && definition.hasEditableFiles && !isMobile.current);
 
 	// The preview only requests the app once the tab has been opened, and stays mounted
 	// afterwards so switching tabs does not reload it

@@ -5,6 +5,10 @@
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
+	import { Button } from '$lib/components/ui/button';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { resolve } from '$app/paths';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { messageOf } from '$lib/errors';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
@@ -14,6 +18,8 @@
 	const { params }: PageProps = $props();
 
 	const orchestrator = getOrchestrator();
+
+	const isMobile = new IsMobile();
 
 	const nodeId = untrack(() => params.nodeId);
 	// Undefined when the id in the URL isn't a real node
@@ -38,7 +44,16 @@ rendered either side of the boundary and stays in view for the whole wait -->
 	<div class="h-full"></div>
 {/snippet}
 
-{#if initialFiles}
+{#if isMobile.current}
+	<!-- Reachable by URL from anywhere, and three panes wide between them -->
+	<div class="flex h-dvh w-screen flex-col items-center justify-center gap-4 p-8 text-center">
+		<p class="text-muted-foreground">Editing code needs a larger screen.</p>
+		<Button variant="outline" href={resolve('/')}>
+			<ArrowLeftIcon />
+			Back to Canvas
+		</Button>
+	</div>
+{:else if initialFiles}
 	<svelte:boundary>
 		<Editor {nodeId} {initialFiles} {rightSidebar} />
 

@@ -190,3 +190,31 @@
 	background: var(--xy-edge-label-background-color);
 	color: var(--xy-edge-label-color);
 }
+
+/* A finger, not a width: xyflow's zoom buttons are 26px and its handles 9px, and a
+   touchscreen laptop has the same hands at a desktop width */
+@media (pointer: coarse) {
+	.svelte-flow__controls-button {
+		width: 40px;
+		height: 40px;
+	}
+
+	.svelte-flow__controls-button svg {
+		max-width: 16px;
+		max-height: 16px;
+	}
+
+	/* An invisible ring takes the press; growing the dot would move where an edge is drawn to */
+	.svelte-flow__handle:not(.strip)::after {
+		content: '';
+		position: absolute;
+		inset: -9px;
+	}
+
+	/* Already the whole left side, so it widens instead — still centred on the border */
+	.svelte-flow__handle.strip {
+		left: -9px;
+		width: 18px;
+		border-radius: 9px;
+	}
+}

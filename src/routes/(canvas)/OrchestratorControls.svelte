@@ -11,6 +11,13 @@
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import { STATUS_TEXT } from '$lib/status';
 	import { Spinner } from '$lib/components/ui/spinner';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { PANEL_FRACTION } from '$lib/components/Workspace.svelte';
+
+	// Set while the inspector panel is up, which on the small layout is what this has to clear
+	const { panelOpen = false }: { panelOpen?: boolean } = $props();
+
+	const isMobile = new IsMobile();
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
@@ -37,8 +44,12 @@
 
 <div
 	data-tour="controls"
-	class="fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full
-	       border bg-background/75 px-3.5 py-1.5 text-sm shadow-md backdrop-blur-md"
+	class="fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border
+	       bg-background/75 px-3.5 py-1.5 text-sm shadow-md backdrop-blur-md transition-[bottom]
+	       {isMobile.current ? '' : 'top-4'}"
+	style={isMobile.current
+		? `bottom: calc(${panelOpen ? PANEL_FRACTION * 100 : 0}dvh + 1rem)`
+		: undefined}
 >
 	<!-- Start is not blocked while this shows: a start queues on the same boot -->
 	<div class="flex items-center gap-1.5">

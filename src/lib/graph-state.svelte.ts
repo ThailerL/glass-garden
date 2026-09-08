@@ -145,8 +145,13 @@ export class GraphState {
 		return this.nodes.find((node) => node.id === id);
 	}
 
-	select(id: string) {
-		this.nodes = this.nodes.map((node) => ({ ...node, selected: node.id === id }));
+	// No id deselects everything. Nodes that were already right keep their identity, so the flow
+	// reconciles only what changed
+	select(id?: string) {
+		this.nodes = this.nodes.map((node) => {
+			const selected = node.id === id;
+			return !!node.selected === selected ? node : { ...node, selected };
+		});
 	}
 
 	// The config is snapshotted because callers pass a live form object they keep editing

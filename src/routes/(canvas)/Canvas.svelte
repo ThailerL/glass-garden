@@ -11,8 +11,10 @@
 		type OnDelete,
 		type OnBeforeDelete,
 		type NodeTargetEventWithPointer,
+		type NodeEventWithPointer,
 		type OnConnect,
-		type IsValidConnection
+		type IsValidConnection,
+		type XYPosition
 	} from '@xyflow/svelte';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import { asset } from '$app/paths';
@@ -40,12 +42,19 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import OrchestratorControls from './OrchestratorControls.svelte';
 	import TourOverlay from '$lib/components/TourOverlay.svelte';
-	import Workspace from '$lib/components/Workspace.svelte';
+	import Workspace, { PANEL_FRACTION } from '$lib/components/Workspace.svelte';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { tour } from '$lib/tour.svelte';
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
-	const { screenToFlowPosition } = useSvelteFlow();
+	const { screenToFlowPosition, setCenter, getViewport, getNodesBounds } = useSvelteFlow();
+
+	// Drives the layout, never what the canvas can do
+	const isMobile = new IsMobile();
+	// A touchscreen laptop drops a connection with the same finger at a desktop width
+	const coarsePointer = new MediaQuery('pointer: coarse');
 
 	// Offered once, on a first visit: the tour reads the canvas it is about to point at
 	tour.begin(graphState.projectId, graphState.nodes);
@@ -111,45 +120,114 @@
 		if (!showsInspector) inspectorState.shownNodeId = undefined;
 	});
 
+	// A drag ends in a click on the node it moved, so the click is judged by what the gesture did
+	let dragged = false;
+	let selectedBeforeDrag: string | undefined;
+
+	// xyflow drags every selected node, and clears the old one in the same tick it reads its
+	// node lookup — a gesture early is what the lookup needs to catch up
+	function onPointerDown(event: PointerEvent) {
+		if (!isMobile.current) return;
+		dragged = false;
+
+		const pressed = (event.target as Element | null)?.closest('.svelte-flow__node');
+		if (!pressed) return;
+
+		selectedBeforeDrag = graphState.selectedNodeId;
+		if (selectedBeforeDrag && selectedBeforeDrag !== pressed.getAttribute('data-id')) {
+			graphState.select();
+		}
+	}
+
+	// Every tap, not just an obscured node: with the panel open nothing tappable is obscured
+	const onNodeClick: NodeEventWithPointer<MouseEvent | TouchEvent, Node> = ({ node }) => {
+		if (!isMobile.current) return;
+
+		// selectNodesOnDrag is off here, so this click is where xyflow selected the dragged node
+		if (dragged) {
+			graphState.select(selectedBeforeDrag);
+			return;
+		}
+
+		const bounds = getNodesBounds([node.id]);
+		if (!bounds.width) return;
+
+		// Held sideways: a tap lands on something already in view, and recentring would push its
+		// neighbours off the edge
+		liftAbovePanel({
+			x: screenToFlowPosition({ x: window.innerWidth / 2, y: 0 }).x,
+			y: bounds.y + bounds.height / 2
+		});
+	};
+
+	// The visible strip's middle is half the panel's height above the canvas's
+	function liftAbovePanel(centre: XYPosition) {
+		const { zoom } = getViewport();
+		const lift = ((PANEL_FRACTION / 2) * window.innerHeight) / zoom;
+		setCenter(centre.x, centre.y + lift, { zoom, duration: 300 });
+	}
+
 	let pointerPosition = { x: 0, y: 0 };
 	function trackPointer(e: MouseEvent | PointerEvent) {
 		pointerPosition = { x: e.clientX, y: e.clientY };
 	}
 
-	async function onDrop({
-		draggedItem,
-		sourceContainer,
-		targetContainer
-	}: DragDropState<ResourceType>) {
-		if (sourceContainer !== 'component-sidebar' || targetContainer !== 'canvas') {
-			return;
-		}
-
-		const position = screenToFlowPosition({
-			x: pointerPosition.x,
-			y: pointerPosition.y
-		});
-
+	async function addResource(resource: ResourceType, position: XYPosition) {
 		// Named before it exists, so the node is only created once the values are settled
-		const { namedOnCreate } = getResourceDefinition(draggedItem);
+		const { namedOnCreate } = getResourceDefinition(resource);
 		let config: Record<string, unknown> | undefined;
 		if (namedOnCreate) {
 			config = await askResourceName({
 				...namedOnCreate,
-				validate: buildNameValidator(draggedItem, graphState.nodes)
+				validate: buildNameValidator(resource, graphState.nodes)
 			});
 			// Backing out of the dialog is a decision not to add the node at all
 			if (!config) return;
 		}
 
-		const node = graphState.addNode(draggedItem, position, { config });
+		const node = graphState.addNode(resource, position, { config });
 		// Reserves the new node's ports before it first renders
 		orchestrator.refresh(node.id);
+		graphState.select(node.id);
+		return node;
+	}
+
+	function onDrop({ draggedItem, sourceContainer, targetContainer }: DragDropState<ResourceType>) {
+		if (sourceContainer !== 'component-sidebar' || targetContainer !== 'canvas') {
+			return;
+		}
+		void addResource(draggedItem, screenToFlowPosition(pointerPosition));
+	}
+
+	// Tapped adds all aim at one spot, so a new node steps right until it is clear
+	const NODE_SPACING = 140;
+
+	function clearOf(nodes: readonly Node[], spot: XYPosition): XYPosition {
+		const taken = nodes.some(
+			({ position }) =>
+				Math.abs(position.x - spot.x) < NODE_SPACING && Math.abs(position.y - spot.y) < NODE_SPACING
+		);
+		return taken ? clearOf(nodes, { x: spot.x + NODE_SPACING, y: spot.y }) : spot;
+	}
+
+	// The panel the selection opens covers the bottom, so the middle is the strip's not the window's
+	async function addResourceAtCentre(resource: ResourceType) {
+		const position = clearOf(
+			graphState.nodes,
+			screenToFlowPosition({
+				x: window.innerWidth / 2,
+				y: ((1 - PANEL_FRACTION) * window.innerHeight) / 2
+			})
+		);
+		// Sideways too: a stepped-aside node can be off the edge entirely. Only moves when the
+		// spot was taken, so an uncontested add arrives without any motion
+		if (await addResource(resource, position)) liftAbovePanel(position);
 	}
 
 	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
 		targetNode
 	}) => {
+		dragged = true;
 		if (targetNode) graphState.setNodeInStorage(targetNode);
 	};
 
@@ -174,7 +252,7 @@
 	};
 </script>
 
-{#snippet leftSidebar()}
+{#snippet leftSidebar(dismiss: () => void)}
 	<Sidebar.Root collapsible="none" class="w-full!">
 		<Sidebar.Header class="flex-row items-center gap-2 px-3 pt-3 pb-1">
 			<img src={asset('/favicon.svg')} alt="" class="size-6 shrink-0" />
@@ -183,7 +261,13 @@
 		<Sidebar.Content class="gap-0 pt-2">
 			<ProjectsGroup />
 			<Sidebar.Separator class="my-2" />
-			<ResourcesGroup />
+			<ResourcesGroup
+				onTap={(resource) => {
+					// Before the dialog a named resource opens, so the two are never up together
+					dismiss();
+					addResourceAtCentre(resource);
+				}}
+			/>
 		</Sidebar.Content>
 	</Sidebar.Root>
 {/snippet}
@@ -193,6 +277,7 @@
 	<div
 		class="relative h-full w-full"
 		ondragover={trackPointer}
+		onpointerdowncapture={onPointerDown}
 		use:droppable={{ container: 'canvas', callbacks: { onDrop } }}
 	>
 		<SvelteFlow
@@ -203,31 +288,38 @@
 			deleteKey="Delete"
 			onbeforedelete={onBeforeDelete}
 			ondelete={onDelete}
+			selectNodesOnDrag={!isMobile.current}
 			onnodedragstop={onNodeDragStop}
+			onnodeclick={onNodeClick}
 			onconnect={onConnect}
 			{isValidConnection}
 			onmoveend={(_, viewport) => (graphState.viewport = viewport)}
 			initialViewport={savedViewport}
 			fitView={!savedViewport}
+			connectionRadius={coarsePointer.current ? 44 : 20}
+			nodeDragThreshold={coarsePointer.current ? 8 : 1}
 			colorMode="system"
-			attributionPosition="top-left"
+			attributionPosition={isMobile.current ? 'bottom-right' : 'top-left'}
 		>
 			<Controls />
 			<Background />
 		</SvelteFlow>
 
-		<Button
-			variant="outline"
-			size="sm"
-			class="absolute right-0 bottom-0 z-40 rounded-none rounded-tl-md border-r-0 border-b-0 shadow-none"
-			onclick={() => shellDock?.toggle()}
-		>
-			<SquareTerminalIcon />
-			Terminal
-			{#if shellSessions.shells.length}
-				<span class="text-muted-foreground tabular-nums">{shellSessions.shells.length}</span>
-			{/if}
-		</Button>
+		<!-- xterm needs a keyboard and a width a phone has neither of -->
+		{#if !isMobile.current}
+			<Button
+				variant="outline"
+				size="sm"
+				class="absolute right-0 bottom-0 z-40 rounded-none rounded-tl-md border-r-0 border-b-0 shadow-none"
+				onclick={() => shellDock?.toggle()}
+			>
+				<SquareTerminalIcon />
+				Terminal
+				{#if shellSessions.shells.length}
+					<span class="text-muted-foreground tabular-nums">{shellSessions.shells.length}</span>
+				{/if}
+			</Button>
+		{/if}
 	</div>
 {/snippet}
 
@@ -243,8 +335,13 @@
 	{/if}
 {/snippet}
 
-<OrchestratorControls />
+<OrchestratorControls panelOpen={showsInspector} />
 
 <TourOverlay />
 
-<Workspace {leftSidebar} {mainContent} rightSidebar={showsInspector ? inspector : undefined} />
+<Workspace
+	{leftSidebar}
+	{mainContent}
+	rightSidebar={showsInspector ? inspector : undefined}
+	onDismissRightSidebar={() => graphState.select()}
+/>
