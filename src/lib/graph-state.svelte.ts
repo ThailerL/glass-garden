@@ -1,6 +1,11 @@
 import { type Edge, type Node, type Viewport } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
-import { getResourceDefinition, resourceDefinitions, type ResourceType } from './resources';
+import {
+	getResourceDefinition,
+	resourceDefinitions,
+	type ResourceDefinition,
+	type ResourceType
+} from './resources';
 import { requestPersistentStorage, setActiveProject } from './container';
 import { createContext } from './context';
 import { keysWithPrefix, readByPrefix, readEntry } from './storage';
@@ -50,6 +55,21 @@ export function anyPostgresNodes(): boolean {
 		.some((key) => readEntry<Node>(key)?.type === ('postgres' satisfies ResourceType));
 }
 
+// A config the schema has outgrown costs its settings rather than the node
+export function parseStoredConfig(definition: ResourceDefinition, config: unknown) {
+	const parsed = definition.configSchema.safeParse(config);
+	return parsed.success ? parsed.data : definition.configSchema.parse({});
+}
+
+// A stored config is re-parsed against the current schema: new options arrive at their
+// defaults, unused ones are pruned, and a resource type that no longer exists takes its node
+export function loadNode(node: Node): Node | undefined {
+	const definition = resourceDefinitions[node.type as ResourceType];
+	if (!definition || !node.data) return undefined;
+	(node.data as NodeData).config = parseStoredConfig(definition, (node.data as NodeData).config);
+	return node;
+}
+
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
@@ -73,9 +93,7 @@ export class GraphState {
 		this.viewport = undefined;
 		this.selectedNodeId = undefined;
 		this.#prefix = graphKeyPrefix(projectId);
-		this.nodes = readByPrefix<Node>(`${this.#prefix}node:`).flatMap(
-			(node) => this.#loadNode(node) ?? []
-		);
+		this.nodes = readByPrefix<Node>(`${this.#prefix}node:`).flatMap((node) => loadNode(node) ?? []);
 		// An edge to a node that did not load would be drawn into empty space
 		this.edges = readByPrefix<Edge>(`${this.#prefix}edge:`).filter(
 			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
@@ -88,19 +106,6 @@ export class GraphState {
 
 	#hasNode(id: string) {
 		return this.nodes.some((node) => node.id === id);
-	}
-
-	// A stored config is re-parsed against the current schema: new options arrive at their
-	// defaults, unused ones are pruned, and a resource type that no longer exists takes its node
-	#loadNode(node: Node): Node | undefined {
-		const definition = resourceDefinitions[node.type as ResourceType];
-		if (!definition || !node.data) return undefined;
-
-		const data = node.data as NodeData;
-		// A config the schema has outgrown costs its settings rather than the node
-		const parsed = definition.configSchema.safeParse(data.config);
-		data.config = parsed.success ? parsed.data : definition.configSchema.parse({});
-		return node;
 	}
 
 	addNode(

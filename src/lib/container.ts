@@ -68,8 +68,8 @@ export function activeProjectDirectory() {
 	return projectDirectory(activeProjectId);
 }
 
-export function nodeDirectory(nodeId: string) {
-	return `${activeProjectDirectory()}/nodes/${nodeId}`;
+export function nodeDirectory(nodeId: string, projectId?: string) {
+	return `${projectId ? projectDirectory(projectId) : activeProjectDirectory()}/nodes/${nodeId}`;
 }
 
 // Where an admin shell works. Its own directory rather than the project root, which holds

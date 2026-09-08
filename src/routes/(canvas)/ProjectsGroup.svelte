@@ -4,10 +4,15 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import ImportIcon from '@lucide/svelte/icons/import';
+	import { toast } from 'svelte-sonner';
+	import { messageOf } from '$lib/errors';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import {
 		deleteProject,
 		ensureProject,
+		exportProject,
+		importProject,
 		listProjects,
 		setLastProjectId,
 		type Project
@@ -19,6 +24,35 @@
 	const projects = $derived(listProjects());
 
 	let creating = $state(false);
+	let fileInput = $state<HTMLInputElement>();
+
+	async function download(project: Project) {
+		try {
+			const url = URL.createObjectURL(
+				new Blob([await exportProject(project)], { type: 'application/json' })
+			);
+			const link = Object.assign(document.createElement('a'), {
+				href: url,
+				download: `${project.name}.gg.json`
+			});
+			link.click();
+			URL.revokeObjectURL(url);
+		} catch (error) {
+			toast.error(`Could not export the project: ${messageOf(error)}`);
+		}
+	}
+
+	async function importPicked(input: HTMLInputElement) {
+		const file = input.files?.[0];
+		// Cleared so picking the same file again fires change again
+		input.value = '';
+		if (!file) return;
+		try {
+			openProject((await importProject(await file.text())).id);
+		} catch (error) {
+			toast.error(messageOf(error));
+		}
+	}
 
 	// Reloads rather than switching in place: a switch tears the container down and boots a new
 	// one, and on Chromium the preview relay does not survive that, so the page loses its control
@@ -59,6 +93,20 @@
 		<Sidebar.GroupAction class="top-1.5" title="New project" onclick={() => (creating = true)}>
 			<PlusIcon />
 		</Sidebar.GroupAction>
+		<Sidebar.GroupAction
+			class="top-1.5 right-9"
+			title="Import project"
+			onclick={() => fileInput?.click()}
+		>
+			<ImportIcon />
+		</Sidebar.GroupAction>
+		<input
+			bind:this={fileInput}
+			type="file"
+			accept=".json,application/json"
+			hidden
+			onchange={(event) => importPicked(event.currentTarget)}
+		/>
 
 		<Collapsible.Content>
 			<Sidebar.GroupContent>
@@ -68,6 +116,7 @@
 							{project}
 							active={project.id === graphState.projectId}
 							onOpen={() => openProject(project.id)}
+							onExport={() => download(project)}
 							onDelete={() => confirmDeleteProject(project)}
 						/>
 					{/each}
