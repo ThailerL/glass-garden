@@ -30,6 +30,7 @@
 	import SquareTerminalIcon from '@lucide/svelte/icons/square-terminal';
 	import { Button } from '$lib/components/ui/button';
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import ShellDock from '$lib/components/ShellDock.svelte';
 	import { shellSessions } from '$lib/shell-sessions.svelte';
 	import ResourceNode from './ResourceNode.svelte';
@@ -49,7 +50,8 @@
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
-	const { screenToFlowPosition, setCenter, getViewport, getNodesBounds } = useSvelteFlow();
+	const { screenToFlowPosition, setCenter, getViewport, getNodesBounds, deleteElements } =
+		useSvelteFlow();
 
 	// Drives the layout, never what the canvas can do
 	const isMobile = new IsMobile();
@@ -231,6 +233,34 @@
 		if (targetNode) graphState.setNodeInStorage(targetNode);
 	};
 
+	// The only way to delete without a keyboard. deleteElements is the same path the Delete key
+	// takes, so the confirm dialog and the cleanup in ondelete both still run
+	let contextMenu = $state<{ at: XYPosition; subject: string; remove: () => void }>();
+
+	// The flow reports a point, not an element, so the menu hangs off a zero-size rect there
+	const anchor = $derived.by(() => {
+		const at = contextMenu?.at;
+		return at && { getBoundingClientRect: () => new DOMRect(at.x, at.y, 0, 0) };
+	});
+
+	const onNodeContextMenu: NodeEventWithPointer<MouseEvent, Node> = ({ event, node }) => {
+		event.preventDefault();
+		contextMenu = {
+			at: { x: event.clientX, y: event.clientY },
+			subject: `"${nodeName(node)}"`,
+			remove: () => void deleteElements({ nodes: [{ id: node.id }] })
+		};
+	};
+
+	function onEdgeContextMenu({ event, edge }: { event: MouseEvent; edge: Edge }) {
+		event.preventDefault();
+		contextMenu = {
+			at: { x: event.clientX, y: event.clientY },
+			subject: 'connection',
+			remove: () => void deleteElements({ edges: [{ id: edge.id }] })
+		};
+	}
+
 	const isValidConnection: IsValidConnection = ({ source, target }) => {
 		const sourceNode = graphState.getNode(source);
 		const targetNode = graphState.getNode(target);
@@ -291,6 +321,8 @@
 			selectNodesOnDrag={!isMobile.current}
 			onnodedragstop={onNodeDragStop}
 			onnodeclick={onNodeClick}
+			onnodecontextmenu={onNodeContextMenu}
+			onedgecontextmenu={onEdgeContextMenu}
 			onconnect={onConnect}
 			{isValidConnection}
 			onmoveend={(_, viewport) => (graphState.viewport = viewport)}
@@ -336,6 +368,16 @@
 {/snippet}
 
 <OrchestratorControls panelOpen={showsInspector} />
+
+<ContextMenu.Root open={!!contextMenu} onOpenChange={(open) => open || (contextMenu = undefined)}>
+	{#if contextMenu}
+		<ContextMenu.Content customAnchor={anchor}>
+			<ContextMenu.Item onSelect={contextMenu.remove}>
+				Delete {contextMenu.subject}
+			</ContextMenu.Item>
+		</ContextMenu.Content>
+	{/if}
+</ContextMenu.Root>
 
 <TourOverlay />
 
