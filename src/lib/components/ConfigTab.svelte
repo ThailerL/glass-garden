@@ -57,7 +57,7 @@
 	// The count only tells the user something once there is more than one instance to lose
 	const saveLabel = $derived(
 		bouncedInstances === 0
-			? 'Save changes'
+			? 'Save config'
 			: bouncedInstances === 1
 				? 'Save and restart'
 				: `Save and restart ${bouncedInstances} instances`
@@ -74,7 +74,7 @@
 		graphState.updateNodeConfig(node.id, $formData);
 		// A running node reconciles toward the new config immediately
 		orchestrator.refresh(node.id);
-		toast.success('Saved changes');
+		toast.success('Saved config');
 	}
 
 	// Keystrokes from the fields bubble here, so the shortcut is the form's own rather than the

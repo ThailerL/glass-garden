@@ -7,10 +7,16 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
-	import { setFileDraftState, setFileRefresh } from '$lib/files';
+	import { setFileDraftState, setFileRefresh, saveFile } from '$lib/files';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { shellLaunchOptions } from '$lib/shell-launch';
 	import { shellSessions, type ShellOwner } from '$lib/shell-sessions.svelte';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { resolve } from '$app/paths';
+	import InfoIcon from '@lucide/svelte/icons/info';
+	import SaveIcon from '@lucide/svelte/icons/save';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 
 	// Nothing inside the container announces what it writes, so the open listings re-read on
 	// a timer to catch the terminal, npm install, and running processes
@@ -21,8 +27,18 @@
 	const {
 		nodeId,
 		initialFiles,
-		rightSidebar
-	}: { nodeId: string; initialFiles: FileSystemTree; rightSidebar: Snippet } = $props();
+		rightSidebar,
+		onDismissRightSidebar,
+		onShowInfo
+	}: {
+		nodeId: string;
+		initialFiles: FileSystemTree;
+		rightSidebar?: Snippet;
+		onDismissRightSidebar?: () => void;
+		onShowInfo?: () => void;
+	} = $props();
+
+	const isMobile = new IsMobile();
 
 	// The node id keys the mount; rootPath is the same node addressed as an absolute path
 	// inside the container, which is what the fs and the shell want
@@ -31,7 +47,7 @@
 
 	let selectedFilePath = $state<string[]>([]);
 
-	setFileDraftState(root);
+	const fileDraftState = setFileDraftState(root);
 	const refresh = setFileRefresh();
 
 	const container = await getContainer();
@@ -42,35 +58,71 @@
 		untrack(() => initialFiles)
 	);
 
+	const save = () => saveFile(container, rootPath, selectedFilePath, fileDraftState, refresh);
+
 	const poll = setInterval(() => refresh.bump(), POLL_INTERVAL_MS);
 
 	$effect(() => () => clearInterval(poll));
 
-	// A shell for this node is here on arrival, as it was before tabs; the canvas opens none
+	// A shell for this node is here on arrival, as it was before tabs; the canvas opens none.
+	// A phone gets none either, for the reason its canvas has no terminal button
 	const shellOwner: ShellOwner = { kind: 'node', nodeId: root };
 	const orchestrator = getOrchestrator();
-	shellSessions.ensureFor(shellOwner, () => shellLaunchOptions(shellOwner, orchestrator));
+	if (!isMobile.current) {
+		shellSessions.ensureFor(shellOwner, () => shellLaunchOptions(shellOwner, orchestrator));
+	}
 </script>
 
-{#snippet leftSidebar()}
+{#snippet leftSidebar(dismiss: () => void)}
 	<Sidebar.Root collapsible="none" class="w-full!">
 		<Sidebar.Content class="p-2">
-			<RootFileTree bind:selectedFilePath root={rootPath} {container} />
+			<!-- On the small layout the tree is a sheet over the file it opens, so picking one
+			puts it away -->
+			<RootFileTree bind:selectedFilePath root={rootPath} {container} onSelect={dismiss} />
 		</Sidebar.Content>
 	</Sidebar.Root>
 {/snippet}
 
+<!-- The name sits in the bar Workspace builds, so it is not repeated over the file. Save is
+here because the key that does it on a desktop needs a keyboard -->
+{#snippet topBar()}
+	<div class="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+		{selectedFilePath.join('/')}
+	</div>
+	<Button
+		variant="ghost"
+		size="icon"
+		aria-label="Save file"
+		disabled={!fileDraftState.isDirty(selectedFilePath)}
+		onclick={save}
+	>
+		<SaveIcon />
+	</Button>
+	<Button variant="ghost" size="icon" aria-label="Resource details" onclick={onShowInfo}>
+		<InfoIcon />
+	</Button>
+	<Button variant="ghost" size="icon" aria-label="Back to canvas" href={resolve('/')}>
+		<ArrowLeftIcon />
+	</Button>
+{/snippet}
+
 {#snippet editor()}
 	<div class="flex h-full flex-col">
-		<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
+		{#if !isMobile.current}
+			<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
+		{/if}
 		<div class="min-h-0 flex-1">
-			<TextEditor {container} root={rootPath} {selectedFilePath} />
+			<TextEditor {container} root={rootPath} {selectedFilePath} {save} />
 		</div>
 	</div>
 {/snippet}
 
 {#snippet mainContent()}
-	<ShellDock owner={shellOwner} main={editor} />
+	{#if isMobile.current}
+		{@render editor()}
+	{:else}
+		<ShellDock owner={shellOwner} main={editor} />
+	{/if}
 {/snippet}
 
-<Workspace {leftSidebar} {mainContent} {rightSidebar} />
+<Workspace {leftSidebar} {mainContent} {topBar} {rightSidebar} {onDismissRightSidebar} />

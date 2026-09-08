@@ -5,21 +5,28 @@
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
-	import { Button } from '$lib/components/ui/button';
-	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
-	import { resolve } from '$app/paths';
-	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { messageOf } from '$lib/errors';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import { nodeFiles } from '$lib/files/node-files';
+	import { Button } from '$lib/components/ui/button';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { resolve } from '$app/paths';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 
 	const { params }: PageProps = $props();
 
 	const orchestrator = getOrchestrator();
 
 	const isMobile = new IsMobile();
+
+	// Pinned open the panel would cover most of the file being edited, so on the small layout
+	// it is something you ask for. Undefined rather than an empty snippet: Workspace reads the
+	// absence, not the contents
+	let infoOpen = $state(false);
+	const inspector = $derived(!isMobile.current || infoOpen ? rightSidebar : undefined);
+	const closeInspector = () => (infoOpen = false);
 
 	const nodeId = untrack(() => params.nodeId);
 	// Undefined when the id in the URL isn't a real node
@@ -44,18 +51,28 @@ rendered either side of the boundary and stays in view for the whole wait -->
 	<div class="h-full"></div>
 {/snippet}
 
-{#if isMobile.current}
-	<!-- Reachable by URL from anywhere, and three panes wide between them -->
-	<div class="flex h-dvh w-screen flex-col items-center justify-center gap-4 p-8 text-center">
-		<p class="text-muted-foreground">Editing code needs a larger screen.</p>
-		<Button variant="outline" href={resolve('/')}>
-			<ArrowLeftIcon />
-			Back to Canvas
-		</Button>
-	</div>
-{:else if initialFiles}
+<!-- Nothing to name while the container boots, so the bar carries only the way out -->
+{#snippet bootBar()}
+	<Button
+		variant="ghost"
+		size="icon"
+		class="ml-auto"
+		aria-label="Back to canvas"
+		href={resolve('/')}
+	>
+		<ArrowLeftIcon />
+	</Button>
+{/snippet}
+
+{#if initialFiles}
 	<svelte:boundary>
-		<Editor {nodeId} {initialFiles} {rightSidebar} />
+		<Editor
+			{nodeId}
+			{initialFiles}
+			rightSidebar={inspector}
+			onDismissRightSidebar={closeInspector}
+			onShowInfo={() => (infoOpen = !infoOpen)}
+		/>
 
 		{#snippet pending()}
 			{#snippet mainContent()}
@@ -65,7 +82,13 @@ rendered either side of the boundary and stays in view for the whole wait -->
 				</div>
 			{/snippet}
 
-			<Workspace leftSidebar={blank} {mainContent} {rightSidebar} />
+			<Workspace
+				leftSidebar={blank}
+				{mainContent}
+				topBar={bootBar}
+				rightSidebar={inspector}
+				onDismissRightSidebar={closeInspector}
+			/>
 		{/snippet}
 
 		{#snippet failed(error)}
@@ -78,7 +101,13 @@ rendered either side of the boundary and stays in view for the whole wait -->
 				</div>
 			{/snippet}
 
-			<Workspace leftSidebar={blank} {mainContent} {rightSidebar} />
+			<Workspace
+				leftSidebar={blank}
+				{mainContent}
+				topBar={bootBar}
+				rightSidebar={inspector}
+				onDismissRightSidebar={closeInspector}
+			/>
 		{/snippet}
 	</svelte:boundary>
 {:else}

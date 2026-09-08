@@ -22,12 +22,14 @@
 		selectedFilePath = $bindable(),
 		entry,
 		siblingNames,
-		parentPath
+		parentPath,
+		onSelect
 	}: {
 		selectedFilePath: string[];
 		entry: DirEnt;
 		siblingNames: string[];
 		parentPath: string[];
+		onSelect?: () => void;
 	} = $props();
 
 	const fileDraftState = getFileDraftState();
@@ -160,6 +162,7 @@
 									entry={child}
 									siblingNames={listing.names}
 									parentPath={itemPath}
+									{onSelect}
 								/>
 							{/each}
 						{/if}
@@ -202,7 +205,9 @@
 						name={itemName}
 						editing={itemRenameMode === 'edit'}
 						onclick={() => {
-							if (itemRenameMode === 'view') selectedFilePath = itemPath;
+							if (itemRenameMode !== 'view') return;
+							selectedFilePath = itemPath;
+							onSelect?.();
 						}}
 					>
 						{#snippet label()}

@@ -6,24 +6,24 @@
 	import { json } from '@codemirror/lang-json';
 	import type { EditorView } from '@codemirror/view';
 	import { Vivari } from '@vivari/core';
-	import { getFileDraftState, getFileRefresh } from '$lib/files';
+	import { getFileDraftState } from '$lib/files';
 	import { dracula } from '@uiw/codemirror-theme-dracula';
 	import { mode } from 'mode-watcher';
-	import { requestPersistentStorage } from '$lib/container';
 	import { toast } from 'svelte-sonner';
 
 	const {
 		container,
 		root,
-		selectedFilePath
+		selectedFilePath,
+		save
 	}: {
 		container: Vivari;
 		root: string;
 		selectedFilePath: string[];
+		save: () => void;
 	} = $props();
 
 	const fileDraftState = getFileDraftState();
-	const refresh = getFileRefresh();
 
 	// An extension with nothing here is left unhighlighted, which reads better than
 	// highlighting it as something it isn't
@@ -69,18 +69,11 @@
 		return target instanceof Element && !!target.closest('[data-save-scope]');
 	}
 
-	async function handleKeydown(e: KeyboardEvent) {
+	function handleKeydown(e: KeyboardEvent) {
 		if ((e.metaKey || e.ctrlKey) && e.key === 's') {
 			if (!inSaveScope(e.target)) return;
 			e.preventDefault();
-			if (!loaded) return;
-			const saved = currentDraft;
-			await container.fs.writeFile([root, ...selectedFilePath].join('/'), saved);
-			// Not awaited: on Firefox this prompts, and saving shouldn't wait on an answer
-			void requestPersistentStorage();
-			// The file holds the draft now, so the marker clears without reading it back
-			fileDraftState.setBaseline(selectedFilePath, saved);
-			refresh.bump();
+			save();
 		}
 	}
 </script>

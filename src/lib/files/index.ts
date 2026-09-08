@@ -8,5 +8,6 @@ export {
 	anyDraftsDirty
 } from './draft-state.svelte';
 export { FileRefresh, setFileRefresh, getFileRefresh } from './refresh.svelte';
+export { saveFile } from './save';
 export { isAtOrUnder, rebase, createFile, createFolder, directoryListing } from './tree.svelte';
 export { FileTreeContext, setFileTreeContext, getFileTreeContext } from './tree-context.svelte';

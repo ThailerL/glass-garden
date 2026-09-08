@@ -21,11 +21,13 @@
 	let {
 		selectedFilePath = $bindable(),
 		root,
-		container
+		container,
+		onSelect
 	}: {
 		selectedFilePath: string[];
 		root: string;
 		container: Vivari;
+		onSelect?: () => void;
 	} = $props();
 
 	const refresh = getFileRefresh();
@@ -111,7 +113,13 @@
 			>
 				<TreeView.Root>
 					{#each listing.entries as entry (entry.name)}
-						<FileTree bind:selectedFilePath {entry} siblingNames={listing.names} parentPath={[]} />
+						<FileTree
+							bind:selectedFilePath
+							{entry}
+							siblingNames={listing.names}
+							parentPath={[]}
+							{onSelect}
+						/>
 					{/each}
 				</TreeView.Root>
 			</div>

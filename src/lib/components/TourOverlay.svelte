@@ -53,10 +53,6 @@
 	const REFRESHED =
 		'Keep refreshing. The load balancer takes the next lane every time, and the port on the page changes with it.';
 
-	// The closing step points at Edit Resource Code, which a phone does not carry
-	const DONE_ELSEWHERE =
-		'Every instance is running the same small server file. Open this canvas on a computer to change what the page says, and they all pick it up on their next boot.';
-
 	// Replaces the metrics step's opening line once its charts are on screen
 	const CHARTS_OPEN =
 		'Each instance counted the requests it answered on its own. The chart shows how they were shared out, and "all" adds them back up to the total refreshes you did.';
@@ -152,9 +148,6 @@
 		}
 		if (tour.step === 'metrics' && chartsOpen) {
 			return { ...CARD_TEXT.metrics, body: CHARTS_OPEN };
-		}
-		if (tour.step === 'done' && isMobile.current) {
-			return { ...CARD_TEXT.done, body: DONE_ELSEWHERE };
 		}
 		return CARD_TEXT[tour.step];
 	});
@@ -277,9 +270,16 @@
 			window.innerWidth - CARD_WIDTH - WINDOW_EDGE_GAP
 		);
 		const offset = clamp(spot.left + spot.width / 2 - left, 18, CARD_WIDTH - 18);
+
+		// Nothing inside the small layout's panel takes a card below it, however much room is
+		// there: the refresh button sits at the top of the preview with the page underneath, and
+		// that page is what the step is about. Found by query rather than by measuring down from
+		// the panel's height, which cannot tell a panel that is shut from one that is not there
+		const panel = boxOf('[data-mobile-panel]');
 		const noRoomBelow =
+			(!!panel && spot.top >= panel.top - HIGHLIGHT_GAP) ||
 			spot.top + spot.height + HIGHLIGHT_GAP + measuredCardHeight >
-			window.innerHeight - WINDOW_EDGE_GAP;
+				window.innerHeight - WINDOW_EDGE_GAP;
 		if (noRoomBelow) {
 			return {
 				top: Math.max(WINDOW_EDGE_GAP, spot.top - HIGHLIGHT_GAP - measuredCardHeight),
@@ -406,14 +406,8 @@
 
 		{#if tour.step === 'done'}
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				{#if isMobile.current}
-					Open the menu at the top left and press
-					<PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects to start a new canvas
-					from a template.
-				{:else}
-					Click <PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar
-					to start a new canvas from a template.
-				{/if}
+				Start another canvas from a template with the
+				<PlusIcon class="inline size-3.5 align-text-bottom" /> next to Projects in the sidebar.
 			</p>
 		{/if}
 
