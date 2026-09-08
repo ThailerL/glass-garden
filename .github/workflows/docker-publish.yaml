@@ -1,6 +1,5 @@
 name: Build and publish a Docker image to ghcr.io
-# Every push to main is built, smoke-tested and pushed as `main` (for the hosted deploy to
-# track), but `latest` — the tag the README names — moves only when a release is published
+# Every push to main is built, smoke-tested and pushed as `main` but `latest` moves only when a release is published
 on:
   push:
     branches:
