@@ -45,7 +45,31 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: echo "name=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and publish a Docker image for ${{ github.repository }}
+      # Loaded into the local daemon first so the image is exercised before it is published;
+      # the publish below reuses these layers from the cache
+      - name: Build a Docker image for ${{ github.repository }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: glass-garden:smoke
+
+      # The image carries no node_modules, so a runtime dependency that failed to bundle
+      # shows up here as a container that dies on startup rather than as a red page for
+      # whoever pulls it. Cross-origin isolation is checked too: without those headers the
+      # app has no SharedArrayBuffer and cannot boot its VM
+      - name: The image starts and serves a cross-origin-isolated page
+        run: |
+          docker run --detach --name smoke --publish 3000:3000 glass-garden:smoke
+          for _ in $(seq 30); do
+            curl --silent --fail --output /dev/null http://localhost:3000/ && break
+            sleep 1
+          done
+          docker logs smoke
+          curl --silent --fail --dump-header - --output /dev/null http://localhost:3000/ \
+            | grep --ignore-case --quiet 'cross-origin-embedder-policy: require-corp'
+
+      - name: Publish the image
         uses: docker/build-push-action@v6
         with:
           context: .

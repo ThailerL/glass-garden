@@ -10,7 +10,7 @@
 		"vendor": "node scripts/vendor-assets.mjs && node scripts/vendor-aws-region.mjs",
 		"predev": "npm run vendor",
 		"dev": "vite dev --port 3000",
-		"prebuild": "npm run vendor",
+		"prebuild": "node scripts/check-no-runtime-deps.mjs && npm run vendor",
 		"build": "vite build",
 		"preview": "vite preview --host --port 3000",
 		"prepare": "svelte-kit sync || echo ''",
