@@ -11,6 +11,8 @@ const app = (id: string, name: string) =>
 const bucket = (id: string, name: string, bucketName: string) =>
 	node(id, 's3Bucket', { name, bucketName });
 const database = (id: string, name: string) => node(id, 'postgres', { name, maxConnections: 10 });
+const fn = (id: string, name: string, functionName: string) =>
+	node(id, 'lambdaFunction', { name, functionName, timeout: 3, maxConcurrency: 5 });
 
 const neighbour = (node: Node, port = 5000) => ({
 	node,
@@ -48,6 +50,12 @@ describe('consumerEnv', () => {
 		expect(consumerEnv(web, db).DATABASE_URL).toBe(
 			`postgres://gg${web.id}@localhost:5433/postgres`
 		);
+	});
+
+	it('supplies the name a caller passes to Invoke', () => {
+		const env = consumerEnv(web, [neighbour(fn('f1', 'Resize Images', 'resize-images'))]);
+		expect(env.RESIZE_IMAGES_FUNCTION_NAME).toBe('resize-images');
+		expect(env.LAMBDA_FUNCTION_NAME).toBe('resize-images');
 	});
 
 	it('mixes providers of different kinds in one environment', () => {

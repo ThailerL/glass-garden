@@ -18,6 +18,14 @@
 <ConfigField {form} name="name" label="Name" bind:value={$formData.name} />
 <ConfigField
 	{form}
+	name="functionName"
+	label="Function Name"
+	readonly
+	description="What your code passes to the AWS SDK to invoke this function."
+	bind:value={$formData.functionName}
+/>
+<ConfigField
+	{form}
 	name="timeout"
 	label="Timeout (seconds)"
 	type="number"

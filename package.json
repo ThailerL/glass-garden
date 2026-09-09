@@ -23,6 +23,7 @@
 	},
 	"devDependencies": {
 		"@aws-sdk/client-dynamodb": "^3.1127.0",
+		"@aws-sdk/client-lambda": "^3.1128.0",
 		"@aws-sdk/client-s3": "^3.1127.0",
 		"@aws-sdk/client-sqs": "^3.1127.0",
 		"@codemirror/lang-css": "^6.3.1",

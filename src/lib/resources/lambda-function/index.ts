@@ -5,7 +5,7 @@ import FunctionIcon from '@lucide/svelte/icons/square-function';
 import * as resourceFiles from 'virtual:resource-files';
 import FunctionConfig from './FunctionConfig.svelte';
 import type { Capture, ConnectedNode, ResourceDefinition } from '../types';
-import { npmInstall, processHandle } from '../shared';
+import { npmInstall, processHandle, slugify } from '../shared';
 import { consumerEnv } from '../env';
 import { activeProjectDirectory, mountSharedFiles, nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -18,8 +18,20 @@ import {
 } from '$lib/aws-region';
 import { awsResourceOf, notificationQueueName } from '$lib/aws-topology';
 
+// Lambda's own rule for a function name
+export const functionNameSchema = z
+	.string()
+	.min(1)
+	.max(64)
+	.regex(/^[a-zA-Z0-9_-]+$/, 'Use letters, numbers, hyphens and underscores');
+
+export function toFunctionName(displayName: string) {
+	return slugify(displayName, { separator: '-', case: 'lower', maxLength: 64 });
+}
+
 const configSchema = z.object({
 	name: z.string().min(1).default('Function'),
+	functionName: functionNameSchema.default('function'),
 	// Lambda's own default and ceiling
 	timeout: z.coerce.number().min(1).max(900).default(3),
 	maxConcurrency: z.coerce.number().int().min(1).max(20).default(5)
@@ -35,10 +47,12 @@ const queueTrigger = (source: 'sqs' | 's3', queueName: string) => ({
 	queueUrl: queueUrlFor(queueName)
 });
 
+const functionNameOf = (node: Node) => nodeConfig<Config>(node).functionName;
+
 // The function's own name, which the manager reports to the handler as its identity - AWS's
 // own reserved variable, not a grant from a connection, so it travels outside consumerEnv
 function ownEnv(node: Node) {
-	return { AWS_LAMBDA_FUNCTION_NAME: nodeConfig<Config>(node).name };
+	return { AWS_LAMBDA_FUNCTION_NAME: functionNameOf(node) };
 }
 
 function launchConfig(node: Node, neighbours: readonly ConnectedNode[]) {
@@ -66,10 +80,31 @@ export const lambdaFunction = {
 	hasEditableFiles: true,
 	hasPreview: true,
 	ownsStoredData: false,
-	provides: ['http', 'invoke'],
+	// Invoked through the region like any AWS resource, so a caller uses it under 'aws'
+	provides: ['http', 'invoke', 'aws'],
 	consumes: ['sql', 'aws'],
 	configComponent: FunctionConfig,
 	configSchema,
+	namedOnCreate: {
+		title: 'Add a function',
+		description: 'Name the node and the function it creates.',
+		fields: [
+			{
+				field: 'name',
+				label: 'Display name',
+				description: 'What this node is called on the canvas. You can change it later.'
+			},
+			{
+				field: 'functionName',
+				label: 'Function name',
+				description:
+					'What your code passes to the AWS SDK to invoke it. Lambda has no rename, so this one is permanent. Letters, numbers, hyphens and underscores.',
+				emphasis: 'permanent',
+				derive: { from: 'name', value: toFunctionName },
+				unique: true
+			}
+		]
+	},
 	// Lambda's own guidance for ConcurrentExecutions: a level sampled at every start and finish
 	// averages to nothing meaningful, while its peak is the number of environments in use
 	metricDefaults: { 'concurrent executions': 'Maximum' },
@@ -81,6 +116,11 @@ export const lambdaFunction = {
 	instanceLabel: 'manager',
 	launchConfig,
 	ownEnv,
+	supplies: (node: Node) => ({
+		suffix: 'FUNCTION_NAME',
+		value: functionNameOf(node),
+		soleName: 'LAMBDA_FUNCTION_NAME'
+	}),
 	prepare: async (node: Node, container: Vivari, capture: Capture) => {
 		await Promise.all([
 			mountSharedFiles(MANAGER_DIRECTORY, resourceFiles.functionManager),

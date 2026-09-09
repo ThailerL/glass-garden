@@ -1,5 +1,5 @@
 // Every key of dispatch.js's SERVICES, plus s3, whose verbs are hand-written over s3api
-export const SERVICE_NAMES = ['dynamodb', 's3', 's3api', 'sqs'];
+export const SERVICE_NAMES = ['dynamodb', 'lambda', 's3', 's3api', 'sqs'];
 
 export const USAGE = `usage: aws <service> <operation> [--flag value ...]
 

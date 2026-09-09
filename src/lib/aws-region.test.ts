@@ -3,7 +3,9 @@ import {
 	bucketFromPath,
 	decideRequest,
 	denialResponse,
+	emptyTopology,
 	extractResourceNames,
+	invokedFunctionName,
 	parseCredential,
 	isNotificationQueue,
 	notifiedBuckets,
@@ -20,12 +22,21 @@ const topology: Topology = {
 		ggweb: {
 			nodeId: 'node-1',
 			name: 'Web App',
-			resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [] }
+			resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [], lambda: ['resize'] }
 		},
 		// The admin holds everything on the canvas and belongs to no node
-		ggadmin: { name: 'Admin', resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [] } }
+		ggadmin: {
+			name: 'Admin',
+			resources: { s3: ['assets'], sqs: ['jobs'], dynamodb: [], lambda: ['resize'] }
+		}
 	},
-	owners: { s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' }, dynamodb: {} }
+	owners: {
+		s3: { assets: 'node-2' },
+		sqs: { jobs: 'node-3' },
+		dynamodb: {},
+		lambda: { resize: 'node-4' }
+	},
+	ports: { 'node-4': 4100 }
 };
 
 describe('parseCredential', () => {
@@ -128,6 +139,18 @@ describe('extractResourceNames', () => {
 		expect(extractResourceNames('sqs', '/', JSON.stringify(body))).toEqual(['jobs']);
 	});
 
+	it('reads the function an Invoke names, however the caller wrote it', () => {
+		const invoke = (name: string) =>
+			`/2015-03-31/functions/${encodeURIComponent(name)}/invocations`;
+		expect(invokedFunctionName(invoke('resize'))).toBe('resize');
+		expect(
+			invokedFunctionName(invoke('arn:aws:lambda:us-east-1:000000000000:function:resize'))
+		).toBe('resize');
+		expect(invokedFunctionName(invoke('000000000000:function:resize'))).toBe('resize');
+		expect(invokedFunctionName('/2015-03-31/functions/')).toBeUndefined();
+		expect(extractResourceNames('lambda', '/2015-03-31/functions/', undefined)).toEqual([]);
+	});
+
 	it('names nothing on unparseable or nameless bodies', () => {
 		expect(extractResourceNames('sqs', '/', 'not json')).toEqual([]);
 		expect(extractResourceNames('dynamodb', '/', '{}')).toEqual([]);
@@ -176,10 +199,11 @@ describe('decideRequest', () => {
 				ggweb: {
 					nodeId: 'node-1',
 					name: 'Web App',
-					resources: { s3: ['assets'], sqs: [], dynamodb: [] }
+					resources: { s3: ['assets'], sqs: [], dynamodb: [], lambda: [] }
 				}
 			},
-			owners: { s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' }, dynamodb: {} }
+			owners: { ...emptyTopology().owners, s3: { assets: 'node-2' }, sqs: { jobs: 'node-3' } },
+			ports: {}
 		};
 		const decision = decideRequest(
 			{ credential: parseCredential(auth('sqs')), resourceNames: ['jobs'] },
@@ -208,6 +232,13 @@ describe('decideRequest', () => {
 
 		const noTables = decide(auth('dynamodb', 'ggadmin'), 'users');
 		expect(noTables.allow || noTables.message).toMatch(/no Table node on the canvas/);
+	});
+
+	it('treats a function like any other resource: an edge to it, or a signpost', () => {
+		expect(decide(auth('lambda'), 'resize').allow).toBe(true);
+		const wrong = decide(auth('lambda'), 'other');
+		expect(wrong).toMatchObject({ allow: false, status: 403, nodeId: 'node-1' });
+		expect(wrong.allow || wrong.message).toMatch(/function "other".*Function node/);
 	});
 
 	it('requires every resource a request names: a granted one does not excuse another', () => {

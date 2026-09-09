@@ -339,6 +339,11 @@ function invoke(event) {
 const respondJson = (res, status, value) =>
   res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(value));
 
+const throttled = (res, body) => {
+  res.setHeader('x-amzn-errortype', THROTTLED);
+  respondJson(res, 429, body);
+};
+
 function handleRuntimeApi(req, res, route, body) {
   const env = environments.get(req.headers['x-gg-environment'] ?? '');
   if (!env) return respondJson(res, 404, { errorMessage: 'Unknown execution environment' });
@@ -444,13 +449,44 @@ async function handleHttp(req, res, url, body) {
   // details are in the log
   if (outcome.error) {
     const { errorType, errorMessage } = outcome.error;
-    if (errorType === THROTTLED) {
-      res.setHeader('x-amzn-errortype', THROTTLED);
-      return respondJson(res, 429, { message: errorMessage });
-    }
+    if (errorType === THROTTLED) return throttled(res, { message: errorMessage });
     return respondJson(res, 502, { message: 'Internal Server Error', errorType, errorMessage });
   }
   sendHttpResult(res, outcome.result);
+}
+
+// ── The Invoke API ────────────────────────────────────────────────────────────────────────
+
+// Lambda's own path, relayed here by the region once it has authorised the caller
+const INVOKE_PATH = /^\/2015-03-31\/functions\/[^/]+\/invocations$/;
+
+// The body is the event verbatim; a handler error is a 200 flagged by a header, as on Lambda
+async function handleInvoke(req, res, body) {
+  let event = null;
+  try {
+    if (body.length > 0) event = JSON.parse(body.toString('utf8'));
+  } catch {
+    return respondJson(res, 400, {
+      __type: 'InvalidRequestContentException',
+      message: 'Could not parse request body into json',
+    });
+  }
+  const type = req.headers['x-amz-invocation-type'] ?? 'RequestResponse';
+  if (type === 'DryRun') return res.writeHead(204).end();
+  if (type === 'Event') res.writeHead(202).end();
+  const { error, result } = await invoke(event);
+  if (type === 'Event') {
+    if (error) console.error(`An asynchronous invocation ${failure(error)}`);
+    return;
+  }
+  if (error?.errorType === THROTTLED) {
+    return throttled(res, { __type: THROTTLED, message: error.errorMessage });
+  }
+  if (error) {
+    res.setHeader('x-amz-function-error', 'Unhandled');
+    return respondJson(res, 200, error);
+  }
+  respondJson(res, 200, result ?? null);
 }
 
 // ── Trigger queues ────────────────────────────────────────────────────────────────────────
@@ -685,6 +721,8 @@ try {
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname.startsWith(RUNTIME_API_PREFIX)) {
         handleRuntimeApi(req, res, url.pathname.slice(RUNTIME_API_PREFIX.length), body);
+      } else if (req.method === 'POST' && INVOKE_PATH.test(url.pathname)) {
+        await handleInvoke(req, res, body);
       } else {
         await handleHttp(req, res, url, body);
       }

@@ -1,8 +1,8 @@
 import type { Edge, Node } from '@xyflow/svelte';
-import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
+import { nodeConfig, nodeName, nodePorts } from '$lib/graph-state.svelte';
 import { getResourceDefinition } from '$lib/resources';
 import type { Principal, Service, Topology } from '$lib/aws-region';
-import { notificationQueueName } from '../../resources/aws-region/lib.js';
+import { emptyByService, notificationQueueName } from '../../resources/aws-region/lib.js';
 
 // One table maps every AWS node type to the service it serves and where its name lives in
 // config. The name the emulator enforces on is not always the value a consumer's code wants
@@ -11,7 +11,9 @@ import { notificationQueueName } from '../../resources/aws-region/lib.js';
 const AWS_SERVICES: Partial<Record<string, { service: Service; resourceKey: string }>> = {
 	s3Bucket: { service: 's3', resourceKey: 'bucketName' },
 	sqsQueue: { service: 'sqs', resourceKey: 'queueName' },
-	dynamodbTable: { service: 'dynamodb', resourceKey: 'tableName' }
+	dynamodbTable: { service: 'dynamodb', resourceKey: 'tableName' },
+	// Served by its own manager rather than the emulator, but invoked through the region
+	lambdaFunction: { service: 'lambda', resourceKey: 'functionName' }
 };
 
 export type AwsResource = { service: Service; resourceName: string };
@@ -38,34 +40,35 @@ export const ADMIN_ACCESS_KEY = accessKeyFor('admin');
 
 export { notificationQueueName } from '../../resources/aws-region/lib.js';
 
-const emptyResources = (): Record<Service, string[]> => ({ s3: [], sqs: [], dynamodb: [] });
-
 // The whole enforcement input, rebuilt from the graph: which node serves each resource, and
 // for each caller, the resource names its edges grant it. Only consumers become principals -
 // a resource node runs no code and is never issued credentials
 export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): Topology {
 	const awsNodes = new Map<string, AwsResource>();
+	// The reserved port of anything the region relays to
+	const ports: Record<string, number> = {};
 	for (const node of nodes) {
 		const resource = awsResourceOf(node);
-		if (resource) awsNodes.set(node.id, resource);
+		if (!resource) continue;
+		awsNodes.set(node.id, resource);
+		const [port] = nodePorts(node);
+		if (getResourceDefinition(node.type).runsProcesses && port !== undefined) {
+			ports[node.id] = port;
+		}
 	}
 
+	// Every node that can call AWS is a principal, granted or not, so an unconnected call is
+	// told to draw an edge rather than refused as an unknown key. An edge at either end
+	// grants: code pointing at a resource uses it, a resource pointing at code triggers it
 	const principals: Record<string, Principal> = {};
-	const principalFor = (node: Node) => {
-		const key = accessKeyFor(node.id);
-		principals[key] ??= { nodeId: node.id, name: nodeName(node), resources: emptyResources() };
-		return principals[key];
-	};
-
-	// Every node that can call AWS becomes a principal, granted nothing or not: without one,
-	// an unconnected call is refused as an unknown key instead of being told to draw an edge
 	for (const node of nodes) {
-		if (getResourceDefinition(node.type).consumes.includes('aws')) principalFor(node);
-	}
-
-	// An edge at either end grants: code pointing at a resource uses it, and a resource
-	// pointing at code triggers it, which the code then reads from with its own credentials
-	for (const node of nodes) {
+		if (!getResourceDefinition(node.type).consumes.includes('aws')) continue;
+		const principal: Principal = {
+			nodeId: node.id,
+			name: nodeName(node),
+			resources: emptyByService<string[]>(() => [])
+		};
+		principals[accessKeyFor(node.id)] = principal;
 		const granted = edges.flatMap((edge) => {
 			if (edge.source === node.id) return awsNodes.get(edge.target) ?? [];
 			if (edge.target === node.id) return awsNodes.get(edge.source) ?? [];
@@ -76,8 +79,6 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 		if (edges.some((e) => e.target === node.id && awsNodes.get(e.source)?.service === 's3')) {
 			granted.push({ service: 'sqs', resourceName: notificationQueueName(node.id) });
 		}
-		if (granted.length === 0) continue;
-		const principal = principalFor(node);
 		for (const { service, resourceName } of granted) {
 			if (!principal.resources[service].includes(resourceName)) {
 				principal.resources[service].push(resourceName);
@@ -85,7 +86,7 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 		}
 	}
 
-	const owners: Record<Service, Record<string, string>> = { s3: {}, sqs: {}, dynamodb: {} };
+	const owners = emptyByService<Record<string, string>>(() => ({}));
 	for (const [nodeId, resource] of awsNodes) {
 		owners[resource.service][resource.resourceName] = nodeId;
 	}
@@ -93,16 +94,14 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 	// The admin shell is not a node and draws no edges, so it holds every resource on the canvas
 	principals[ADMIN_ACCESS_KEY] = {
 		name: 'Admin',
-		resources: {
-			s3: Object.keys(owners.s3),
-			sqs: Object.keys(owners.sqs),
-			dynamodb: Object.keys(owners.dynamodb)
-		}
+		resources: Object.fromEntries(
+			Object.entries(owners).map(([service, byName]) => [service, Object.keys(byName)])
+		) as Record<Service, string[]>
 	};
 
 	// Sorted so an unchanged canvas always produces an identical document
 	for (const principal of Object.values(principals)) {
 		for (const names of Object.values(principal.resources)) names.sort();
 	}
-	return { principals, owners };
+	return { principals, owners, ports };
 }

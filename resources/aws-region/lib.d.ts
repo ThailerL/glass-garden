@@ -1,4 +1,6 @@
-export type Service = 's3' | 'sqs' | 'dynamodb';
+// A function is not the emulator's: it is relayed to its own manager
+export type EmulatedService = 's3' | 'sqs' | 'dynamodb';
+export type Service = EmulatedService | 'lambda';
 export type Credential = { accessKeyId: string; region: string; service: string };
 // nodeId is absent for the admin, who is not a node: denials then have no log to go to
 export type Principal = {
@@ -7,10 +9,12 @@ export type Principal = {
 	resources: Record<Service, string[]>;
 };
 // owners maps a resource name back to the node serving it, so the bridge can attribute
-// what it observes about a resource to the node the user sees
+// what it observes about a resource to the node the user sees; ports, where each function's
+// manager listens
 export type Topology = {
 	principals: Record<string, Principal>;
 	owners: Record<Service, Record<string, string>>;
+	ports: Record<string, number>;
 };
 export type Denial = {
 	allow: false;
@@ -32,9 +36,11 @@ export function receivedMessages(responseText: string): { Body?: string }[];
 export function notificationQueueName(nodeId: string): string;
 export function isNotificationQueue(name: string): boolean;
 export function notifiedBuckets(messages: { Body?: string }[]): string[];
+export function emptyByService<T>(make: () => T): Record<Service, T>;
 export function emptyTopology(): Topology;
 export function parseCredential(authorization: string | undefined): Credential | undefined;
 export function bucketFromPath(path: string): string | undefined;
+export function invokedFunctionName(path: string): string | undefined;
 export function extractResourceNames(
 	service: string | undefined,
 	path: string,

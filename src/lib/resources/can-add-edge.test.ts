@@ -15,11 +15,19 @@ const generator = node('generator', 'requestGenerator');
 const balancer = node('balancer', 'httpLoadBalancer');
 const app = node('app', 'instanceGroup');
 const database = node('database', 'postgres');
+const fn = node('fn', 'lambdaFunction');
+const other = node('other', 'lambdaFunction');
 
 describe('canAddEdge', () => {
 	it('refuses what the capabilities refuse', () => {
 		expect(canAddEdge(generator, database, [])).toBe(false);
 		expect(canAddEdge(generator, balancer, [])).toBe(true);
+	});
+
+	it('lets code point at the function it invokes, never the other way round', () => {
+		expect(canAddEdge(app, fn, [])).toBe(true);
+		expect(canAddEdge(fn, other, [])).toBe(true);
+		expect(canAddEdge(fn, app, [])).toBe(false);
 	});
 
 	it('refuses a second target for a source that acts on one', () => {

@@ -7,8 +7,12 @@ import {
 	notificationQueueName
 } from './aws-topology';
 
-const node = (id: string, type: string, config: Record<string, unknown>): Node =>
-	({ id, type, position: { x: 0, y: 0 }, data: { config } }) as unknown as Node;
+const node = (
+	id: string,
+	type: string,
+	config: Record<string, unknown>,
+	ports: number[] = []
+): Node => ({ id, type, position: { x: 0, y: 0 }, data: { config, ports } }) as unknown as Node;
 
 const bucket = (id: string, name: string, bucketName: string) =>
 	node(id, 's3Bucket', { name, bucketName });
@@ -18,8 +22,8 @@ const table = (id: string, name: string, tableName: string) =>
 	node(id, 'dynamodbTable', { name, tableName, partitionKey: 'pk' });
 const app = (id: string, name: string) =>
 	node(id, 'instanceGroup', { name, instanceCount: 1, command: 'npm start' });
-const fn = (id: string, name: string) =>
-	node(id, 'lambdaFunction', { name, timeout: 3, maxConcurrency: 5 });
+const fn = (id: string, name: string, functionName = 'fn', ports: number[] = []) =>
+	node(id, 'lambdaFunction', { name, functionName, timeout: 3, maxConcurrency: 5 }, ports);
 const edge = (source: string, target: string): Edge => ({
 	id: `${source}-${target}`,
 	source,
@@ -47,9 +51,15 @@ describe('buildTopology', () => {
 		expect(topology.principals[accessKeyFor('a')].resources).toEqual({
 			s3: [],
 			sqs: ['orders'],
-			dynamodb: []
+			dynamodb: [],
+			lambda: []
 		});
-		expect(topology.owners).toEqual({ s3: {}, sqs: { orders: 'q1' }, dynamodb: { users: 't1' } });
+		expect(topology.owners).toEqual({
+			s3: {},
+			sqs: { orders: 'q1' },
+			dynamodb: { users: 't1' },
+			lambda: {}
+		});
 	});
 
 	it('grants a node the queue pointing at it, though the edge runs the other way', () => {
@@ -69,7 +79,8 @@ describe('buildTopology', () => {
 		expect(topology.principals[accessKeyFor('f')].resources).toEqual({
 			s3: ['uploads'],
 			sqs: [notificationQueueName('f')],
-			dynamodb: []
+			dynamodb: [],
+			lambda: []
 		});
 		// Owned by nobody, so the region reports nothing about it
 		expect(topology.owners.sqs).toEqual({});
@@ -98,15 +109,37 @@ describe('buildTopology', () => {
 		const topology = buildTopology(nodes, []);
 		expect(topology.principals[ADMIN_ACCESS_KEY]).toEqual({
 			name: 'Admin',
-			resources: { s3: ['apple', 'zebra'], sqs: ['jobs'], dynamodb: [] }
+			resources: { s3: ['apple', 'zebra'], sqs: ['jobs'], dynamodb: [], lambda: [] }
 		});
+	});
+
+	it('owns a function by its name and carries the port its manager listens on', () => {
+		const topology = buildTopology([fn('f', 'Resize', 'resize', [4100])], []);
+		expect(topology.owners.lambda).toEqual({ resize: 'f' });
+		expect(topology.ports).toEqual({ f: 4100 });
+		expect(topology.principals[ADMIN_ACCESS_KEY].resources.lambda).toEqual(['resize']);
+		// A queue that triggers it is still a resource, never a caller
+		const triggered = buildTopology(
+			[fn('f', 'Resize', 'resize'), queue('q', 'Jobs', 'jobs')],
+			[edge('q', 'f')]
+		);
+		expect(triggered.principals[accessKeyFor('q')]).toBeUndefined();
+	});
+
+	it('grants a caller the function it points at, and two functions each other', () => {
+		const nodes = [app('a', 'Web'), fn('f1', 'One', 'one'), fn('f2', 'Two', 'two')];
+		const topology = buildTopology(nodes, [edge('a', 'f1'), edge('f1', 'f2')]);
+		expect(topology.principals[accessKeyFor('a')].resources.lambda).toEqual(['one']);
+		expect(topology.principals[accessKeyFor('f1')].resources.lambda).toEqual(['two']);
+		expect(topology.principals[accessKeyFor('f2')].resources.lambda).toEqual(['one']);
 	});
 
 	it('keeps the admin present on an empty canvas, so its calls get a signpost not a key error', () => {
 		expect(buildTopology([], []).principals[ADMIN_ACCESS_KEY].resources).toEqual({
 			s3: [],
 			sqs: [],
-			dynamodb: []
+			dynamodb: [],
+			lambda: []
 		});
 	});
 

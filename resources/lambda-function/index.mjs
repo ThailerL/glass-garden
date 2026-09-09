@@ -12,7 +12,7 @@ const metrics = new Metrics();
 // Watch the Logs tab: each environment is its own stream, and a new one appears whenever
 // Glass Garden has to start another to keep up.
 //
-// Three kinds of event reach this function, and the shape of the event says which:
+// Four kinds of event reach this function, and the shape of the event says which:
 //
 // - A queue that points at this function delivers messages in batches of up to ten, as
 //   event.Records. Glass Garden polls the queue on the function's behalf, exactly as the
@@ -26,6 +26,10 @@ const metrics = new Metrics();
 // - A request through a load balancer or the Preview tab arrives as the event a Lambda
 //   function URL sends: event.rawPath, event.headers, event.body and so on. What the handler
 //   returns becomes the response.
+// - An invoke through the AWS SDK, from an app server or another function that points at
+//   this one, arrives as whatever the caller sent. The caller finds this function's name in
+//   its environment (see its Config tab) and passes it as FunctionName; what the handler
+//   returns comes back to the caller as the Payload, and a throw comes back as FunctionError.
 //
 // The whole file is an ordinary Lambda handler. It runs unchanged on AWS.
 export async function handler(event, context) {

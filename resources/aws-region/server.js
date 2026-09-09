@@ -242,6 +242,55 @@ const respond = (res, status, contentType, body) => {
   res.end(body);
 };
 const json = (res, status, value) => respond(res, status, 'application/json', JSON.stringify(value));
+const denied = (res, service, denial) => {
+  const answer = denialResponse(service, denial);
+  respond(res, answer.status, answer.contentType, answer.body);
+};
+
+// The caller's request travels verbatim; only content-length is recomputed by the receiver
+function forwardedHeaders(req) {
+  const headers = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (typeof value === 'string' && key !== 'content-length') headers[key] = value;
+  }
+  return headers;
+}
+
+// Relayed to the manager that runs the function. Nothing but Invoke is answered: a function
+// exists by being a node, not by CreateFunction
+function handleLambda(req, res, body, topology, functionName, caller) {
+  if (req.method !== 'POST' || functionName === undefined) {
+    return denied(res, 'lambda', {
+      status: 400,
+      code: 'UnsupportedOperation',
+      message:
+        'Only Invoke is available for functions. A function is created by adding a Function node to the canvas.'
+    });
+  }
+  const owner = topology.owners.lambda[functionName];
+  const upstream = http.request(
+    {
+      host: 'localhost',
+      port: topology.ports[owner],
+      path: req.url,
+      method: req.method,
+      headers: forwardedHeaders(req)
+    },
+    (answer) => {
+      res.writeHead(answer.statusCode, answer.headers);
+      answer.pipe(res);
+      // The manager counts and logs it; the region only draws who called
+      if (caller) emitHop(caller, owner);
+    }
+  );
+  // Nothing answered on the reserved port: under the VM that is a hang-up, not a refusal
+  upstream.on('error', () => {
+    const message = `"${functionName}" is not running. Start the Function node to invoke it.`;
+    emitLog('error', `Invoke failed: ${message}`, caller);
+    denied(res, 'lambda', { status: 503, code: 'ServiceException', message });
+  });
+  upstream.end(body);
+}
 
 async function handleControl(req, res, url, body) {
   if (req.headers['x-gg-token'] !== TOKEN) return json(res, 403, { message: 'bad token' });
@@ -291,15 +340,12 @@ async function handleAws(req, res, url, body) {
       `Denied ${req.method} ${url.pathname}: ${decision.message}`,
       decision.nodeId
     );
-    const denial = denialResponse(service, decision);
-    return respond(res, denial.status, denial.contentType, denial.body);
+    return denied(res, service, decision);
   }
+  const caller = topology.principals[credential.accessKeyId]?.nodeId;
+  if (service === 'lambda') return handleLambda(req, res, body, topology, resourceName, caller);
 
-  // The caller's request reaches the emulator verbatim; only content-length is recomputed
-  const headers = {};
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (typeof value === 'string' && key !== 'content-length') headers[key] = value;
-  }
+  const headers = forwardedHeaders(req);
   // A plain Uint8Array view: pyodide's to_bytes rejects the Buffer subclass
   const [status, headersJson, responseBody] = await dispatch(
     req.method,
@@ -314,7 +360,6 @@ async function handleAws(req, res, url, body) {
   const received = receive ? receivedMessages(Buffer.from(responseBody).toString('utf8')) : [];
   // A long poll that found nothing is not traffic anyone sent: a function polls forever
   if (status < 300 && receive && received.length === 0) return;
-  const caller = topology.principals[credential.accessKeyId]?.nodeId;
   const owner = topology.owners[service]?.[resourceName];
   if (owner) {
     reportRequest(owner, req.method, url.pathname, status);

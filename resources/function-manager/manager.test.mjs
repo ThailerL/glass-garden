@@ -30,6 +30,11 @@ export async function handler(event, context) {
     if (event.Records.some((record) => record.s3?.object.key === 'bad.txt')) throw new Error('bad object');
     return;
   }
+  if ('invoke' in event) {
+    if (event.invoke === 'throw') throw new Error('invoke failed');
+    if (event.invoke === 'slow') await new Promise((resolve) => setTimeout(resolve, 300));
+    return { echoed: event, functionName: context.functionName };
+  }
   const wait = Number(event.queryStringParameters?.wait ?? 0);
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   if (event.rawPath === '/throw') throw new TypeError('handler failed');
@@ -529,5 +534,65 @@ describe('bucket notifications', () => {
     expect(deletion.payload.Entries.map((e) => e.ReceiptHandle)).toEqual(['rh-good']);
     // Both ran at once: two environments, not one reused
     expect(environmentIds(manager.lines)).toHaveLength(2);
+  });
+});
+
+describe('the Invoke API', () => {
+  const INVOKE = '/2015-03-31/functions/tested/invocations';
+  const invoke = (manager, event, headers = {}) =>
+    fetch(manager.url(INVOKE), { method: 'POST', headers, body: JSON.stringify(event) });
+
+  it('runs the event as the caller sent it and answers with the handler’s result', async () => {
+    const manager = await startManager();
+    const response = await invoke(manager, { invoke: 'hello', n: 1 });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      echoed: { invoke: 'hello', n: 1 },
+      functionName: 'tested',
+    });
+    await manager.waitFor((l) => /REPORT RequestId/.test(l));
+    expect(events(manager.lines, 'invocations')).toHaveLength(1);
+  });
+
+  it('reports a thrown handler as a function error, not a failed request', async () => {
+    const manager = await startManager();
+    const response = await invoke(manager, { invoke: 'throw' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-amz-function-error')).toBe('Unhandled');
+    expect(await response.json()).toMatchObject({ errorMessage: 'invoke failed' });
+    await manager.waitFor((l) => /REPORT RequestId/.test(l));
+    expect(events(manager.lines, 'errors')).toHaveLength(1);
+  });
+
+  it('refuses an invocation past the cap with a 429', async () => {
+    const manager = await startManager({ config: { maxConcurrency: 1 } });
+    const slow = invoke(manager, { invoke: 'slow' });
+    await manager.waitFor((l) => /START RequestId/.test(l));
+    const refused = await invoke(manager, { invoke: 'now' });
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('x-amzn-errortype')).toBe('TooManyRequestsException');
+    expect(await refused.json()).toMatchObject({ __type: 'TooManyRequestsException' });
+    expect((await slow).status).toBe(200);
+  });
+
+  it('answers an Event invocation at once and runs it afterwards', async () => {
+    const manager = await startManager();
+    const response = await invoke(manager, { invoke: 'later' }, { 'x-amz-invocation-type': 'Event' });
+    expect(response.status).toBe(202);
+    await manager.waitFor((l) => /END RequestId/.test(l));
+  });
+
+  it('answers a DryRun without invoking anything', async () => {
+    const manager = await startManager();
+    const response = await invoke(manager, { invoke: 'never' }, { 'x-amz-invocation-type': 'DryRun' });
+    expect(response.status).toBe(204);
+    expect(environmentIds(manager.lines)).toHaveLength(0);
+  });
+
+  it('refuses a payload that is not JSON', async () => {
+    const manager = await startManager();
+    const response = await fetch(manager.url(INVOKE), { method: 'POST', body: '{not json' });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ __type: 'InvalidRequestContentException' });
   });
 });

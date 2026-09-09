@@ -2,7 +2,7 @@ import { toast } from 'svelte-sonner';
 import type { Vivari, VivariProcess } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
 import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
-import type { NodeReport, Service, Topology } from '../../resources/aws-region/lib.js';
+import type { EmulatedService, NodeReport, Topology } from '../../resources/aws-region/lib.js';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
 import type { Hop, Level } from '$lib/traffic.svelte';
@@ -146,7 +146,7 @@ function writeTopology(directory: string): Promise<void> {
 }
 
 export async function provisionResource(
-	service: Service,
+	service: EmulatedService,
 	name: string,
 	config?: unknown
 ): Promise<unknown> {
@@ -160,7 +160,7 @@ export async function provisionResource(
 	return response.json();
 }
 
-export async function deprovisionResource(service: Service, name: string) {
+export async function deprovisionResource(service: EmulatedService, name: string) {
 	const current = region;
 	if (!current) throw new Error('The region is not running');
 	await current.ready;

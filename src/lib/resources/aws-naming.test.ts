@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Node } from '@xyflow/svelte';
 import { queueNameSchema, sqsQueue, toQueueName } from './sqs-queue';
 import { dynamodbTable, tableNameSchema, toTableName } from './dynamodb-table';
+import { functionNameSchema, lambdaFunction, toFunctionName } from './lambda-function';
 
 const node = (type: string, config: Record<string, unknown>): Node =>
 	({ id: 'n1', type, position: { x: 0, y: 0 }, data: { config } }) as unknown as Node;
@@ -38,5 +39,27 @@ describe('table naming', () => {
 			node('dynamodbTable', { name: 'Users', tableName: 'users', partitionKey: 'pk' })
 		);
 		expect(supplied).toEqual({ suffix: 'TABLE', value: 'users', soleName: 'DYNAMODB_TABLE' });
+	});
+});
+
+describe('function naming', () => {
+	it('derives a usable function name from a display name', () => {
+		expect(toFunctionName('Hash Password')).toBe('hash-password');
+	});
+
+	it('holds to Lambda’s rules', () => {
+		expect(functionNameSchema.safeParse('hash.password').success).toBe(false);
+		expect(functionNameSchema.safeParse('Hash_Password-2').success).toBe(true);
+	});
+
+	it('supplies the name a caller passes to Invoke', () => {
+		const supplied = lambdaFunction.supplies(
+			node('lambdaFunction', { name: 'Hash Password', functionName: 'hash-password' })
+		);
+		expect(supplied).toEqual({
+			suffix: 'FUNCTION_NAME',
+			value: 'hash-password',
+			soleName: 'LAMBDA_FUNCTION_NAME'
+		});
 	});
 });

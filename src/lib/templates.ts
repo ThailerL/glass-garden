@@ -111,7 +111,12 @@ export const templates = {
 				{
 					files: 'queue-app/lambda-function',
 					// One at a time to start with, so the backlog is the first thing seen
-					config: { name: 'Hash Password', timeout: 30, maxConcurrency: 1 },
+					config: {
+						name: 'Hash Password',
+						functionName: 'hash-password',
+						timeout: 30,
+						maxConcurrency: 1
+					},
 					chart: 'concurrent executions'
 				}
 			);

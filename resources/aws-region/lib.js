@@ -3,7 +3,7 @@
 // Callers are principals, not any particular resource kind: a principal carries its own
 // display name and the resource names its edges grant, per service.
 
-const NODE_LABELS = { s3: 'Bucket', sqs: 'Queue', dynamodb: 'Table' };
+const NODE_LABELS = { s3: 'Bucket', sqs: 'Queue', dynamodb: 'Table', lambda: 'Function' };
 const noun = (service) => NODE_LABELS[service].toLowerCase();
 
 // The stdout line prefix for events the bridge reports and the host routes
@@ -36,9 +36,13 @@ export function notifiedBuckets(messages) {
   });
 }
 
+// One entry per service, so a new service is added to NODE_LABELS alone
+export const emptyByService = (make) =>
+  Object.fromEntries(Object.keys(NODE_LABELS).map((service) => [service, make()]));
+
 // What every holder of a topology starts from, before the canvas has said anything
 export function emptyTopology() {
-  return { principals: {}, owners: { s3: {}, sqs: {}, dynamodb: {} } };
+  return { principals: {}, owners: emptyByService(() => ({})), ports: {} };
 }
 
 // SigV4 credential scope: "AWS4-HMAC-SHA256 Credential=<key>/<date>/<region>/<service>/aws4_request, ..."
@@ -57,6 +61,15 @@ export function bucketFromPath(path) {
   return bucket ? decodeURIComponent(bucket) : undefined;
 }
 
+const INVOKE_PATH = /^\/2015-03-31\/functions\/([^/]+)\/invocations$/;
+
+// Invoke's FunctionName may be a name, a partial ARN or a full ARN
+export function invokedFunctionName(path) {
+  const match = INVOKE_PATH.exec(path);
+  if (!match) return undefined;
+  return decodeURIComponent(match[1]).split(':function:').pop() || undefined;
+}
+
 // Every resource a request touches. S3 names its bucket in the path, and a copy names a
 // second one in a header - both must be granted, as S3 itself requires. The JSON protocols
 // are read by convention rather than per operation, so a new operation needs no code here.
@@ -67,6 +80,10 @@ export function extractResourceNames(service, path, bodyText, headers = {}) {
     const copySource = headers['x-amz-copy-source'];
     const source = copySource ? bucketFromPath(`/${copySource.replace(/^\/+/, '')}`) : undefined;
     return [bucketFromPath(path), source].filter((name) => name !== undefined);
+  }
+  if (service === 'lambda') {
+    const name = invokedFunctionName(path);
+    return name ? [name] : [];
   }
   if (service !== 'sqs' && service !== 'dynamodb') return [];
   const parsed = bodyText ? parseJson(bodyText) : undefined;
@@ -116,7 +133,7 @@ const attributeQueueArns = (parsed) =>
 const deny = (status, code, message, nodeId) => ({ allow: false, status, code, message, nodeId });
 
 // topology: { principals: { [accessKeyId]: Principal } } where a principal is
-// { nodeId, name, resources: { s3: string[], sqs: string[], dynamodb: string[] } }.
+// { nodeId, name, resources: { s3: string[], sqs: string[], dynamodb: string[], lambda: string[] } }.
 // The checks run most-general first so the signpost names the closest missing thing:
 // bad credentials, unknown service, unknown caller, no edge to the family, no edge to the
 // named resource
@@ -134,7 +151,7 @@ export function decideRequest({ credential, resourceNames }, topology) {
     return deny(
       400,
       'UnsupportedService',
-      `Glass Garden does not emulate ${service}. Buckets (S3), queues (SQS) and tables (DynamoDB) are available.`,
+      `Glass Garden does not emulate ${service}. Available: ${Object.keys(NODE_LABELS).join(', ')}.`,
     );
   }
 
