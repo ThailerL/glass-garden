@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Node } from '@xyflow/svelte';
-import { GraphState, nodeConfig } from '$lib/graph-state.svelte';
+import { GraphState, nodeConfig, nodeTestEvent } from '$lib/graph-state.svelte';
 import {
 	PROJECT_FORMAT,
 	applyProjectDocument,
@@ -48,7 +48,7 @@ const node = (id: string, extra: Partial<Node> = {}): Node => ({
 	id,
 	type: 'test',
 	position: { x: 1, y: 2 },
-	data: { config: { name: id, count: 2 }, ports: [3001], chart: 'requests' },
+	data: { config: { name: id, count: 2 }, ports: [3001], chart: 'requests', testEvent: '{}' },
 	origin: [0.5, 0.5],
 	selected: true,
 	measured: { width: 10, height: 10 },
@@ -60,7 +60,13 @@ const document = (): { nodes: Record<string, unknown>[]; [key: string]: unknown 
 	format: PROJECT_FORMAT,
 	name: 'Lab',
 	nodes: [
-		{ id: 'a', type: 'test', position: { x: 0, y: 0 }, config: { name: 'A', count: 5 } },
+		{
+			id: 'a',
+			type: 'test',
+			position: { x: 0, y: 0 },
+			config: { name: 'A', count: 5 },
+			testEvent: '{"hello":"world"}'
+		},
 		{ id: 'b', type: 'test', position: { x: 1, y: 1 }, config: { name: 'B' } }
 	],
 	edges: [
@@ -85,7 +91,8 @@ describe('buildProjectDocument', () => {
 			type: 'test',
 			position: { x: 1, y: 2 },
 			config: { name: 'a', count: 2 },
-			chart: 'requests'
+			chart: 'requests',
+			testEvent: '{}'
 		});
 		expect(doc.edges).toEqual([{ source: 'a', target: 'b' }]);
 	});
@@ -117,6 +124,7 @@ describe('applyProjectDocument', () => {
 			[ids.get('a'), ids.get('b')]
 		]);
 		expect(nodeConfig(graph.nodes[0])).toEqual({ name: 'A', count: 5 });
+		expect(nodeTestEvent(graph.nodes[0])).toBe('{"hello":"world"}');
 	});
 
 	it('falls back to defaults for a config the schema rejects', () => {

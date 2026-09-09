@@ -84,6 +84,7 @@ export const lambdaFunction = {
 	provides: ['http', 'invoke', 'aws'],
 	consumes: ['sql', 'aws'],
 	configComponent: FunctionConfig,
+	loadTestTab: () => import('./TestTab.svelte'),
 	configSchema,
 	namedOnCreate: {
 		title: 'Add a function',

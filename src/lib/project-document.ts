@@ -2,7 +2,13 @@ import type { Edge, Node } from '@xyflow/svelte';
 import type { DirEnt } from '@vivari/core';
 import { z } from 'zod';
 import { resourceDefinitions, type ResourceType } from './resources';
-import { nodeChart, nodeConfig, parseStoredConfig, type GraphState } from './graph-state.svelte';
+import {
+	nodeChart,
+	nodeConfig,
+	nodeTestEvent,
+	parseStoredConfig,
+	type GraphState
+} from './graph-state.svelte';
 
 export const PROJECT_FORMAT = 'gg:project/1';
 
@@ -19,7 +25,8 @@ const projectDocumentSchema = z.object({
 			type: z.enum(Object.keys(resourceDefinitions) as [ResourceType, ...ResourceType[]]),
 			position: z.object({ x: z.number(), y: z.number() }),
 			config: z.record(z.string(), z.unknown()),
-			chart: z.string().optional()
+			chart: z.string().optional(),
+			testEvent: z.string().optional()
 		})
 	),
 	edges: z.array(z.object({ source: z.string(), target: z.string() })),
@@ -42,7 +49,8 @@ export function buildProjectDocument(
 			type: node.type as ResourceType,
 			position: node.position,
 			config: nodeConfig(node),
-			chart: nodeChart(node)
+			chart: nodeChart(node),
+			testEvent: nodeTestEvent(node)
 		})),
 		edges: edges.map(({ source, target }) => ({ source, target })),
 		nodeFiles
@@ -73,7 +81,8 @@ export function applyProjectDocument(graph: GraphState, doc: ProjectDocument) {
 	for (const node of doc.nodes) {
 		const added = graph.addNode(node.type, node.position, {
 			config: parseStoredConfig(resourceDefinitions[node.type], node.config),
-			chart: node.chart
+			chart: node.chart,
+			testEvent: node.testEvent
 		});
 		ids.set(node.id, added.id);
 	}

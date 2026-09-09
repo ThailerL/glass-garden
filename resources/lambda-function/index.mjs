@@ -31,6 +31,9 @@ const metrics = new Metrics();
 //   its environment (see its Config tab) and passes it as FunctionName; what the handler
 //   returns comes back to the caller as the Payload, and a throw comes back as FunctionError.
 //
+// The Test tab sends any of these four by hand, so you can see a queue batch reach the handler
+// without building a queue to produce one. Pick a template, edit the JSON, and press Invoke.
+//
 // The whole file is an ordinary Lambda handler. It runs unchanged on AWS.
 export async function handler(event, context) {
   if (event.Records) {

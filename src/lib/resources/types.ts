@@ -106,6 +106,9 @@ export type ResourceDefinition = {
 	// it is refused rather than drawn and ignored
 	singleTarget?: boolean;
 	configComponent: Component<{ form: never; nodeId: string }>;
+	// A tab of the resource's own, imported when it is first opened so whatever it depends on
+	// stays out of the bundle the canvas loads
+	loadTestTab?: () => Promise<{ default: Component<{ nodeId: string }> }>;
 	// Every resource is named, so anything holding a node can read config.name unguarded
 	configSchema: z.ZodObject<{ name: z.ZodType<string> } & z.ZodRawShape>;
 	namedOnCreate?: NamedOnCreate;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GraphState, nodeChart } from '$lib/graph-state.svelte';
+import { GraphState, nodeChart, nodeTestEvent } from '$lib/graph-state.svelte';
 import type { ResourceType } from '$lib/resources';
 
 vi.mock('$lib/container', () => ({
@@ -57,5 +57,21 @@ describe('node chart', () => {
 		graph.setNodeChart(id, undefined);
 		expect(nodeChart(graph.getNode(id)!)).toBeUndefined();
 		expect(stored(id)).toBeUndefined();
+	});
+});
+
+describe('node test event', () => {
+	it('is absent until the node is tested, then survives a reload', () => {
+		const graph = new GraphState('p1');
+		const { id } = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
+		expect(nodeTestEvent(graph.getNode(id)!)).toBeUndefined();
+		graph.setNodeTestEvent(id, '{"hello":"world"}');
+		expect(nodeTestEvent(new GraphState('p1').getNode(id)!)).toBe('{"hello":"world"}');
+	});
+
+	it('comes back with an imported node, which is how an export carries one', () => {
+		const graph = new GraphState('p1');
+		const node = graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { testEvent: '{}' });
+		expect(nodeTestEvent(node)).toBe('{}');
 	});
 });

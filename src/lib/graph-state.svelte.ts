@@ -19,6 +19,8 @@ export type NodeData = {
 	files?: FileSetId;
 	// The one metric charted under the node on the canvas
 	chart?: string;
+	// The event this node's Test tab last invoked it with
+	testEvent?: string;
 };
 
 // Takes anything carrying node data, so a NodeProps in a component reads it the same way
@@ -32,6 +34,10 @@ export function nodePorts(node: Node): readonly number[] {
 
 export function nodeChart(node: { data: Node['data'] }): string | undefined {
 	return (node.data as NodeData).chart;
+}
+
+export function nodeTestEvent(node: { data: Node['data'] }): string | undefined {
+	return (node.data as NodeData).testEvent;
 }
 
 export function nodeName(node: { data: Node['data'] }): string {
@@ -114,8 +120,12 @@ export class GraphState {
 		{
 			files,
 			config,
-			chart
-		}: { files?: FileSetId; config?: Record<string, unknown>; chart?: string } = {}
+			chart,
+			testEvent
+			// config arrives unparsed, so it is not NodeData's own
+		}: Pick<NodeData, 'files' | 'chart' | 'testEvent'> & {
+			config?: Record<string, unknown>;
+		} = {}
 	) {
 		const definition = getResourceDefinition(type);
 		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
@@ -125,7 +135,8 @@ export class GraphState {
 			config: definition.configSchema.parse(config ?? {}),
 			ports: [],
 			files,
-			chart
+			chart,
+			testEvent
 		};
 		const node: Node = {
 			id: nanoid(8),
@@ -171,6 +182,10 @@ export class GraphState {
 
 	setNodeChart(id: string, chart: string | undefined) {
 		this.#patchNodeData(id, { chart });
+	}
+
+	setNodeTestEvent(id: string, testEvent: string) {
+		this.#patchNodeData(id, { testEvent });
 	}
 
 	#patchNodeData(id: string, patch: Partial<NodeData>) {

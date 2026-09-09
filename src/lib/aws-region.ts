@@ -5,6 +5,7 @@ import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
 import type { EmulatedService, NodeReport, Topology } from '../../resources/aws-region/lib.js';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
+import { ADMIN_ACCESS_KEY } from '$lib/aws-topology';
 import type { Hop, Level } from '$lib/traffic.svelte';
 import { withTrailingSlash } from '$lib/utils';
 
@@ -168,6 +169,34 @@ export async function deprovisionResource(service: EmulatedService, name: string
 		method: 'POST',
 		body: JSON.stringify({ service, name })
 	});
+}
+
+export type Invocation = { status: number; functionError?: string; payload: string };
+
+// SigV4's shape without a signature, which is all the region enforces on
+const ADMIN_AUTHORIZATION = `AWS4-HMAC-SHA256 Credential=${ADMIN_ACCESS_KEY}/20260101/us-east-1/lambda/aws4_request, SignedHeaders=host, Signature=glass-garden`;
+
+// The path an SDK caller takes, so a test reaches the log and metrics like any invocation
+export async function invokeFunction(functionName: string, payload: string): Promise<Invocation> {
+	await ensureRegion();
+	const current = region;
+	if (!current) throw new Error('The region is not running');
+	const response = await fetch(
+		`${withTrailingSlash(current.previewUrl)}2015-03-31/functions/${encodeURIComponent(functionName)}/invocations`,
+		{
+			method: 'POST',
+			headers: {
+				authorization: ADMIN_AUTHORIZATION,
+				'content-type': 'application/json'
+			},
+			body: payload
+		}
+	);
+	return {
+		status: response.status,
+		functionError: response.headers.get('x-amz-function-error') ?? undefined,
+		payload: await response.text()
+	};
 }
 
 function boot(): Region {

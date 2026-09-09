@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Component } from 'svelte';
 	import { untrack } from 'svelte';
 	import { cn } from '$lib/utils';
 	import * as Sidebar from '$lib/components/ui/sidebar';
@@ -52,10 +53,25 @@
 		if (inspectorState.tab === 'preview') previewedNode = nodeId;
 	});
 
-	// Preview is the one tab a node can lack, so a resource without one falls back rather
-	// than showing an empty panel for a tab it never rendered
+	// Imported when the tab is first opened, so a resource's own tab costs the canvas nothing
+	const loadTestTab = $derived(definition?.loadTestTab);
+	let TestTab = $state<Component<{ nodeId: string }>>();
 	$effect(() => {
-		if (inspectorState.tab === 'preview' && !definition?.hasPreview) inspectorState.tab = 'config';
+		if (inspectorState.tab === 'test' && loadTestTab) {
+			void loadTestTab().then((module) => (TestTab = module.default));
+		}
+	});
+
+	// A resource that lacks the selected tab falls back, rather than showing an empty panel
+	const tabs = $derived([
+		'config',
+		...(definition?.hasPreview ? ['preview'] : []),
+		...(loadTestTab ? ['test'] : []),
+		'metrics',
+		'logs'
+	]);
+	$effect(() => {
+		if (!tabs.includes(inspectorState.tab)) inspectorState.tab = 'config';
 	});
 </script>
 
@@ -86,6 +102,9 @@
 								Preview
 							</UnderlineTabs.Trigger>
 						{/if}
+						{#if loadTestTab}
+							<UnderlineTabs.Trigger value="test">Test</UnderlineTabs.Trigger>
+						{/if}
 						<UnderlineTabs.Trigger value="metrics" data-tour="metrics-tab">
 							Metrics
 						</UnderlineTabs.Trigger>
@@ -98,6 +117,13 @@
 						<UnderlineTabs.Content value="preview">
 							{#if previewOpened}
 								<PreviewTab {nodeId} />
+							{/if}
+						</UnderlineTabs.Content>
+					{/if}
+					{#if loadTestTab}
+						<UnderlineTabs.Content value="test" class="min-h-0 flex-1">
+							{#if TestTab}
+								<TestTab {nodeId} />
 							{/if}
 						</UnderlineTabs.Content>
 					{/if}
