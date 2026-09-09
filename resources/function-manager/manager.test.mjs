@@ -253,8 +253,23 @@ describe('function URL', () => {
     // The same level for the canvas, against the cap it can fill
     const levels = traffic(manager.lines, 'level');
     const at = expect.any(Number);
-    expect(levels[0]).toEqual({ kind: 'level', at, value: 1, capacity: DEFAULT_MAX_CONCURRENCY });
+    expect(levels).toContainEqual({
+      kind: 'level',
+      at,
+      value: 1,
+      capacity: DEFAULT_MAX_CONCURRENCY,
+    });
     expect(levels.at(-1)).toEqual({ kind: 'level', at, value: 0, capacity: DEFAULT_MAX_CONCURRENCY });
+  });
+
+  it('reports an empty level before anything is invoked, so the gauge is never missing', async () => {
+    const manager = await startManager();
+    expect(traffic(manager.lines, 'level')).toContainEqual({
+      kind: 'level',
+      at: expect.any(Number),
+      value: 0,
+      capacity: DEFAULT_MAX_CONCURRENCY,
+    });
   });
 
   it('takes its concurrency from the config file', async () => {

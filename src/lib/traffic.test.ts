@@ -145,6 +145,16 @@ describe('Traffic', () => {
 		expect(traffic.levels).toEqual({ fn: { value: 3, capacity: 5, peak: 4 } });
 	});
 
+	it("drops a node's level when it winds down, and any level still on its way", () => {
+		traffic.ingest('fn', { kind: 'level', at: 1, value: 3, capacity: 5 });
+		settle();
+		traffic.ingest('fn', { kind: 'level', at: 2, value: 2, capacity: 5 });
+		traffic.ingest('queue', { kind: 'level', at: 2, value: 7 });
+		traffic.forget('fn');
+		settle();
+		expect(traffic.levels).toEqual({ queue: { value: 7, capacity: undefined, peak: 7 } });
+	});
+
 	it('holds each hop for at least the reorder window from when it arrived', () => {
 		traffic.ingest('lb', { kind: 'hop', at: 1, to: { port: 3001 } });
 		vi.advanceTimersByTime(REORDER_MS / 2);

@@ -71,6 +71,7 @@ function makeServices(getNode: () => Node | undefined): ControllerServices {
 		getNeighbours: () => [],
 		scheduleNeighbours: vi.fn(),
 		onTraffic: vi.fn(),
+		forgetTraffic: vi.fn(),
 		unregister: vi.fn()
 	};
 }

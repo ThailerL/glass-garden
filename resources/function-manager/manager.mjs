@@ -122,10 +122,17 @@ async function refreshConfig() {
   reconcilePollers();
 }
 
+// The level, not the metric: a sample a second would fill the gaps that mean nothing ran
+async function pollConfig() {
+  await refreshConfig();
+  reportLevel(busyCount(), config.maxConcurrency);
+}
+
 // ── Execution environments ────────────────────────────────────────────────────────────────
 
 const environments = new Map();
 const countEnvironments = (test) => [...environments.values()].filter(test).length;
+const busyCount = () => countEnvironments((env) => env.invocation);
 // Invocations waiting for an environment, oldest first
 const pending = [];
 // Invocations handed to an environment, by request id
@@ -137,7 +144,7 @@ let concurrencyBeat;
 // with no samples is a gap rather than a zero, and an invocation outlives several, so the
 // level keeps reporting itself while there is work and falls silent when there is none
 function reportConcurrency() {
-  const busy = countEnvironments((env) => env.invocation);
+  const busy = busyCount();
   putMetric('concurrent executions', busy, 'Count');
   reportLevel(busy, config.maxConcurrency);
   if (busy > 0 && !concurrencyBeat) {
@@ -663,12 +670,12 @@ function reconcilePollers() {
 
 // Wrapped whole: an error escaping a VM process exits 0 without a trace
 try {
-  await refreshConfig();
+  await pollConfig();
   // Every count once, so the names are in the Metrics tab before anything happens
   for (const name of ['invocations', 'errors', 'throttles', 'cold starts', 'batches', 'notifications']) {
     putMetric(name, 0, 'Count');
   }
-  setInterval(() => void refreshConfig(), CONFIG_POLL_MS);
+  setInterval(() => void pollConfig(), CONFIG_POLL_MS);
 
   const server = http.createServer(async (req, res) => {
     try {

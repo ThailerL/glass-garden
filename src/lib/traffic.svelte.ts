@@ -119,6 +119,14 @@ export class Traffic {
 		this.#arm();
 	}
 
+	// Nothing reports a level for a node that is down, so its last one would stand
+	forget(nodeId: string) {
+		this.#held = this.#held.filter((held) => held.kind !== 'level' || held.nodeId !== nodeId);
+		this.#pendingLevels = this.#pendingLevels.filter((level) => level.nodeId !== nodeId);
+		const { [nodeId]: gone, ...levels } = this.levels;
+		if (gone) this.levels = levels;
+	}
+
 	#resolve(endpoint: Endpoint): { nodeId: string; lane?: number } | undefined {
 		if ('node' in endpoint) return { nodeId: endpoint.node };
 		return this.#services.instanceAt(endpoint.port);

@@ -368,6 +368,7 @@ export class Orchestrator {
 			getNeighbours: () => this.getNeighbours(nodeId),
 			scheduleNeighbours: () => this.#scheduleNeighbours(nodeId),
 			onTraffic: (event) => this.traffic.ingest(nodeId, event),
+			forgetTraffic: () => this.traffic.forget(nodeId),
 			unregister: () => {
 				this.#controllers.delete(nodeId);
 				// Only reached after the node is deleted and its last instance is gone

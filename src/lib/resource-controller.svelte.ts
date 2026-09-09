@@ -46,6 +46,7 @@ export type ControllerServices = {
 	scheduleNeighbours: () => void;
 	// A hop or level one of this node's processes printed
 	onTraffic: (event: TrafficEvent) => void;
+	forgetTraffic: () => void;
 	unregister: () => void;
 };
 
@@ -158,6 +159,7 @@ export class ResourceController {
 	#standDown() {
 		this.wantsRunning = false;
 		this.#cancelRestart();
+		this.#services.forgetTraffic();
 	}
 
 	// Called once the node is gone from the graph; winds down and unregisters after the
