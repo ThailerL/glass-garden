@@ -1,9 +1,29 @@
+<script module lang="ts">
+	import { useConnection, type Edge } from '@xyflow/svelte';
+	import { canAddEdge, type ConnectableNode } from '$lib/resources';
+
+	export type ConnectionState = ReturnType<typeof useConnection>['current'];
+
+	// Whether a connection being dragged could not legally end on this node
+	export function unreachable(
+		connection: ConnectionState,
+		node: ConnectableNode,
+		edges: readonly Edge[]
+	): boolean {
+		const from = connection.inProgress && connection.fromNode;
+		if (!from || from.id === node.id) return false;
+		return connection.fromHandle.type === 'source'
+			? !canAddEdge(from, node, edges)
+			: !canAddEdge(node, from, edges);
+	}
+</script>
+
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import { nodeChart, nodeName } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeChart, nodeName } from '$lib/graph-state.svelte';
 	import { statusText } from '$lib/status';
 	import { fans } from '$lib/lanes';
 	import NodeChart from './NodeChart.svelte';
@@ -21,6 +41,14 @@
 	const statuses = $derived(orchestrator.getInstanceStatuses(node.id));
 	const fanned = $derived(fans(statuses.length));
 	const level = $derived(orchestrator.traffic.levels[node.id]);
+
+	const graphState = getGraphState();
+	const connection = useConnection();
+	const dimmed = $derived(unreachable(connection.current, node, graphState.edges));
+	// On the card the flow owns; `node.class` would persist the dim
+	function dim(el: HTMLElement) {
+		el.closest('.svelte-flow__node')?.classList.toggle('dimmed', dimmed);
+	}
 
 	function fitText(el: HTMLSpanElement) {
 		const container = el.parentElement as HTMLElement;
@@ -59,6 +87,7 @@
 	class="block origin-center overflow-visible pt-1.5 text-[0.8125rem] leading-tight
 	       font-medium whitespace-nowrap"
 	use:fitText
+	{@attach dim}
 >
 	{name}
 </span>

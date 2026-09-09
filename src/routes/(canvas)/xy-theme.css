@@ -67,7 +67,13 @@
 	height: 104px;
 	transition:
 		box-shadow 150ms ease,
-		border-color 150ms ease;
+		border-color 150ms ease,
+		opacity 150ms ease;
+}
+
+/* What a connection in progress cannot end on */
+.svelte-flow__node.dimmed {
+	opacity: 0.4;
 }
 
 .svelte-flow__node.selectable:hover,

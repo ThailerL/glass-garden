@@ -1,4 +1,4 @@
-import type { Edge, Node } from '@xyflow/svelte';
+import type { Edge } from '@xyflow/svelte';
 import type { Capability, ResourceDefinition, ConnectedNode } from './types';
 import { instanceGroup } from './instance-group';
 import { httpLoadBalancer } from './http-load-balancer';
@@ -32,7 +32,10 @@ export function getResourceDefinition(type: string | undefined): ResourceDefinit
 	return definition;
 }
 
-export function canConnect(source: Node, target: Node): boolean {
+// Only the identity and type matter, so xyflow's internal nodes are judged as readily as ours
+export type ConnectableNode = { id: string; type?: string };
+
+export function canConnect(source: ConnectableNode, target: ConnectableNode): boolean {
 	if (source.id === target.id) return false;
 	const { consumes } = getResourceDefinition(source.type);
 	const { provides } = getResourceDefinition(target.type);
@@ -41,7 +44,11 @@ export function canConnect(source: Node, target: Node): boolean {
 
 // Whether an edge may be drawn given the ones already there: legal by capability, and not a
 // second target for a source that only acts on one. Redrawing its existing edge is not a second
-export function canAddEdge(source: Node, target: Node, edges: readonly Edge[]): boolean {
+export function canAddEdge(
+	source: ConnectableNode,
+	target: ConnectableNode,
+	edges: readonly Edge[]
+): boolean {
 	if (!canConnect(source, target)) return false;
 	if (!getResourceDefinition(source.type).singleTarget) return true;
 	return !edges.some((edge) => edge.source === source.id && edge.target !== target.id);
