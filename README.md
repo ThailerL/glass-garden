@@ -15,7 +15,7 @@ Everything on your canvas is running real code, and your app talks to it the sam
 
 Click on any resource for its metrics, logs, and a window into whatever it's serving. Or pin their charts to the canvas to create a live dashboard. Access between resources works by drawing edges between them.
 
-[queue-demo.webm](https://github.com/user-attachments/assets/456feb1e-f7be-4728-9106-5c1a5fc7b96e)
+[queue-demo.webm](https://github.com/user-attachments/assets/9324e82c-18ab-4c59-b98a-c497bc655c5a)
 
 _A signup API drops each new password onto a queue for a Lambda function to hash. Signups come in faster than one execution environment can keep up, so the backlog grows until the function's concurrency is raised and it drains._
 
