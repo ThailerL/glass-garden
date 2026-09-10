@@ -37,7 +37,6 @@ export class Orchestrator {
 	#containerError = $state<string | undefined>();
 	#slowBoot = $state(false);
 	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
-	#warmingRegion = $state(false);
 	readonly traffic = new Traffic({
 		instanceAt: (port) => {
 			for (const node of this.#graphState.nodes) {
@@ -82,21 +81,11 @@ export class Orchestrator {
 		return this.#slowBoot && !this.#containerReady && anyPostgresNodes();
 	}
 
-	// Named because it is a real wait: the region starts a Python runtime, and every node can
-	// emit CloudWatch through it. Not gating - a node that never calls AWS still runs, so a
-	// region that fails to start costs telemetry rather than the canvas
-	get warmingRegion(): boolean {
-		return this.#warmingRegion;
-	}
-
 	warmUp() {
 		// No node owns this failure, and nothing can run without it, so it is said once here
 		// rather than waiting for the first start to report it as a failed prepare
 		void this.#getContainer()
-			.then(() => {
-				this.#warmingRegion = true;
-				return ensureRegion().finally(() => (this.#warmingRegion = false));
-			})
+			.then(() => ensureRegion())
 			// ensureRegion already toasts; a start that needs the region reports it again
 			.catch(() => {});
 		// Editable files are laid down on load rather than first use, so an export finds them

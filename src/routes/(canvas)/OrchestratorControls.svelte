@@ -56,9 +56,6 @@
 		{#if orchestrator.containerError}
 			<TriangleAlertIcon class="size-3.5 text-destructive" />
 			<span class="text-muted-foreground" title={orchestrator.containerError}>Boot failed</span>
-		{:else if orchestrator.warmingRegion}
-			<Spinner class="size-3 text-muted-foreground" />
-			<span class="text-muted-foreground">Booting AWS</span>
 		{:else if orchestrator.containerReady}
 			<StatusDot {status} />
 			<span>{STATUS_TEXT[status]}</span>

@@ -153,6 +153,22 @@ describe('ResourceController', () => {
 		expect(services.scheduleNeighbours).toHaveBeenCalledTimes(1);
 	});
 
+	it('prepares while the region boots, but spawns only once it answers', async () => {
+		const prepare = vi.fn(async () => {});
+		const { services, definition, controller } = setup({}, { prepare });
+		let regionUp!: () => void;
+		services.regionReady = () => new Promise<void>((resolve) => (regionUp = resolve));
+
+		controller.start();
+		await settle();
+		expect(prepare).toHaveBeenCalled();
+		expect(definition.start).not.toHaveBeenCalled();
+
+		regionUp();
+		await settle();
+		expect(definition.start).toHaveBeenCalled();
+	});
+
 	it('holds a server-hosting instance at starting until server-ready promotes it', async () => {
 		const { services, controller } = setup({}, { readyOnStart: false });
 

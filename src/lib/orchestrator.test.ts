@@ -11,7 +11,7 @@ const fake = vi.hoisted(() => ({ stopFails: false, alwaysOn: false }));
 
 vi.mock('$lib/container', () => ({
 	getContainer: vi.fn(async () => ({ on: vi.fn() })),
-	mountNodeFiles: vi.fn(),
+	mountNodeFiles: vi.fn(async () => {}),
 	removeNodeFiles: vi.fn(),
 	shutdownContainer: vi.fn(),
 	requestPersistentStorage: vi.fn(),

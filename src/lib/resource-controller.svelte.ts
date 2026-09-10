@@ -313,13 +313,18 @@ export class ResourceController {
 
 		try {
 			const container = await this.#services.getContainer();
-			// Before anything this start captures, so no output exists that the region missed
-			await this.#services.regionReady();
-			await this.#services.mountFiles();
-			// Runs once per pass rather than once per instance, so instances don't race each other
-			await this.#definition.prepare?.(node, container, (output) =>
-				this.log.capture('resource', output)
-			);
+			await Promise.all([
+				// Before any process runs, so an AWS call at startup finds the region answering
+				this.#services.regionReady(),
+				// Runs once per pass rather than once per instance, so instances don't race each other
+				this.#services
+					.mountFiles()
+					.then(() =>
+						this.#definition.prepare?.(node, container, (output) =>
+							this.log.capture('resource', output)
+						)
+					)
+			]);
 			await Promise.all(
 				pending.map((instance) =>
 					this.#spawnInstance(node, container, targets, launch.config, instance)
