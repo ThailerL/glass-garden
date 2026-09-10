@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { leaveForMainApp, mainAppUrl, openEmbeddedProject } from '$lib/embed';
+import { leaveForMainApp, mainAppUrl, openEmbeddedProject, whenInView } from '$lib/embed';
 import { encodeShareLink } from '$lib/share-link';
 
 const { publicEnv, projects, location } = vi.hoisted(() => {
@@ -100,6 +100,30 @@ describe('leaveForMainApp', () => {
 		publicEnv.PUBLIC_ORIGIN = 'https://garden.example.com';
 		Object.assign(location, { origin: 'http://localhost:3000', hostname: 'localhost' });
 		expect(leaveForMainApp()).toBe(false);
+	});
+});
+
+describe('whenInView', () => {
+	it('runs once, the first time the frame is on screen', () => {
+		let report!: (entries: { isIntersecting: boolean }[]) => void;
+		const disconnect = vi.fn();
+		globalThis.document = { documentElement: {} } as Document;
+		globalThis.IntersectionObserver = class {
+			constructor(callback: typeof report) {
+				report = callback;
+			}
+			observe() {}
+			disconnect = disconnect;
+		} as unknown as typeof IntersectionObserver;
+		const callback = vi.fn();
+
+		whenInView(callback);
+		report([{ isIntersecting: false }]);
+		expect(callback).not.toHaveBeenCalled();
+
+		report([{ isIntersecting: true }]);
+		expect(callback).toHaveBeenCalledTimes(1);
+		expect(disconnect).toHaveBeenCalled();
 	});
 });
 

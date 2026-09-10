@@ -4,7 +4,7 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import ResourceNameDialog from '$lib/components/ResourceNameDialog.svelte';
 	import { setGraphState } from '$lib/graph-state.svelte';
-	import { embedded } from '$lib/embed';
+	import { embedded, whenInView } from '$lib/embed';
 	import { anyDraftsDirty } from '$lib/files';
 	import { offerSharedProject } from '$lib/share-link-offer';
 	import { tour } from '$lib/tour.svelte';
@@ -13,7 +13,11 @@
 	import { installAwsCli } from '$lib/aws-cli';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 
-	const { projectId, children }: { projectId: string; children?: Snippet } = $props();
+	const {
+		projectId,
+		start = false,
+		children
+	}: { projectId: string; start?: boolean; children?: Snippet } = $props();
 
 	// Switching projects is a full page load, so this is read once rather than tracked
 	const graphState = setGraphState(untrack(() => projectId));
@@ -23,6 +27,7 @@
 
 	onContainerBoot(installAwsCli);
 	orchestrator.warmUp();
+	if (untrack(() => start)) whenInView(() => orchestrator.startAll());
 	void offerSharedProject();
 	// The tour's last card points at the Projects sidebar, which an embed hides
 	if (embedded) tour.hold();

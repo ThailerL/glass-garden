@@ -43,6 +43,7 @@ A project can run inside a page on another site, such as a blog post or a course
 <iframe
 	src="https://intro.embed.glass.garden/#project=…"
 	allow="cross-origin-isolated"
+	loading="lazy"
 	width="100%"
 	height="700"
 ></iframe>
@@ -56,6 +57,14 @@ Cross-Origin-Embedder-Policy: credentialless
 ```
 
 Without them the frame shows an **Open in Glass Garden** link instead.
+
+To have everything on the canvas start by itself the first time a reader scrolls to it, add `?start` before the `#`:
+
+```html
+<iframe src="https://intro.embed.glass.garden/?start#project=…" …></iframe>
+```
+
+Leave it off when pressing start is part of the lesson.
 
 These headers apply to the whole page, so other frames on it, such as YouTube videos, are blocked unless their site sends headers allowing it, and sign-in or payment popups from other sites can't report back to it. Sending them only on the pages that show a project leaves the rest of your site as it is.
 

@@ -32,7 +32,7 @@
 	{#await initial.state === 'embed' ? openEmbeddedProject(initial.hash) : initial.projectId}
 		<Notice icon={Spinner} title="Setting up" />
 	{:then projectId}
-		<AppShell {projectId}>
+		<AppShell {projectId} start={initial.state === 'embed' && initial.start}>
 			{@render children?.()}
 		</AppShell>
 	{:catch error}

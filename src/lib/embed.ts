@@ -26,6 +26,16 @@ export function leaveForMainApp(): boolean {
 	return true;
 }
 
+// Once rather than on every scroll: a reader who stops the lesson and scrolls back keeps it stopped
+export function whenInView(callback: () => void) {
+	const observer = new IntersectionObserver(([entry]) => {
+		if (!entry.isIntersecting) return;
+		observer.disconnect();
+		callback();
+	});
+	observer.observe(document.documentElement);
+}
+
 // The frame's src never changes, so a changed link is the only sign of a new project
 export async function openEmbeddedProject(hash: string): Promise<string> {
 	const previous = readEntry<EmbeddedProject>(EMBED_KEY);

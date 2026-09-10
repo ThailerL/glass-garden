@@ -15,7 +15,7 @@ export const ssr = false;
 type Layout =
 	| { state: 'notIsolated' }
 	| { state: 'blocked' }
-	| { state: 'embed'; hash: string }
+	| { state: 'embed'; hash: string; start: boolean }
 	| { state: 'ready'; projectId: string };
 
 // The project isn't in the URL, so it is settled here once for both routes
@@ -27,7 +27,9 @@ export const load: LayoutLoad = async ({ url }): Promise<Layout> => {
 	// First, so a tab that may not run neither creates a project nor boots the VM
 	if (!(await claimTabLock())) return { state: 'blocked' };
 	// Settled by the layout, once the import has put the files in the VM
-	if (embedded && hasSharedProject(url.hash)) return { state: 'embed', hash: url.hash };
+	if (embedded && hasSharedProject(url.hash)) {
+		return { state: 'embed', hash: url.hash, start: url.searchParams.has('start') };
+	}
 
 	const [, section, nodeId] = url.pathname.split('/');
 	// The editor can be reached directly while another project was last open, so it adopts
