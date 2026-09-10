@@ -37,7 +37,7 @@ _A notes app keeps each note as an object in a bucket. `aws s3 ls` prints the sa
 
 ## Embedding
 
-A project can run inside a page on another site, such as a blog post or a course. Right-click a project in the sidebar, choose **Copy link**, and put the link in an iframe:
+A project can run inside a page on another site, such as a blog post or a course. Right-click a project in the sidebar, choose **Copy link**, and put the link in an iframe with its address changed to a subdomain of `embed.glass.garden` named for the project:
 
 ```html
 <iframe
@@ -59,7 +59,7 @@ Without them the frame shows an **Open in Glass Garden** link instead.
 
 These headers apply to the whole page, so other frames on it, such as YouTube videos, are blocked unless their site sends headers allowing it, and sign-in or payment popups from other sites can't report back to it. Sending them only on the pages that show a project leaves the rest of your site as it is.
 
-The embed shows the project without the project list, and what a reader does in it is kept by their browser for your site, so pages of yours that share the same address pick the project up where the reader left off. Browsers treat that as data they can clear to free up space, so it suits following along with a lesson rather than keeping work. Change the link and the project is replaced by the new one. To show two projects on one page, give each its own subdomain under `embed.glass.garden`, such as `intro.embed.glass.garden` and `scaling.embed.glass.garden`. Any name works and nothing is registered.
+The embed shows the project without the project list. What a reader does in it is kept by their browser for that subdomain on your site, so every page of yours with the same link picks the project up where the reader left off, and a different link on the same subdomain replaces it. Give every project its own subdomain, such as `intro.embed.glass.garden` and `scaling.embed.glass.garden`, so that moving between your pages never wipes one project with another. Any name works and nothing is registered. Browsers treat this as data they can clear to free up space, so it suits following along with a lesson rather than keeping work.
 
 ## Self-hosting
 
