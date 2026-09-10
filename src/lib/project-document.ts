@@ -1,5 +1,5 @@
 import type { Edge, Node } from '@xyflow/svelte';
-import type { DirEnt } from '@vivari/core';
+import type { DirEnt, FileSystemTree } from '@vivari/core';
 import { z } from 'zod';
 import { resourceDefinitions, type ResourceType } from './resources';
 import {
@@ -124,5 +124,17 @@ export async function readNodeFiles(
 			}
 		})
 	);
+	return files;
+}
+
+export function treeFiles(tree: FileSystemTree, prefix = ''): NodeFiles {
+	const files: NodeFiles = {};
+	for (const [name, entry] of Object.entries(tree)) {
+		if ('directory' in entry) {
+			Object.assign(files, treeFiles(entry.directory, `${prefix}${name}/`));
+		} else if (typeof entry.file.contents === 'string') {
+			files[`${prefix}${name}`] = entry.file.contents;
+		}
+	}
 	return files;
 }

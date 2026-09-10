@@ -7,6 +7,7 @@ import {
 	buildProjectDocument,
 	parseProjectDocument,
 	readNodeFiles,
+	treeFiles,
 	type ReadableFs
 } from '$lib/project-document';
 
@@ -162,5 +163,17 @@ describe('readNodeFiles', () => {
 			}
 		};
 		expect(await readNodeFiles(fs, '/n')).toEqual({ 'server.js': 'hi', 'lib/util.js': 'util' });
+	});
+});
+
+describe('treeFiles', () => {
+	it('flattens a file tree to paths, leaving out bytes', () => {
+		expect(
+			treeFiles({
+				'server.js': { file: { contents: 'hi' } },
+				lib: { directory: { 'util.js': { file: { contents: 'util' } } } },
+				'blob.bin': { file: { contents: new Uint8Array([0xff]) } }
+			})
+		).toEqual({ 'server.js': 'hi', 'lib/util.js': 'util' });
 	});
 });

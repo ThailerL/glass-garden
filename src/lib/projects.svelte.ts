@@ -12,10 +12,12 @@ import {
 import { GRAPH_PREFIX, GraphState, graphKeyPrefix, loadNode } from './graph-state.svelte';
 import { keysWithPrefix, readByPrefix } from './storage';
 import { getResourceDefinition } from './resources';
+import { nodeFiles } from './files/node-files';
 import {
 	applyProjectDocument,
 	buildProjectDocument,
 	readNodeFiles,
+	treeFiles,
 	type NodeFiles,
 	type ProjectDocument
 } from './project-document';
@@ -109,7 +111,11 @@ export async function exportProject(project: Project): Promise<string> {
 		const { fs } = await getContainer();
 		await Promise.all(
 			editable.map(async (node) => {
-				files[node.id] = await readNodeFiles(fs, nodeDirectory(node.id, project.id));
+				const directory = nodeDirectory(node.id, project.id);
+				// Not laid down yet while the VM boots, so the node still has its starting files
+				files[node.id] = (await fs.exists(directory))
+					? await readNodeFiles(fs, directory)
+					: treeFiles(nodeFiles(node));
 			})
 		);
 	}
