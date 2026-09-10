@@ -1,0 +1,6 @@
+# Read by adapter-cloudflare, which serves static files without running the Worker, so they need
+# the headers from src/lib/isolation-headers.ts here as well
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin

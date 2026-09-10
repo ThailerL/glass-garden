@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type Connect, type Plugin } from 'vite';
+import { ISOLATION_HEADERS } from './src/lib/isolation-headers';
 // Type-only: erased at compile time, so this browser-only package is never actually
 // loaded by the Node build. Keep it `import type`
 import type { FileSystemTree } from '@vivari/core';
@@ -155,9 +156,7 @@ function vivariAssets(): Plugin {
 // configureServer runs ahead of all of Vite's own, so this covers every response
 function crossOriginIsolation(): Plugin {
 	const isolate: Connect.NextHandleFunction = (_request, response, next) => {
-		response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-		response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-		response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+		for (const [name, value] of Object.entries(ISOLATION_HEADERS)) response.setHeader(name, value);
 		next();
 	};
 
@@ -184,10 +183,12 @@ export default defineConfig({
 				}
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-			adapter: adapter()
+			// glass.garden deploys to Cloudflare; the Docker image keeps the Node build. Imported only
+			// when chosen, since it loads wrangler
+			adapter:
+				process.env.ADAPTER === 'cloudflare'
+					? (await import('@sveltejs/adapter-cloudflare')).default()
+					: adapter()
 		})
 	],
 

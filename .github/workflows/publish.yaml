@@ -95,6 +95,7 @@ jobs:
     needs: check
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
+    # Two releases in quick succession deploy in order rather than racing
     concurrency: cloudflare-deploy
     steps:
       - uses: actions/checkout@v5
