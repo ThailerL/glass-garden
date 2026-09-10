@@ -46,6 +46,8 @@ services:
     container_name: glass-garden
     ports:
       - '3000:3000'
+    environment:
+      PUBLIC_ORIGIN: https://garden.example.com
     restart: unless-stopped
 ```
 
@@ -55,7 +57,7 @@ or run
 docker run -p 3000:3000 ghcr.io/thailerl/glass-garden:latest
 ```
 
-Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (e.g. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS as the app requires a secure context to work.
+Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (e.g. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS as the app requires a secure context to work. Set `PUBLIC_ORIGIN` to the address you reach it at so that links to it show a preview image when shared.
 
 ## Developing
 
