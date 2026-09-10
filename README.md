@@ -4,7 +4,7 @@ Build cloud architecture by dragging load balancers, instance groups, and AWS se
 
 [demo.webm](https://github.com/user-attachments/assets/b7e0f4ca-5d52-4ecf-8c74-cd7caf46dc10)
 
-_Three instances of a page-view counter behind a load balancer, with nowhere to keep the count until a Postgres database is dragged in and connected to the app. Each refresh is answered by the next instance in turn._
+_Three instances of a page-view counter behind a load balancer, with nowhere to keep the count until a Postgres database is dragged in and connected to the app. Each refresh is one request, drawn as a dot landing on the instance the page names._
 
 Everything on your canvas is running real code, and your app talks to it the same way it would in production:
 
