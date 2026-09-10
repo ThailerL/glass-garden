@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	parseTrafficLine,
 	REORDER_MS,
+	SPACING_MS,
 	TICK_MS,
 	Traffic,
 	TRAVEL_MS,
@@ -106,7 +107,19 @@ describe('Traffic', () => {
 		vi.advanceTimersByTime(TRAVEL_MS + TICK_MS);
 		expect(traffic.flights).toMatchObject([
 			{ edgeId: 'e3', startedAt: arrival + TRAVEL_MS },
-			{ edgeId: 'e3', startedAt: arrival + TRAVEL_MS }
+			{ edgeId: 'e3', startedAt: arrival + TRAVEL_MS + SPACING_MS }
+		]);
+	});
+
+	it('spaces a fan-out along the edge, so it is several dots and not one', () => {
+		for (let at = 1; at <= 4; at++) hop(at, 'web', 'queue');
+		settle();
+		vi.advanceTimersByTime(3 * SPACING_MS);
+		expect(traffic.flights.map((flight) => flight.startedAt).sort((a, b) => a - b)).toEqual([
+			arrival,
+			arrival + SPACING_MS,
+			arrival + 2 * SPACING_MS,
+			arrival + 3 * SPACING_MS
 		]);
 	});
 
@@ -165,9 +178,24 @@ describe('Traffic', () => {
 		expect(traffic.flights).toHaveLength(2);
 	});
 
-	it('thins a flood on one edge', () => {
+	it('thins a flood on one edge to what can be drawn without falling behind', () => {
 		for (let i = 0; i < 40; i++) traffic.ingest('lb', { kind: 'hop', at: i, to: { port: 3001 } });
+		// Spaced out, so the cap is what leaves over the whole burst rather than what is in the
+		// air at any one moment
+		const seen = new Set<number>();
+		for (let step = 0; step < 40; step++) {
+			vi.advanceTimersByTime(SPACING_MS);
+			for (const flight of traffic.flights) seen.add(flight.id);
+		}
+		expect(seen.size).toBe(12);
+	});
+
+	it('counts waiting on an arrival as causality rather than as queueing', () => {
+		traffic.ingest('lb', { kind: 'hop', at: 1, to: { port: 3001 } });
+		// A whole flight away, which on its own would be past the queue's budget
+		hop(2, 'web', 'queue');
 		settle();
-		expect(traffic.flights).toHaveLength(24);
+		vi.advanceTimersByTime(TRAVEL_MS + TICK_MS);
+		expect(traffic.flights).toMatchObject([{ edgeId: 'e3', startedAt: arrival + TRAVEL_MS }]);
 	});
 });

@@ -46,7 +46,8 @@
 		statuses[lane] === 'running' &&
 		senders.some((sender) => orchestrator.traffic.routesTo(sender, ports[lane]));
 
-	// SMIL begins are relative to the document, so an inserted animation is started by hand
+	// SMIL begins are relative to the document, so an inserted animation is started by hand. It
+	// begins here and not at the flight's own time, which is why departures are spaced by a tick
 	const begin = (node: SVGAnimateMotionElement) => node.beginElement();
 </script>
 

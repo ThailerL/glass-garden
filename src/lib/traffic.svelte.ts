@@ -42,7 +42,12 @@ export const TRAVEL_MS = 600;
 // Events wait this long and go in the VM's order: their stdouts reach the page in no fixed order
 export const REORDER_MS = 100;
 export const TICK_MS = 100;
-const MAX_FLIGHTS_PER_EDGE = 24;
+// Between two dots leaving on one edge. A tick, because a flight is drawn by the tick that
+// releases it, so anything finer than that lands them on the same frame anyway
+export const SPACING_MS = TICK_MS;
+// Dots waiting their turn on one edge. Past about a dozen nobody is counting them, and a
+// thirteenth would only be drawn later still
+const MAX_QUEUED_PER_EDGE = 12;
 
 export type Flight = {
 	id: number;
@@ -84,6 +89,8 @@ export class Traffic {
 	#timer: ReturnType<typeof setTimeout> | undefined;
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#landsAt = new Map<string, number>();
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	#lastLeft = new Map<string, number>();
 	#nextId = 1;
 
 	constructor(services: TrafficServices) {
@@ -181,21 +188,26 @@ export class Traffic {
 		this.#pendingLevels.push({ nodeId, value, capacity, applyAt });
 	}
 
-	#launch({ count, from, to, lane }: Held & { kind: 'hop' }, now: number) {
+	#edgeFor(from: string, to: string) {
 		const forward = this.#services.edgeBetween(from, to);
 		const edgeId = forward ?? this.#services.edgeBetween(to, from);
-		if (!edgeId) return;
-		const startedAt = Math.max(now, this.#landsAt.get(from) ?? 0);
+		return edgeId ? { edgeId, reverse: forward === undefined } : undefined;
+	}
+
+	#launch({ count, from, to, lane }: Held & { kind: 'hop' }, now: number) {
+		const edge = this.#edgeFor(from, to);
+		if (!edge) return;
+		const { edgeId, reverse } = edge;
+		// A fan-out is one request per dot, and dots leaving together ride the edge superimposed
+		// and read as one, so each waits for the space behind the last
+		const base = Math.max(now, this.#landsAt.get(from) ?? 0);
+		const startedAt = Math.max(base, (this.#lastLeft.get(edgeId) ?? 0) + SPACING_MS);
+		// Dots are illustration and the metrics are the record, so a flood is thinned rather than
+		// queued up behind itself and drawn long after what it stands for. Waiting on an arrival
+		// is not queueing, so it is measured from that rather than from now
+		if (startedAt - base >= MAX_QUEUED_PER_EDGE * SPACING_MS) return;
+		this.#lastLeft.set(edgeId, startedAt);
 		this.#landsAt.set(to, Math.max(this.#landsAt.get(to) ?? 0, startedAt + TRAVEL_MS));
-		const onEdge = (flight: Flight) => flight.edgeId === edgeId;
-		// Dots are illustration and the metrics are the record, so a flood is thinned
-		if (
-			this.flights.filter(onEdge).length + this.#waiting.filter(onEdge).length >=
-			MAX_FLIGHTS_PER_EDGE
-		) {
-			return;
-		}
-		const reverse = forward === undefined;
 		this.#waiting.push({ id: this.#nextId++, edgeId, reverse, lane, startedAt, count });
 	}
 }
