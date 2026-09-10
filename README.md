@@ -29,7 +29,7 @@ _A signup API drops each new password onto a queue for a Lambda function to hash
 
 ## Drive it from a terminal
 
-Every project has a terminal, and the `aws` command is on the PATH of every shell in it. It reaches the same in-browser region your code does, so you can list a bucket, put a message on a queue or invoke a function by hand.
+Every project has a terminal, and the `aws` command is on the PATH of every shell in it. It reaches the same in-browser region your code does, so you can list a bucket, put a message on a queue, or invoke a function by hand.
 
 [aws-cli-demo.webm](https://github.com/user-attachments/assets/0db7a7c4-57b0-49fe-b755-27a6c7bd25e4)
 
