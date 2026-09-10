@@ -9,12 +9,14 @@
 		active,
 		onOpen,
 		onExport,
+		onShare,
 		onDelete
 	}: {
 		project: Project;
 		active: boolean;
 		onOpen: () => void;
 		onExport: () => void;
+		onShare: () => void;
 		onDelete: () => void;
 	} = $props();
 
@@ -51,6 +53,7 @@
 					{/snippet}
 				</Rename.Edit>
 				<ContextMenu.Item onSelect={onExport}>Export</ContextMenu.Item>
+				<ContextMenu.Item onSelect={onShare}>Copy link</ContextMenu.Item>
 				<ContextMenu.Item onSelect={onDelete}>Delete</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Root>

@@ -5,6 +5,7 @@
 	import ResourceNameDialog from '$lib/components/ResourceNameDialog.svelte';
 	import { setGraphState } from '$lib/graph-state.svelte';
 	import { anyDraftsDirty } from '$lib/files';
+	import { offerSharedProject } from '$lib/share-link-offer';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
 	import { onContainerBoot } from '$lib/container';
 	import { installAwsCli } from '$lib/aws-cli';
@@ -20,6 +21,7 @@
 
 	onContainerBoot(installAwsCli);
 	orchestrator.warmUp();
+	void offerSharedProject();
 
 	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a
 	// node the user has since navigated away from is still unsaved. The browser writes the
@@ -32,7 +34,8 @@
 	}
 </script>
 
-<svelte:window onbeforeunload={warnAboutUnsaved} />
+<!-- A link pasted into an open tab's address bar only changes the hash -->
+<svelte:window onbeforeunload={warnAboutUnsaved} onhashchange={offerSharedProject} />
 
 <Toaster position="bottom-center" toastOptions={{ duration: 2000 }} />
 <!-- One instance for the whole app; confirmDelete() drives it from anywhere -->

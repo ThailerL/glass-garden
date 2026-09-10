@@ -101,7 +101,7 @@ export type ReadableFs = {
 
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
-// Text files only, and never node_modules: a start reinstalls them
+// Text files only, and nothing npm install produces: a start reinstalls them
 export async function readNodeFiles(
 	fs: ReadableFs,
 	directory: string,
@@ -111,7 +111,7 @@ export async function readNodeFiles(
 	const files: NodeFiles = {};
 	await Promise.all(
 		entries.map(async (entry) => {
-			if (entry.name === 'node_modules') return;
+			if (entry.name === 'node_modules' || entry.name === 'package-lock.json') return;
 			const path = `${directory}/${entry.name}`;
 			if (entry.isDirectory()) {
 				Object.assign(files, await readNodeFiles(fs, path, `${prefix}${entry.name}/`));

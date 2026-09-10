@@ -26,9 +26,15 @@ class TourState {
 	// The canvas is built again on every return from the editor, and a tour already under way
 	// carries on from where it stood rather than starting over
 	#begun = false;
+	#held = false;
+
+	// Not marked seen, so it starts on the next visit
+	hold() {
+		this.#held = true;
+	}
 
 	begin(projectId: string, nodes: readonly Node[]) {
-		if (this.#begun || localStorage.getItem(PROJECT_KEY) !== projectId) return;
+		if (this.#begun || this.#held || localStorage.getItem(PROJECT_KEY) !== projectId) return;
 		if (localStorage.getItem(SEEN_KEY)) return;
 
 		const balancer = nodes.find((node) => node.type === 'httpLoadBalancer');

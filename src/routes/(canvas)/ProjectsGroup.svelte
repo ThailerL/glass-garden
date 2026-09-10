@@ -7,6 +7,8 @@
 	import ImportIcon from '@lucide/svelte/icons/import';
 	import { toast } from 'svelte-sonner';
 	import { messageOf } from '$lib/errors';
+	import { encodeShareLink } from '$lib/share-link';
+	import { parseProjectDocument } from '$lib/project-document';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import {
 		deleteProject,
@@ -14,7 +16,7 @@
 		exportProject,
 		importProject,
 		listProjects,
-		setLastProjectId,
+		openProject,
 		type Project
 	} from '$lib/projects.svelte';
 	import CreateProjectDialog from './CreateProjectDialog.svelte';
@@ -42,25 +44,26 @@
 		}
 	}
 
+	async function share(project: Project) {
+		try {
+			const link = await encodeShareLink(await exportProject(project), location.origin);
+			await navigator.clipboard.writeText(link);
+			toast.success('Link copied');
+		} catch (error) {
+			toast.error(`Could not share the project: ${messageOf(error)}`);
+		}
+	}
+
 	async function importPicked(input: HTMLInputElement) {
 		const file = input.files?.[0];
 		// Cleared so picking the same file again fires change again
 		input.value = '';
 		if (!file) return;
 		try {
-			openProject((await importProject(await file.text())).id);
+			openProject((await importProject(parseProjectDocument(await file.text()))).id);
 		} catch (error) {
 			toast.error(messageOf(error));
 		}
-	}
-
-	// Reloads rather than switching in place: a switch tears the container down and boots a new
-	// one, and on Chromium the preview relay does not survive that, so the page loses its control
-	// channel to the region while VM-side callers still reach it
-	function openProject(id: string) {
-		if (id === graphState.projectId) return;
-		setLastProjectId(id);
-		location.reload();
 	}
 
 	function confirmDeleteProject(project: Project) {
@@ -115,8 +118,9 @@
 						<ProjectMenuItem
 							{project}
 							active={project.id === graphState.projectId}
-							onOpen={() => openProject(project.id)}
+							onOpen={() => project.id !== graphState.projectId && openProject(project.id)}
 							onExport={() => download(project)}
+							onShare={() => share(project)}
 							onDelete={() => confirmDeleteProject(project)}
 						/>
 					{/each}

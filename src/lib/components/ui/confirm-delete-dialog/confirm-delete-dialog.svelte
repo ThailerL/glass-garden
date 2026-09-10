@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import { toast } from 'svelte-sonner';
+	import type { ButtonVariant } from '$lib/components/ui/button';
 
 	class ConfirmDeleteDialogState {
 		open = $state(false);
@@ -68,6 +69,7 @@
 		};
 		confirm?: {
 			text?: string;
+			variant?: ButtonVariant;
 		};
 		cancel?: {
 			text?: string;
@@ -134,7 +136,7 @@
 				</AlertDialog.Cancel>
 				<AlertDialog.Action
 					type="submit"
-					variant="destructive"
+					variant={dialogState.options?.confirm?.variant ?? 'destructive'}
 					loading={dialogState.loading}
 					disabled={dialogState.options?.input &&
 						dialogState.inputText !== dialogState.options.input.confirmationText}

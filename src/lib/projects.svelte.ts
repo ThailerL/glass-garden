@@ -15,9 +15,9 @@ import { getResourceDefinition } from './resources';
 import {
 	applyProjectDocument,
 	buildProjectDocument,
-	parseProjectDocument,
 	readNodeFiles,
-	type NodeFiles
+	type NodeFiles,
+	type ProjectDocument
 } from './project-document';
 
 export type Project = { id: string; name: string; createdAt: number };
@@ -46,6 +46,14 @@ export function getLastProjectId(): string | undefined {
 
 export function setLastProjectId(id: string) {
 	localStorage.setItem(LAST_PROJECT_KEY, id);
+}
+
+// Reloads rather than switching in place: a switch tears the container down and boots a new
+// one, and on Chromium the preview relay does not survive that, so the page loses its control
+// channel to the region while VM-side callers still reach it
+export function openProject(id: string) {
+	setLastProjectId(id);
+	location.reload();
 }
 
 function writeProject(project: Project) {
@@ -110,8 +118,7 @@ export async function exportProject(project: Project): Promise<string> {
 
 // The record goes down before the files, so a boot in between cannot sweep them; like the
 // create dialog, this leaves the ambient project pointed at the new one, so callers reload
-export async function importProject(text: string): Promise<Project> {
-	const doc = parseProjectDocument(text);
+export async function importProject(doc: ProjectDocument): Promise<Project> {
 	let ids!: Map<string, string>;
 	const project = createProject(doc.name, (graph) => {
 		ids = applyProjectDocument(graph, doc);

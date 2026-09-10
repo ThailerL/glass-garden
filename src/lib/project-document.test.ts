@@ -137,12 +137,13 @@ describe('applyProjectDocument', () => {
 });
 
 describe('readNodeFiles', () => {
-	it('walks text files, skipping node_modules and binaries', async () => {
+	it('walks text files, skipping install output and binaries', async () => {
 		const tree: Record<string, Record<string, Uint8Array | null>> = {
 			'/n': {
 				'server.js': new TextEncoder().encode('hi'),
 				lib: null,
 				node_modules: null,
+				'package-lock.json': new TextEncoder().encode('{}'),
 				'blob.bin': new Uint8Array([0xff, 0xfe])
 			},
 			'/n/lib': { 'util.js': new TextEncoder().encode('util') },
