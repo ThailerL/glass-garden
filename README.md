@@ -35,6 +35,32 @@ Every project has a terminal, and the `aws` command is on the PATH of every shel
 
 _A notes app keeps each note as an object in a bucket. `aws s3 ls` prints the same keys the app is showing, and a note copied into the bucket from the shell appears in the app on its next page load._
 
+## Embedding
+
+A project can run inside a page on another site, such as a blog post or a course. Right-click a project in the sidebar, choose **Copy link**, and put the link in an iframe:
+
+```html
+<iframe
+	src="https://intro.embed.glass.garden/#project=…"
+	allow="cross-origin-isolated"
+	width="100%"
+	height="700"
+></iframe>
+```
+
+The servers inside the frame need the browser's cross-origin isolation, so the page showing it has to send two headers:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: credentialless
+```
+
+Without them the frame shows an **Open in Glass Garden** link instead.
+
+These headers apply to the whole page, so other frames on it, such as YouTube videos, are blocked unless their site sends headers allowing it, and sign-in or payment popups from other sites can't report back to it. Sending them only on the pages that show a project leaves the rest of your site as it is.
+
+The embed shows the project without the project list, and what a reader does in it is kept by their browser for your site, so pages of yours that share the same address pick the project up where the reader left off. Browsers treat that as data they can clear to free up space, so it suits following along with a lesson rather than keeping work. Change the link and the project is replaced by the new one. To show two projects on one page, give each its own subdomain under `embed.glass.garden`, such as `intro.embed.glass.garden` and `scaling.embed.glass.garden`. Any name works and nothing is registered.
+
 ## Self-hosting
 
 To self-host with Docker, use this `compose.yaml`
@@ -58,6 +84,8 @@ docker run -p 3000:3000 ghcr.io/thailerl/glass-garden:latest
 ```
 
 Then visit `http://localhost:3000`. If you are not accessing the website from `localhost` (e.g. it is running on a separate server), then you will need to set up a reverse proxy with HTTPS as the app requires a secure context to work. Set `PUBLIC_ORIGIN` to the address you reach it at so that links to it show a preview image when shared.
+
+To embed your instance of Glass Garden, point the wildcard `*.embed.garden.example.com` at the same container.
 
 ## Developing
 

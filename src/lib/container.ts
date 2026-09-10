@@ -10,14 +10,21 @@ let teardownComplete = Promise.resolve();
 
 // Run after every boot; failures are logged, never fatal
 const bootTasks: ((container: Vivari) => Promise<void>)[] = [];
+// What a late registration reads to see the boot pass has been made
+let booted: Vivari | undefined;
+let generation = 0;
 
 export function onContainerBoot(task: (container: Vivari) => Promise<void>) {
 	bootTasks.push(task);
+	if (booted) void task(booted).catch(console.error);
 }
 
 export function getContainer() {
+	const mine = generation;
 	containerPromise ??= teardownComplete.then(async () => {
 		const container = await Vivari.boot();
+		// A shutdown mid-boot already tore this one down; holding it would keep the VM alive
+		if (mine === generation) booted = container;
 		for (const task of bootTasks) void task(container).catch(console.error);
 		return container;
 	});
@@ -33,12 +40,14 @@ export function onContainerShutdown(task: () => Promise<void>) {
 }
 
 export function shutdownContainer() {
-	const booted = containerPromise;
+	const running = containerPromise;
 	containerPromise = undefined;
+	booted = undefined;
+	generation += 1;
 	mounts.clear();
-	if (!booted) return;
+	if (!running) return;
 	// A failed boot has nothing to tear down, and must not hold up the next one
-	teardownComplete = booted.then(
+	teardownComplete = running.then(
 		async (container) => {
 			await Promise.race([
 				Promise.allSettled(shutdownTasks.map((task) => task())),

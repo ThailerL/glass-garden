@@ -1,13 +1,14 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { resourceDefinitions, type ResourceType } from '$lib/resources';
-	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { IsCompact } from '$lib/hooks/is-compact.svelte';
 	import { draggable } from '@thisux/sveltednd';
 
 	// A drag says where the node goes and a tap does not, so the canvas decides instead
 	const { onTap }: { onTap: (resource: ResourceType) => void } = $props();
 
-	const isMobile = new IsMobile();
+	// Where the palette opens as a sheet, a drag cannot reach the canvas behind it
+	const isCompact = new IsCompact();
 </script>
 
 <Sidebar.Group class="py-0">
@@ -22,13 +23,13 @@
 						use:draggable={{
 							container: 'component-sidebar',
 							dragData: resource,
-							disabled: isMobile.current
+							disabled: isCompact.current
 						}}
 					>
 						<Sidebar.MenuButton
 							class="text-sm [&>svg]:size-4.5 [&>svg]:text-resource-icon
-							       {isMobile.current ? '' : 'cursor-grab active:cursor-grabbing'}"
-							onclick={isMobile.current ? () => onTap(resource as ResourceType) : undefined}
+							       {isCompact.current ? '' : 'cursor-grab active:cursor-grabbing'}"
+							onclick={isCompact.current ? () => onTap(resource as ResourceType) : undefined}
 						>
 							<definition.icon />
 							{definition.name}

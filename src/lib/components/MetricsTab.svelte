@@ -72,7 +72,6 @@
 			{#each instancePorts as port (port)}
 				{@const instance = instances.find((candidate) => candidate.port === port)}
 				{@const instanceStatus = instance?.status ?? 'stopped'}
-				{@const url = definition?.hasPreview ? instance?.previewUrl : undefined}
 				{@const uptime = uptimeText(instance, now)}
 				<li class="flex items-center gap-2 border-b py-1.5 last:border-b-0">
 					<StatusDot status={instanceStatus} />
@@ -80,20 +79,6 @@
 					<span class="text-muted-foreground">{statusLabel(instance)}</span>
 					{#if uptime}
 						<span class="text-xs text-muted-foreground tabular-nums">{uptime}</span>
-					{/if}
-					{#if url}
-						<!-- Served by the preview service worker rather than by SvelteKit routing, so
-				     there is no route for resolve() to take -->
-						<!-- eslint-disable svelte/no-navigation-without-resolve -->
-						<a
-							href={url}
-							target="_blank"
-							rel="noreferrer"
-							class="ml-auto text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-						>
-							Open
-						</a>
-						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					{/if}
 				</li>
 			{/each}

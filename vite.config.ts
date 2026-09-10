@@ -157,7 +157,7 @@ function crossOriginIsolation(): Plugin {
 	const isolate: Connect.NextHandleFunction = (_request, response, next) => {
 		response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
 		response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-		response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+		response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 		next();
 	};
 

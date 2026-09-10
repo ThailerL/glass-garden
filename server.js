@@ -5,14 +5,15 @@ import { handler } from './build/handler.js';
 // just the documents a SvelteKit hook would see. adapter-node serves build/client through sirv
 // before the SvelteKit handler runs, and a dedicated worker script served without COEP is
 // blocked outright (ERR_BLOCKED_BY_RESPONSE) when the page that spawns it is isolated,
-// which is exactly how the kernel worker is loaded
+// which is exactly how the kernel worker is loaded. CORP is open so another site can frame
+// the app
 const port = Number(process.env.PORT ?? 3000);
 
 http
 	.createServer((request, response) => {
 		response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
 		response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-		response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+		response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 		handler(request, response);
 	})
 	.listen(port, () => console.log(`Glass Garden listening on ${port}`));

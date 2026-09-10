@@ -4,8 +4,10 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import ResourceNameDialog from '$lib/components/ResourceNameDialog.svelte';
 	import { setGraphState } from '$lib/graph-state.svelte';
+	import { embedded } from '$lib/embed';
 	import { anyDraftsDirty } from '$lib/files';
 	import { offerSharedProject } from '$lib/share-link-offer';
+	import { tour } from '$lib/tour.svelte';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
 	import { onContainerBoot } from '$lib/container';
 	import { installAwsCli } from '$lib/aws-cli';
@@ -22,6 +24,8 @@
 	onContainerBoot(installAwsCli);
 	orchestrator.warmUp();
 	void offerSharedProject();
+	// The tour's last card points at the Projects sidebar, which an embed hides
+	if (embedded) tour.hold();
 
 	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a
 	// node the user has since navigated away from is still unsaved. The browser writes the

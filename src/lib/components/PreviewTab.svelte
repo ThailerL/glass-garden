@@ -5,6 +5,7 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import PreviewFrame from '$lib/components/PreviewFrame.svelte';
 	import InstanceSelect from '$lib/components/InstanceSelect.svelte';
+	import { embedded } from '$lib/embed';
 	import { tour } from '$lib/tour.svelte';
 
 	const { nodeId }: { nodeId: string } = $props();
@@ -59,7 +60,8 @@
 				class="min-w-0 flex-1 bg-transparent outline-none"
 			/>
 		</form>
-		{#if previewUrl}
+		<!-- A new tab is outside the host page's storage, where no embed is running -->
+		{#if !embedded && previewUrl}
 			<!-- Served by the preview service worker rather than by SvelteKit routing, so there
 			     is no route for resolve() to take, and Button's href only takes resolved ones -->
 			<!-- eslint-disable svelte/no-navigation-without-resolve -->
@@ -74,7 +76,7 @@
 				<ExternalLinkIcon />
 			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
-		{:else}
+		{:else if !embedded}
 			<!-- An anchor has no disabled state to style, so nothing to open is a real button
 			     and dims like the refresh beside it -->
 			<Button variant="outline" size="icon" aria-label="Open preview in a new tab" disabled>

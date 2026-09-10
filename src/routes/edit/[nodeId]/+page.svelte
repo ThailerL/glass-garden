@@ -11,7 +11,7 @@
 	import { getResourceDefinition } from '$lib/resources';
 	import { nodeFiles } from '$lib/files/node-files';
 	import { Button } from '$lib/components/ui/button';
-	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { IsCompact } from '$lib/hooks/is-compact.svelte';
 	import { resolve } from '$app/paths';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 
@@ -19,13 +19,13 @@
 
 	const orchestrator = getOrchestrator();
 
-	const isMobile = new IsMobile();
+	const isCompact = new IsCompact();
 
-	// Pinned open the panel would cover most of the file being edited, so on the small layout
+	// Pinned open the panel would cover most of the file being edited, so on the compact layout
 	// it is something you ask for. Undefined rather than an empty snippet: Workspace reads the
 	// absence, not the contents
 	let infoOpen = $state(false);
-	const inspector = $derived(!isMobile.current || infoOpen ? rightSidebar : undefined);
+	const inspector = $derived(!isCompact.current || infoOpen ? rightSidebar : undefined);
 	const closeInspector = () => (infoOpen = false);
 
 	const nodeId = untrack(() => params.nodeId);

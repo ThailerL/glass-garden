@@ -11,7 +11,7 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { shellLaunchOptions } from '$lib/shell-launch';
 	import { shellSessions, type ShellOwner } from '$lib/shell-sessions.svelte';
-	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { IsCompact } from '$lib/hooks/is-compact.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { resolve } from '$app/paths';
 	import InfoIcon from '@lucide/svelte/icons/info';
@@ -38,7 +38,7 @@
 		onShowInfo?: () => void;
 	} = $props();
 
-	const isMobile = new IsMobile();
+	const isCompact = new IsCompact();
 
 	// The node id keys the mount; rootPath is the same node addressed as an absolute path
 	// inside the container, which is what the fs and the shell want
@@ -65,10 +65,10 @@
 	$effect(() => () => clearInterval(poll));
 
 	// A shell for this node is here on arrival, as it was before tabs; the canvas opens none.
-	// A phone gets none either, for the reason its canvas has no terminal button
+	// The compact layout gets none either, for the reason it has no terminal
 	const shellOwner: ShellOwner = { kind: 'node', nodeId: root };
 	const orchestrator = getOrchestrator();
-	if (!isMobile.current) {
+	if (!isCompact.current) {
 		shellSessions.ensureFor(shellOwner, () => shellLaunchOptions(shellOwner, orchestrator));
 	}
 </script>
@@ -108,7 +108,7 @@ here because the key that does it on a desktop needs a keyboard -->
 
 {#snippet editor()}
 	<div class="flex h-full flex-col">
-		{#if !isMobile.current}
+		{#if !isCompact.current}
 			<div class="truncate text-sm text-muted-foreground">{selectedFilePath.join('/')}</div>
 		{/if}
 		<div class="min-h-0 flex-1">
@@ -118,7 +118,7 @@ here because the key that does it on a desktop needs a keyboard -->
 {/snippet}
 
 {#snippet mainContent()}
-	{#if isMobile.current}
+	{#if isCompact.current}
 		{@render editor()}
 	{:else}
 		<ShellDock owner={shellOwner} main={editor} />
