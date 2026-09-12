@@ -187,7 +187,7 @@ export function decideRequest({ credential, resourceNames }, topology) {
   return { allow: true };
 }
 
-const escapeXml = (text) => text.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
+export const escapeXml = (text) => text.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // S3 speaks XML errors; SQS and DynamoDB speak the JSON protocols
 export function denialResponse(service, denial) {

@@ -36,6 +36,7 @@ export function receivedMessages(responseText: string): { Body?: string }[];
 export function notificationQueueName(nodeId: string): string;
 export function isNotificationQueue(name: string): boolean;
 export function notifiedBuckets(messages: { Body?: string }[]): string[];
+export function escapeXml(text: string): string;
 export function emptyByService<T>(make: () => T): Record<Service, T>;
 export function emptyTopology(): Topology;
 export function parseCredential(authorization: string | undefined): Credential | undefined;

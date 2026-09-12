@@ -1,10 +1,12 @@
-// The region bridge. Owns the only socket (Python cannot listen under Pyodide), boots
-// the vendored Python runtime from ./cache, restores persisted state, then serves two
-// surfaces on one port: the AWS data plane (enforced against the topology, then handed
-// to the emulator in-process) and /control/* for the host manager (token-guarded).
+// The region bridge. Owns the only socket (the emulator cannot listen under Pyodide), boots
+// the vendored emulator from ./cache, restores persisted state, then serves two surfaces on
+// one port: the AWS data plane (enforced against the topology, then handed to the emulator
+// in-process) and /control/* for the host manager (token-guarded).
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { deprovision, provision } from './provision.js';
+import { sampleStats } from './stats.js';
 import {
   EVENT_PREFIX,
   decideRequest,
@@ -31,8 +33,6 @@ const DATA_DIR = path.resolve('data');
 // The canvas, as the host last wrote it. A file rather than a control call so it is already
 // on disk before this process starts: a request can never be judged against an empty one
 const TOPOLOGY_FILE = path.resolve('topology.json');
-// The MEMFS staging dir for persistence; injected into Python, which names the files
-const STATE_ROOT = '/state';
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
 // A lone action is saved at once; these two bound the burst behind it. They also bound what a
 // reload loses, since nothing stops the region on unload. A save costs 7-18ms at 5-55KB of
@@ -40,9 +40,6 @@ const MAX_BODY_BYTES = 64 * 1024 * 1024;
 const SAVE_DEBOUNCE_MS = 500;
 const SAVE_MAX_WAIT_MS = 1000;
 const SAMPLE_INTERVAL_MS = 1000;
-// Executed in this order into one shared global namespace; threads.py must land before
-// helpers.py imports the emulator, and api.py defines the gg_* functions the bridge calls
-const PYTHON_FILES = ['threads.py', 'helpers.py', 'api.py'];
 
 // Everything the bridge itself reports; bare stdout/stderr only relays Python output.
 // The manager routes anything carrying a nodeId to that node and keeps the rest
@@ -66,96 +63,24 @@ for (const file of meta.files) {
     throw new Error(`cache file ${file.path} is ${stats?.size ?? 'missing'}, expected ${file.bytes}`);
   }
 }
-const { loadPyodide } = await import('./cache/pyodide/pyodide.mjs');
+const { createRegion } = await import('./cache/pocket-region.js');
 // Explicit indexURL: without it pyodide self-locates via fileURLToPath(import.meta.url),
-// which Vivari's module shim cannot satisfy
-const py = await loadPyodide({
+// which Vivari's module shim cannot satisfy. Restoring from stateDir and saving back to it
+// are pocket-region's, including the shuttle through MEMFS that Vivari's corrupt writes
+// through a node mount force
+const region = await createRegion({
+  packageCacheDir: CACHE_DIR,
   indexURL: path.join(CACHE_DIR, 'pyodide'),
-  packageCacheDir: path.join(CACHE_DIR, 'wheels')
+  stateDir: DATA_DIR,
+  // Queue URLs are built from this, and the SDK dials the URL it is given
+  port: PORT,
+  onOutput: (line, stream) => (stream === 'stderr' ? console.error(line) : console.log(line))
 });
-// Before any Python runs: print throws EBADF without these
-py.setStdout({ batched: (line) => console.log(line) });
-py.setStderr({ batched: (line) => console.error(line) });
-await py.loadPackage(['micropip', ...meta.distPackages]);
-py.FS.mkdirTree('/wheels');
-py.mountNodeFS('/wheels', path.join(CACHE_DIR, 'wheels'));
-
-// Python file IO stays in MEMFS (/state, /tmp): writes through a node mount return
-// corrupt lengths under Vivari, so the bridge shuttles the bytes itself
-function copyDiskToMemfs(diskDir, memDir) {
-  py.FS.mkdirTree(memDir);
-  for (const entry of fs.readdirSync(diskDir, { withFileTypes: true })) {
-    const disk = path.join(diskDir, entry.name);
-    const mem = `${memDir}/${entry.name}`;
-    if (entry.isDirectory()) copyDiskToMemfs(disk, mem);
-    else py.FS.writeFile(mem, fs.readFileSync(disk));
-  }
-}
-
-function listMemfsFiles(memDir, found = []) {
-  for (const name of py.FS.readdir(memDir)) {
-    if (name === '.' || name === '..') continue;
-    const mem = `${memDir}/${name}`;
-    if (py.FS.isDir(py.FS.stat(mem).mode)) listMemfsFiles(mem, found);
-    else found.push(mem);
-  }
-  return found;
-}
-
-function listDiskFiles(diskDir, found = []) {
-  for (const entry of fs.readdirSync(diskDir, { withFileTypes: true })) {
-    const disk = path.join(diskDir, entry.name);
-    if (entry.isDirectory()) listDiskFiles(disk, found);
-    else found.push(disk);
-  }
-  return found;
-}
-
-// Mirror the emulator's state tree out of MEMFS. Deletions count as much as writes: a
-// deleted object whose file survived on disk would reappear at the next boot
-function persistState() {
-  const written = new Set();
-  for (const mem of listMemfsFiles(STATE_ROOT)) {
-    const disk = path.join(DATA_DIR, mem.slice(STATE_ROOT.length + 1));
-    written.add(disk);
-    fs.mkdirSync(path.dirname(disk), { recursive: true });
-    fs.writeFileSync(disk, Buffer.from(py.FS.readFile(mem)));
-  }
-  for (const disk of listDiskFiles(DATA_DIR)) {
-    if (!written.has(disk)) fs.rmSync(disk);
-  }
-}
-
-fs.mkdirSync(DATA_DIR, { recursive: true });
-copyDiskToMemfs(DATA_DIR, STATE_ROOT);
-const wheels = meta.pypiWheels.map((file) => `'emfs:/wheels/${file}'`).join(', ');
-await py.runPythonAsync(`import micropip\nawait micropip.install([${wheels}], deps=False)`);
-py.globals.set('STATE_ROOT', STATE_ROOT);
-// Queue URLs are built from this, and the SDK dials the URL it is given
-py.globals.set('REGION_PORT', PORT);
-for (const file of PYTHON_FILES) {
-  await py.runPythonAsync(fs.readFileSync(file, 'utf8'));
-}
-// Each service reloads its own state file as it imports; lifespan startup finishes the job
-const startup = JSON.parse(await py.runPythonAsync('await gg_start()'));
-// The emulator persists every service it implements, not just the three we serve, so this
-// counts files rather than listing them; /control/health carries the detail
-emitLog(
-  'info',
-  `Serving ministack ${meta.ministackVersion} with ${startup.stateFiles.length} state files,` +
-    ` ${startup.deferred.length} background workers deferred`
-);
-if (startup.failed.length) {
-  emitLog('error', `Background workers failed: ${startup.failed.join('; ')}`);
-}
-// Callable proxies to the Python functions: calling the emulator is a function call,
-// not a network hop
-const dispatch = py.globals.get('gg_dispatch');
-const provision = py.globals.get('gg_provision');
-const deprovision = py.globals.get('gg_deprovision');
-const saveState = py.globals.get('save_state');
-const shutdownEmulator = py.globals.get('gg_stop');
-const readStats = py.globals.get('gg_stats');
+// What restoring found is pocket-region's to report, and it says so on its own output: a
+// state file whose format the emulator refuses is quarantined and that service starts empty.
+// Counting the files from out here would only re-derive its private layout, and would say
+// "restored" about a file that was refused
+emitLog('info', `Serving ${meta.emulatorSpec} (pocket-region ${meta.pocketRegionVersion})`);
 
 // The one way to see the canvas, and it reads fresh every time: the host rewrites the
 // file whenever the graph changes, and an accessor makes holding a stale copy impossible
@@ -178,14 +103,12 @@ let sampleFailed = false;
 const saves = new SaveScheduler({
   debounceMs: SAVE_DEBOUNCE_MS,
   maxWaitMs: SAVE_MAX_WAIT_MS,
+  // Written into MEMFS, then mirrored to the persistent data dir. It does not await, so
+  // the failure path is the rejection rather than a catch
   save: () => {
-    try {
-      // Written into MEMFS, then mirrored to the persistent data dir
-      saveState();
-      persistState();
-    } catch (error) {
+    void region.save().catch((error) => {
       emitLog('error', `Saving state failed: ${error?.message || error}`);
-    }
+    });
   },
 });
 
@@ -209,13 +132,13 @@ function reportHop(owner, caller, target, received) {
 }
 
 // What a resource is holding, sampled on a timer because there is no request to hang it off.
-// Read straight from the emulator rather than through the data plane, so the sampling does
-// not show up as traffic the user never caused
+// The calls go straight to the emulator rather than round the socket, so the sampling is
+// never judged by the ladder below and never shows up as traffic the user did not cause
 async function sampleResources() {
   const { owners } = currentTopology();
   let stats;
   try {
-    stats = JSON.parse(await readStats());
+    stats = await sampleStats(region, owners);
   } catch (error) {
     if (!sampleFailed) emitLog('error', `Could not read resource stats: ${error?.message || error}`);
     sampleFailed = true;
@@ -295,16 +218,21 @@ function handleLambda(req, res, body, topology, functionName, caller) {
 async function handleControl(req, res, url, body) {
   if (req.headers['x-gg-token'] !== TOKEN) return json(res, 403, { message: 'bad token' });
   const route = `${req.method} ${url.pathname}`;
-  if (route === 'GET /control/health') return json(res, 200, { status: 'ok', startup });
+  if (route === 'GET /control/health') {
+    return json(res, 200, {
+      status: 'ok',
+      emulator: meta.emulatorSpec,
+      pocketRegion: meta.pocketRegionVersion
+    });
+  }
   if (route === 'POST /control/provision') {
     const { service, name, config } = JSON.parse(body.toString());
-    const result = await provision(service, name, JSON.stringify(config ?? {}));
-    respond(res, 200, 'application/json', result);
+    json(res, 200, await provision(region, service, name, config ?? {}));
     return saves.arm();
   }
   if (route === 'POST /control/deprovision') {
     const { service, name } = JSON.parse(body.toString());
-    await deprovision(service, name);
+    await deprovision(region, service, name);
     json(res, 200, { removed: name });
     return saves.arm();
   }
@@ -312,8 +240,7 @@ async function handleControl(req, res, url, body) {
     saves.stop();
     // Lifespan shutdown writes the state files on its way out; the mirror follows
     try {
-      await shutdownEmulator();
-      persistState();
+      await region.stop();
     } catch (error) {
       emitLog('error', `Final save failed: ${error?.message || error}`);
     }
@@ -345,19 +272,18 @@ async function handleAws(req, res, url, body) {
   const caller = topology.principals[credential.accessKeyId]?.nodeId;
   if (service === 'lambda') return handleLambda(req, res, body, topology, resourceName, caller);
 
-  const headers = forwardedHeaders(req);
-  // A plain Uint8Array view: pyodide's to_bytes rejects the Buffer subclass
-  const [status, headersJson, responseBody] = await dispatch(
-    req.method,
-    req.url,
-    JSON.stringify(headers),
-    new Uint8Array(body.buffer, body.byteOffset, body.length)
-  );
-  res.writeHead(status, Object.fromEntries(JSON.parse(headersJson)));
-  res.end(responseBody);
+  const answer = await region.dispatch({
+    method: req.method,
+    path: req.url,
+    headers: forwardedHeaders(req),
+    body
+  });
+  const { status } = answer;
+  res.writeHead(status, answer.headers);
+  res.end(answer.body);
   const target = req.headers['x-amz-target'];
   const receive = target === 'AmazonSQS.ReceiveMessage';
-  const received = receive ? receivedMessages(Buffer.from(responseBody).toString('utf8')) : [];
+  const received = receive ? receivedMessages(Buffer.from(answer.body).toString('utf8')) : [];
   // A long poll that found nothing is not traffic anyone sent: a function polls forever
   if (status < 300 && receive && received.length === 0) return;
   const owner = topology.owners[service]?.[resourceName];
@@ -403,7 +329,11 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`Region listening on port ${PORT}`);
 });
-setInterval(() => void sampleResources(), SAMPLE_INTERVAL_MS);
+// Re-armed after each sample rather than on a fixed interval: a canvas holding enough for a
+// sample to outlast the interval would otherwise stack them, and they contend for the one
+// interpreter serving the data plane
+const sampleAgain = () => setTimeout(() => void sampleResources().finally(sampleAgain), SAMPLE_INTERVAL_MS);
+sampleAgain();
 } catch (error) {
   console.log(`Region failed to start: ${error?.stack ?? error}`);
   process.exit(1);
