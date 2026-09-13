@@ -42,6 +42,8 @@
 	// Re-read live, unlike the node the form was seeded from, so the count settles after a
 	// save. The same comparison #reconcilePass makes, so it cannot disagree with what happens
 	const bouncedInstances = $derived.by(() => {
+		// Re-applying an always-on resource's settings restarts nothing of its own
+		if (definition.alwaysOn) return 0;
 		const liveNode = graphState.getNode(nodeId);
 		const upCount = orchestrator.getUpCount(nodeId);
 		if (!liveNode || upCount === 0) return 0;

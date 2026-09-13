@@ -228,9 +228,11 @@ export class ResourceController {
 			this.log.event(
 				'resource',
 				'info',
-				stale > 0
-					? `Config changed, replacing ${stale} instance${stale === 1 ? '' : 's'}`
-					: `Scaling down to ${desired} instance${desired === 1 ? '' : 's'}`
+				stale === 0
+					? `Scaling down to ${desired} instance${desired === 1 ? '' : 's'}`
+					: this.#definition.alwaysOn
+						? 'Config changed, applying it'
+						: `Config changed, replacing ${stale} instance${stale === 1 ? '' : 's'}`
 			);
 		}
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
@@ -361,7 +363,11 @@ export class ResourceController {
 			}
 			// Server-hosting resources stay 'starting' until server-ready promotes them
 			if (this.#definition.readyOnStart) instance.status = 'running';
-			this.log.event(instance.port, 'info', 'Instance started');
+			this.log.event(
+				instance.port,
+				'info',
+				this.#definition.alwaysOn ? 'Available' : 'Instance started'
+			);
 			// A rejection means nothing will ever say whether the process is still alive, which is
 			// what 'unresponsive' is for: the slot and port stay held rather than respawned over it
 			handle.exited.then(
@@ -456,7 +462,10 @@ export class ResourceController {
 		}
 		const index = this.instances.indexOf(instance);
 		if (index !== -1) this.instances.splice(index, 1);
-		if (handle) this.log.event(instance.port, 'info', 'Instance stopped');
+		// An always-on slot is only put down to be applied again, which is not news
+		if (handle && !this.#definition.alwaysOn) {
+			this.log.event(instance.port, 'info', 'Instance stopped');
+		}
 	}
 
 	// A spawned process is not a listening server, so this is the first point at which

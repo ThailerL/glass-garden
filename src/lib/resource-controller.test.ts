@@ -209,6 +209,20 @@ describe('ResourceController', () => {
 		expect(controller.log.events.some((event) => event.text.includes('Config changed'))).toBe(true);
 	});
 
+	it('logs a launch config change on an always-on resource as applied, not as a restart', async () => {
+		const { node, controller } = setup({}, { alwaysOn: true });
+
+		controller.start();
+		await settle();
+		configOf(node).command = 'run --fixed';
+		controller.schedule();
+		await settle();
+		const texts = controller.log.events.map((event) => event.text);
+		expect(texts).toContain('Config changed, applying it');
+		expect(texts.filter((text) => text === 'Available')).toHaveLength(2);
+		expect(texts.some((text) => /replacing|Instance (started|stopped)/.test(text))).toBe(false);
+	});
+
 	it('scales down from the tail and back up with new instances', async () => {
 		const { node, controller } = setup({ instanceCount: 3 });
 
