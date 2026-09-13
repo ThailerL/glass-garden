@@ -7,8 +7,13 @@ import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
 import { slugify } from '../shared';
 import { nodeConfig } from '$lib/graph-state.svelte';
-import { deprovisionResource, ensureRegion, provisionResource, regionExit } from '$lib/aws-region';
-import { notificationQueueName } from '$lib/aws-topology';
+import {
+	deprovisionResource,
+	ensureRegion,
+	provisionResource,
+	regionLifetime
+} from '$lib/aws-region';
+import { awsResourceOf } from '$lib/aws-topology';
 
 // S3's own rules, which the AWS SDK enforces client-side too: a name that passes here is
 // one the user could take to real AWS
@@ -91,23 +96,20 @@ export const s3Bucket = {
 		await ensureRegion();
 		await provisionResource('s3', bucketName);
 		// The region is what this node is really running on, so its death is the node's
-		const death = regionExit();
-		return { exited: death.exited, stop: async () => death.cancel() };
+		return regionLifetime();
 	},
-	// The bucket notifies every running function it points at, through the queue that
-	// function creates for itself. The emulator checks only the ARN's shape here, so the
-	// order of the two updates does not matter
+	// The bucket notifies every function it points at, by the function's own name. The
+	// emulator checks only the ARN's shape here, so the bucket's update and the function's
+	// deploy can run in either order
 	update: async (node: Node, _container: Vivari, targets: readonly ConnectedNode[]) => {
-		const running = providing(targets, 'invoke').filter(({ instances }) =>
-			instances.some((instance) => instance.status === 'running')
-		);
-		await ensureRegion();
-		await provisionResource('s3', bucketNameOf(node), {
-			notifications: running.map(({ node: target }) => ({
-				id: target.id,
-				queueName: notificationQueueName(target.id)
-			}))
+		const functions = providing(targets, 'invoke').flatMap(({ node: target }) => {
+			const resource = awsResourceOf(target);
+			return resource?.service === 'lambda'
+				? [{ id: target.id, functionName: resource.resourceName }]
+				: [];
 		});
+		await ensureRegion();
+		await provisionResource('s3', bucketNameOf(node), { notifications: functions });
 	},
 	remove: async (node: Node) => {
 		await ensureRegion();

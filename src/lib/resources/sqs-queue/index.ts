@@ -11,7 +11,7 @@ import {
 	ensureRegion,
 	provisionResource,
 	queueUrlFor,
-	regionExit
+	regionLifetime
 } from '$lib/aws-region';
 
 // SQS's own rules for a standard queue. Dots are not allowed, which also keeps a name from
@@ -99,8 +99,7 @@ export const sqsQueue = {
 			attributes: { VisibilityTimeout: visibilityTimeout }
 		});
 		// The region is what this node is really running on, so its death is the node's
-		const death = regionExit();
-		return { exited: death.exited, stop: async () => death.cancel() };
+		return regionLifetime();
 	},
 	remove: async (node: Node) => {
 		await ensureRegion();

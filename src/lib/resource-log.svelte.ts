@@ -15,7 +15,7 @@ const MAX_METRIC_NAMES = 20;
 // A request id in a dimension mints a series per request; real CloudWatch bills for the same
 const MAX_SERIES_PER_NAME = 20;
 
-// An execution environment a manager instance runs, reported through its output
+// An execution environment the region runs for a function, reported over its event channel
 export type EnvironmentSource = `env:${string}`;
 
 // What produced an entry: an instance, named by its port, one of its execution environments,
@@ -88,22 +88,23 @@ export class ResourceLog {
 		if (this.events.length > MAX_EVENTS) this.events.shift();
 	}
 
-	// A captured line is an Embedded Metric Format line, a traffic event, a line a manager
-	// forwards from one of its execution environments, or something the process printed.
-	// Metric and traffic lines stay out of the log: one JSON blob per request would bury it
+	// What an execution environment printed, filed under a stream of its own so the log reads
+	// like one CloudWatch log group with a stream per environment. The line is routed like
+	// any process output: a handler's metric library prints Embedded Metric Format
+	environmentLine(id: string, line: string) {
+		const source: EnvironmentSource = `env:${id}`;
+		this.openStream(source, id);
+		this.#routeLine(source, line);
+	}
+
+	environmentExit(id: string) {
+		this.closeStream(`env:${id}`);
+	}
+
+	// A captured line is an Embedded Metric Format line, a traffic event, or something the
+	// process printed. Metric and traffic lines stay out of the log: one JSON blob per
+	// request would bury it
 	#routeLine(source: LogSource, line: string) {
-		const forwarded = /^gg:env(-exit)? (\S+)(?: (.*))?$/.exec(line);
-		if (forwarded) {
-			const [, exited, id, text] = forwarded;
-			const source: EnvironmentSource = `env:${id}`;
-			if (exited) {
-				this.closeStream(source);
-				return;
-			}
-			this.openStream(source, id);
-			this.#routeLine(source, text ?? '');
-			return;
-		}
 		if (looksLikeTraffic(line)) {
 			const parsed = parseTrafficLine(line);
 			if (parsed.ok) {

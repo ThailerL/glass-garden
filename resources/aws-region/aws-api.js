@@ -44,6 +44,20 @@ export async function jsonApi(region, service, target, body) {
   return [response.status, text ? JSON.parse(text) : {}];
 }
 
+// Lambda's REST API: JSON bodies on paths that name the function. An empty answer, as a
+// delete gives, reads as an empty object. The headers come back too: a handler's error is
+// a 200 flagged by one
+export async function lambdaRequest(region, method, path, body) {
+  const response = await region.dispatch({
+    method,
+    path,
+    headers: internalHeaders('lambda', { 'content-type': 'application/json' }),
+    body: body === undefined ? undefined : encoder.encode(JSON.stringify(body))
+  });
+  const text = textOf(response);
+  return [response.status, text ? JSON.parse(text) : {}, response.headers];
+}
+
 // Slashes stay slashes - they are the key's own structure, not separators to escape
 export const objectPath = (bucket, key) =>
   `/${bucket}/${key.split('/').map(encodeURIComponent).join('/')}`;

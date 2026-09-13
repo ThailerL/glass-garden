@@ -1,21 +1,21 @@
 // The region bridge. Boots the vendored emulator from ./cache, restores persisted state, then
 // serves two surfaces on one port through pocket-region's serve (the emulator cannot listen
 // under Pyodide): the AWS data plane (enforced against the topology, then handed to the
-// emulator in-process) and /control/* for the host manager (token-guarded).
+// emulator in-process) and /control/* for the host manager (token-guarded). Functions run
+// inside pocket-region too; what their execution environments do is reported here
 import fs from 'node:fs';
-import http from 'node:http';
 import path from 'node:path';
 import { deprovision, provision } from './provision.js';
 import { sampleStats } from './stats.js';
 import { textOf } from './aws-api.js';
+import { invocationSource } from './function-events.js';
+import { functionUrl } from './function-url.js';
 import {
   EVENT_PREFIX,
   decideRequest,
   emptyTopology,
   denialResponse,
   extractResourceNames,
-  isNotificationQueue,
-  notifiedBuckets,
   parseCredential,
   receivedMessages,
 } from './lib.js';
@@ -40,15 +40,109 @@ const TOPOLOGY_FILE = path.resolve('topology.json');
 const SAVE_DEBOUNCE_MS = 500;
 const SAVE_MAX_WAIT_MS = 1000;
 const SAMPLE_INTERVAL_MS = 1000;
+// The host stores one datapoint per second, so a level reported less often leaves gaps
+const LEVEL_PERIOD_MS = 1000;
 
 // Everything the bridge itself reports; bare stdout/stderr only relays Python output.
 // The manager routes anything carrying a nodeId to that node and keeps the rest
 const emit = (event) => console.log(EVENT_PREFIX + JSON.stringify(event));
 const emitLog = (level, message, nodeId) => emit({ kind: 'log', level, message, nodeId });
-const putMetric = (nodeId, name, value, unit) =>
-  emit({ kind: 'metric', nodeId, name, value, unit });
+const putMetric = (nodeId, name, value, unit, dimensions) =>
+  emit({ kind: 'metric', nodeId, name, value, unit, dimensions });
 const emitHop = (from, to, count) =>
   emit({ kind: 'hop', at: Date.now(), from: { node: from }, to: { node: to }, count });
+const emitLevel = (nodeId, value, capacity) =>
+  emit({ kind: 'level', at: Date.now(), nodeId, value, capacity });
+
+// ── Functions ─────────────────────────────────────────────────────────────────────────────
+
+// What the bridge knows about each function beyond the emulator's own record: the cap the
+// node was provisioned with, for the gauge, and how many invocations are running right now
+const functions = new Map();
+const functionState = (name) => {
+  let state = functions.get(name);
+  if (!state) {
+    state = { maxConcurrency: undefined, busy: 0, beat: undefined };
+    functions.set(name, state);
+  }
+  return state;
+};
+
+// A level rather than a tally, so the chart reads as what is running right now. It keeps
+// reporting itself while there is work and falls silent when there is none, since a period
+// with no samples is a gap rather than a zero
+function reportConcurrency(name, nodeId) {
+  const state = functionState(name);
+  putMetric(nodeId, 'concurrent executions', state.busy, 'Count');
+  emitLevel(nodeId, state.busy, state.maxConcurrency);
+  if (state.busy > 0 && !state.beat) {
+    state.beat = setInterval(() => reportConcurrency(name, nodeId), LEVEL_PERIOD_MS);
+  } else if (state.busy === 0 && state.beat) {
+    clearInterval(state.beat);
+    state.beat = undefined;
+  }
+}
+
+// A triggered invocation is the one crossing of an edge the front door never sees: the
+// batch or notification reached the function inside the emulator. The event names the source
+function reportTrigger(nodeId, eventText, owners) {
+  const source = invocationSource(eventText);
+  if (!source) return;
+  const from = owners[source.service]?.[source.name];
+  if (from) emitHop(from, nodeId, source.count);
+  if (source.service === 'sqs') putMetric(nodeId, 'batches', 1, 'Count', { queue: source.name });
+  else putMetric(nodeId, 'notifications', 1, 'Count', { bucket: source.name });
+}
+
+// Each function's URL listens on its node's reserved port, which the topology carries.
+// Reconciled whenever the canvas changes: a function that appears gets a listener, one
+// that goes loses it, and a port that moved is closed before it is opened elsewhere
+const urlListeners = new Map();
+
+// One provisioning at a time per resource. A save and a config change can deploy the same
+// function together, and both would find it missing and both try to create it
+const provisioning = new Map();
+function serially(key, work) {
+  const run = (provisioning.get(key) ?? Promise.resolve()).catch(() => {}).then(work);
+  provisioning.set(key, run);
+  return run;
+}
+
+// The canvas as the observer reads it. A handler can print a line a millisecond, which is no
+// rate to read a file at, so it is refreshed with the listeners instead
+let observed = emptyTopology();
+
+// What pocket-region reports about execution environments, routed to the function's node.
+// Environment output is its own stream in the node's log, and each measurement carries the
+// environment so the per-environment lines add up to the total, as CloudWatch's do
+const observer = {
+  onOutput(line, { functionName, environment }) {
+    const nodeId = observed.owners.lambda[functionName];
+    if (nodeId) emit({ kind: 'output', nodeId, environment, line });
+  },
+  onEvent(event) {
+    const { owners } = observed;
+    const nodeId = owners.lambda[event.functionName];
+    if (!nodeId) return;
+    const { environment } = event;
+    if (event.kind === 'environment') {
+      if (event.phase === 'stopped') emit({ kind: 'environment-exit', nodeId, environment });
+    } else if (event.kind === 'throttled') {
+      putMetric(nodeId, 'throttles', 1, 'Count');
+    } else if (event.phase === 'started') {
+      functionState(event.functionName).busy += 1;
+      if (event.coldStart) putMetric(nodeId, 'cold starts', 1, 'Count', { environment });
+      reportTrigger(nodeId, event.event, owners);
+      reportConcurrency(event.functionName, nodeId);
+    } else {
+      functionState(event.functionName).busy -= 1;
+      putMetric(nodeId, 'invocations', 1, 'Count', { environment });
+      putMetric(nodeId, 'duration', event.durationMs, 'Milliseconds', { environment });
+      if (event.failed) putMetric(nodeId, 'errors', 1, 'Count', { environment });
+      reportConcurrency(event.functionName, nodeId);
+    }
+  }
+};
 
 // Explicit try/catch around the whole boot: Vivari neither surfaces uncaught VM errors
 // nor implements the process-level error events
@@ -74,7 +168,8 @@ const region = await createRegion({
   stateDir: DATA_DIR,
   // Queue URLs are built from this, and the SDK dials the URL it is given
   port: PORT,
-  onOutput: (line, stream) => (stream === 'stderr' ? console.error(line) : console.log(line))
+  onOutput: (line, stream) => (stream === 'stderr' ? console.error(line) : console.log(line)),
+  lambda: observer
 });
 // What restoring found is pocket-region's to report, and it says so on its own output: a
 // state file whose format the emulator refuses is quarantined and that service starts empty.
@@ -95,6 +190,31 @@ function currentTopology() {
     return emptyTopology();
   }
 }
+// In the boot block, beside the region, serve and the canvas it reads
+async function reconcileFunctionUrls() {
+  observed = currentTopology();
+  const { owners, ports } = observed;
+  const wanted = new Map();
+  for (const [functionName, nodeId] of Object.entries(owners.lambda)) {
+    if (ports[nodeId] !== undefined) wanted.set(nodeId, { functionName, port: ports[nodeId] });
+  }
+  for (const [nodeId, listener] of urlListeners) {
+    const want = wanted.get(nodeId);
+    if (want && want.port === listener.port && want.functionName === listener.functionName) continue;
+    urlListeners.delete(nodeId);
+    await listener.server.close().catch(() => {});
+  }
+  for (const [nodeId, { functionName, port }] of wanted) {
+    if (urlListeners.has(nodeId)) continue;
+    try {
+      const server = await serve(functionUrl(region, functionName), { port });
+      urlListeners.set(nodeId, { functionName, port, server });
+    } catch (error) {
+      emitLog('error', `Could not serve the function URL on port ${port}: ${error?.message || error}`, nodeId);
+    }
+  }
+}
+
 // Reported once rather than every tick, so a lasting failure does not bury the log
 let sampleFailed = false;
 
@@ -172,43 +292,6 @@ const denied = (service, denial) => {
   return respond(answer.status, answer.contentType, answer.body);
 };
 
-// Relayed to the manager that runs the function. Nothing but Invoke is answered: a function
-// exists by being a node, not by CreateFunction
-function handleLambda(request, topology, functionName, caller) {
-  if (request.method !== 'POST' || functionName === undefined) {
-    return denied('lambda', {
-      status: 400,
-      code: 'UnsupportedOperation',
-      message:
-        'Only Invoke is available for functions. A function is created by adding a Function node to the canvas.'
-    });
-  }
-  const owner = topology.owners.lambda[functionName];
-  // The caller's request travels verbatim; only content-length is recomputed by the receiver
-  const { 'content-length': _, ...headers } = request.headers;
-  return new Promise((resolve) => {
-    const upstream = http.request(
-      { host: 'localhost', port: topology.ports[owner], path: request.path, method: request.method, headers },
-      (answer) => {
-        const chunks = [];
-        answer.on('data', (chunk) => chunks.push(chunk));
-        answer.on('end', () => {
-          resolve({ status: answer.statusCode, headers: answer.headers, body: Buffer.concat(chunks) });
-          // The manager counts and logs it; the region only draws who called
-          if (caller) emitHop(caller, owner);
-        });
-      }
-    );
-    // Nothing answered on the reserved port: under the VM that is a hang-up, not a refusal
-    upstream.on('error', () => {
-      const message = `"${functionName}" is not running. Start the Function node to invoke it.`;
-      emitLog('error', `Invoke failed: ${message}`, caller);
-      resolve(denied('lambda', { status: 503, code: 'ServiceException', message }));
-    });
-    upstream.end(request.body);
-  });
-}
-
 async function handleControl(request, url) {
   if (request.headers['x-gg-token'] !== TOKEN) return json(403, { message: 'bad token' });
   const route = `${request.method} ${url.pathname}`;
@@ -221,15 +304,27 @@ async function handleControl(request, url) {
   }
   if (route === 'POST /control/provision') {
     const { service, name, config } = JSON.parse(textOf(request));
-    const created = await provision(region, service, name, config ?? {});
+    const created = await serially(`${service}:${name}`, () =>
+      provision(region, service, name, config ?? {})
+    );
+    if (service === 'lambda') functionState(name).maxConcurrency = config.maxConcurrency;
     saves.arm();
     return json(200, created);
   }
   if (route === 'POST /control/deprovision') {
     const { service, name } = JSON.parse(textOf(request));
-    await deprovision(region, service, name);
+    await serially(`${service}:${name}`, () => deprovision(region, service, name));
+    if (service === 'lambda') {
+      clearInterval(functions.get(name)?.beat);
+      functions.delete(name);
+    }
     saves.arm();
     return json(200, { removed: name });
+  }
+  // The host rewrote topology.json; what is served per node follows it
+  if (route === 'POST /control/topology') {
+    await reconcileFunctionUrls();
+    return json(200, { functions: urlListeners.size });
   }
   if (route === 'POST /control/stop') {
     saves.stop();
@@ -264,25 +359,23 @@ async function handleAws(request, url) {
     return denied(service, decision);
   }
   const caller = topology.principals[credential.accessKeyId]?.nodeId;
-  if (service === 'lambda') return handleLambda(request, topology, resourceName, caller);
-
   const answer = await region.dispatch(request);
   const { status } = answer;
+  const owner = topology.owners[service]?.[resourceName];
+  // A function's numbers come from watching it run, not from its front door, which would
+  // count an invoke twice; what the door alone can see is who called
+  if (service === 'lambda') {
+    if (owner && caller && status < 300) emitHop(caller, owner);
+    return answer;
+  }
   const target = request.headers['x-amz-target'];
   const receive = target === 'AmazonSQS.ReceiveMessage';
   const received = receive ? receivedMessages(textOf(answer)) : [];
   // A long poll that found nothing is not traffic anyone sent: a function polls forever
   if (status < 300 && receive && received.length === 0) return answer;
-  const owner = topology.owners[service]?.[resourceName];
   if (owner) {
     reportRequest(owner, request.method, url.pathname, status);
     if (caller) reportHop(owner, caller, target, received);
-  } else if (caller && resourceName && isNotificationQueue(resourceName)) {
-    // The hidden queue has no owner, but each notification names its bucket
-    for (const bucket of notifiedBuckets(received)) {
-      const from = topology.owners.s3?.[bucket];
-      if (from) emitHop(from, caller);
-    }
   }
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
@@ -303,6 +396,7 @@ async function dispatch(request) {
 
 await serve({ dispatch }, { port: PORT });
 console.log(`Region listening on port ${PORT}`);
+await reconcileFunctionUrls();
 // Re-armed after each sample rather than on a fixed interval: a canvas holding enough for a
 // sample to outlast the interval would otherwise stack them, and they contend for the one
 // interpreter serving the data plane

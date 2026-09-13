@@ -4,19 +4,18 @@ import { Vivari } from '@vivari/core';
 import FunctionIcon from '@lucide/svelte/icons/square-function';
 import * as resourceFiles from 'virtual:resource-files';
 import FunctionConfig from './FunctionConfig.svelte';
-import type { Capture, ConnectedNode, ResourceDefinition } from '../types';
-import { npmInstall, processHandle, slugify } from '../shared';
+import type { ConnectedNode, ResourceDefinition } from '../types';
+import { npmInstall, slugify } from '../shared';
 import { consumerEnv } from '../env';
-import { activeProjectDirectory, mountSharedFiles, nodeDirectory } from '$lib/container';
+import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
 import {
 	deprovisionResource,
 	ensureRegion,
-	isRegionRunning,
 	provisionResource,
-	queueUrlFor
+	regionLifetime
 } from '$lib/aws-region';
-import { awsResourceOf, notificationQueueName } from '$lib/aws-topology';
+import { awsResourceOf } from '$lib/aws-topology';
 
 // Lambda's own rule for a function name
 export const functionNameSchema = z
@@ -39,38 +38,45 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-const MANAGER_DIRECTORY = 'function-manager';
-
-const queueTrigger = (source: 'sqs' | 's3', queueName: string) => ({
-	source,
-	queueName,
-	queueUrl: queueUrlFor(queueName)
-});
-
 const functionNameOf = (node: Node) => nodeConfig<Config>(node).functionName;
 
-// The function's own name, which the manager reports to the handler as its identity - AWS's
+// The function's own name, which the region reports to the handler as its identity - AWS's
 // own reserved variable, not a grant from a connection, so it travels outside consumerEnv
 function ownEnv(node: Node) {
 	return { AWS_LAMBDA_FUNCTION_NAME: functionNameOf(node) };
 }
 
+// The queues pointing at this function are its event source mappings. A function among the
+// sources is a caller the topology grants, not an event source
+const triggerQueues = (neighbours: readonly ConnectedNode[]) =>
+	neighbours
+		.map(({ node }) => awsResourceOf(node))
+		.filter((resource) => resource?.service === 'sqs')
+		.map((resource) => resource!.resourceName)
+		.sort();
+
+// Everything the function is deployed with. A change to any of it is a fresh deploy through
+// the same stamp mechanism that relaunches a process
 function launchConfig(node: Node, neighbours: readonly ConnectedNode[]) {
-	return { env: { ...ownEnv(node), ...consumerEnv(node, neighbours) } };
+	const { timeout, maxConcurrency } = nodeConfig<Config>(node);
+	return {
+		env: { ...ownEnv(node), ...consumerEnv(node, neighbours) },
+		timeout,
+		maxConcurrency,
+		queues: triggerQueues(neighbours)
+	};
 }
 
 type LaunchConfig = ReturnType<typeof launchConfig>;
 
-// What the manager re-reads on its own: the trigger queues pointing at this function and the
-// limits
-async function writeConfig(node: Node, container: Vivari, triggers: unknown[]) {
-	const { timeout, maxConcurrency } = nodeConfig<Config>(node);
-	// An update can reach a function whose start has not mounted it yet
-	await container.fs.mkdir(nodeDirectory(node.id), { recursive: true });
-	await container.fs.writeFile(
-		`${nodeDirectory(node.id)}/config.json`,
-		JSON.stringify({ timeout, maxConcurrency, triggers })
-	);
+// The region zips the node directory and creates or updates the function from it, sending
+// only what changed since the last deploy
+async function deploy(node: Node, config: LaunchConfig) {
+	await ensureRegion();
+	await provisionResource('lambda', functionNameOf(node), {
+		directory: nodeDirectory(node.id),
+		...config
+	});
 }
 
 export const lambdaFunction = {
@@ -110,11 +116,12 @@ export const lambdaFunction = {
 	// averages to nothing meaningful, while its peak is the number of environments in use
 	metricDefaults: { 'concurrent executions': 'Maximum' },
 	gaugeLabel: 'Running invocations, against max concurrency',
-	// The one instance is the manager; execution environments spawned inside the manager
+	// One slot, holding the port the region serves the function URL on; the execution
+	// environments run inside the region, so nothing of the node's own listens
 	instanceCount: () => 1,
-	runsProcesses: true,
-	alwaysOn: false,
-	instanceLabel: 'manager',
+	runsProcesses: false,
+	// Deployed rather than run: it exists from the moment the node does, as on Lambda
+	alwaysOn: true,
 	launchConfig,
 	ownEnv,
 	supplies: (node: Node) => ({
@@ -122,58 +129,21 @@ export const lambdaFunction = {
 		value: functionNameOf(node),
 		soleName: 'LAMBDA_FUNCTION_NAME'
 	}),
-	prepare: async (node: Node, container: Vivari, capture: Capture) => {
-		await Promise.all([
-			mountSharedFiles(MANAGER_DIRECTORY, resourceFiles.functionManager),
-			npmInstall(node, container, capture)
-		]);
+	// The handler's dependencies go into the package, so they are installed before the deploy
+	prepare: (node: Node, container: Vivari, capture) => npmInstall(node, container, capture),
+	// A deploy is the whole of starting it, so there is no server to wait for; the URL on the
+	// node's port comes up when the region reads the new canvas
+	readyOnStart: true,
+	start: async (node: Node, _container: Vivari, _port: number, _targets, config: unknown) => {
+		await deploy(node, config as LaunchConfig);
+		// The region is what this node is really running on, so its death is the node's
+		return regionLifetime();
 	},
-	start: async (
-		node: Node,
-		container: Vivari,
-		port: number,
-		_targets: readonly ConnectedNode[],
-		config: unknown
-	) => {
-		const { env } = config as LaunchConfig;
-		// Written before the process spawns so its first invocation already has the node's
-		// limits; the triggers follow from the update this pass makes next
-		await writeConfig(node, container, []);
-		const process = await container.spawn(
-			'node',
-			[`${activeProjectDirectory()}/${MANAGER_DIRECTORY}/manager.mjs`],
-			{ cwd: nodeDirectory(node.id), env: { PORT: String(port), ...env } }
-		);
-		return processHandle(process);
-	},
-	// A running queue pointing at this function is an event source mapping for the manager to
-	// poll; running buckets pointing at it all deliver through the function's own queue
-	update: async (
-		node: Node,
-		container: Vivari,
-		_targets: readonly ConnectedNode[],
-		sources: readonly ConnectedNode[]
-	) => {
-		const running = sources.filter(({ instances }) =>
-			instances.some((instance) => instance.status === 'running')
-		);
-		const services = running.map(({ node }) => awsResourceOf(node)).filter((r) => r !== undefined);
-		const triggers = services
-			.filter(({ service }) => service === 'sqs')
-			.map(({ resourceName }) => queueTrigger('sqs', resourceName));
-		// The hidden queue every bucket pointing here delivers through: this function's to
-		// create, idempotently, and to poll
-		if (services.some(({ service }) => service === 's3')) {
-			await ensureRegion();
-			await provisionResource('sqs', notificationQueueName(node.id));
-			triggers.push(queueTrigger('s3', notificationQueueName(node.id)));
-		}
-		await writeConfig(node, container, triggers);
-	},
-	// Only while the region is up: a function that never had a bucket pointing at it should
-	// not boot the region to delete a queue that is not there, and a queue left behind in a
-	// stopped region is owned by nothing and polled by nothing
+	// The same deploy, so a saved edit runs from the next cold start
+	afterSave: (node: Node, neighbours: readonly ConnectedNode[]) =>
+		deploy(node, launchConfig(node, neighbours)),
 	remove: async (node: Node) => {
-		if (isRegionRunning()) await deprovisionResource('sqs', notificationQueueName(node.id));
+		await ensureRegion();
+		await deprovisionResource('lambda', functionNameOf(node));
 	}
 } satisfies ResourceDefinition;

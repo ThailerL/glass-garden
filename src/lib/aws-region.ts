@@ -2,7 +2,8 @@ import { toast } from 'svelte-sonner';
 import type { Vivari, VivariProcess } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
 import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
-import type { EmulatedService, NodeReport, Topology } from '../../resources/aws-region/lib.js';
+import type { NodeReport, Service, Topology } from '../../resources/aws-region/lib.js';
+import type { InstanceHandle } from '$lib/resources/types';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
 import { ADMIN_ACCESS_KEY } from '$lib/aws-topology';
@@ -87,12 +88,12 @@ export async function ensureRegion(): Promise<void> {
 // running on, so an unexpected region death is that node crashing
 const exitWaiters = new Set<(code: number) => void>();
 
-export function regionExit(): { exited: Promise<number>; cancel: () => void } {
+export function regionLifetime(): InstanceHandle {
 	let waiter!: (code: number) => void;
 	// The executor runs before the constructor returns, so waiter is set by the next line
 	const exited = new Promise<number>((resolve) => (waiter = resolve));
 	exitWaiters.add(waiter);
-	return { exited, cancel: () => exitWaiters.delete(waiter) };
+	return { exited, stop: async () => void exitWaiters.delete(waiter) };
 }
 
 // Graceful: the bridge writes the emulator's state files before exiting
@@ -114,17 +115,15 @@ export async function stopRegion(): Promise<void> {
 	await current.process?.exit;
 }
 
-// For a caller that would rather do nothing than boot the region to do it
-export function isRegionRunning() {
-	return region !== undefined;
-}
-
+// The file is what the region judges requests by; the call that follows is for what it
+// serves per node, which cannot wait for the next request to notice
 export function setRegionTopology(topology: Topology) {
 	lastTopology = topology;
 	const current = region;
 	if (!current) return;
 	void current.ready
 		.then(() => writeTopology(current.directory))
+		.then(() => control(current, 'control/topology', { method: 'POST' }))
 		.catch(() => toast.error('The local AWS region did not pick up the new connections'));
 }
 
@@ -147,7 +146,7 @@ function writeTopology(directory: string): Promise<void> {
 }
 
 export async function provisionResource(
-	service: EmulatedService,
+	service: Service,
 	name: string,
 	config?: unknown
 ): Promise<unknown> {
@@ -161,7 +160,7 @@ export async function provisionResource(
 	return response.json();
 }
 
-export async function deprovisionResource(service: EmulatedService, name: string) {
+export async function deprovisionResource(service: Service, name: string) {
 	const current = region;
 	if (!current) throw new Error('The region is not running');
 	await current.ready;

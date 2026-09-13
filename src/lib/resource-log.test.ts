@@ -29,10 +29,19 @@ describe('ResourceLog routing', () => {
 		]);
 	});
 
-	it('still reads traffic a manager forwards from an environment', async () => {
-		const onTraffic = vi.fn();
-		const log = new ResourceLog(onTraffic);
-		await feed(log, ['gg:env e1 gg:event {"kind":"level","at":1,"value":1}']);
-		expect(onTraffic).toHaveBeenCalledWith({ kind: 'level', at: 1, value: 1 });
+	it("files an environment's lines under its own stream and reads metrics in them", () => {
+		const log = new ResourceLog(vi.fn());
+		log.environmentLine('e1', 'START RequestId: r1 Version: $LATEST');
+		log.environmentLine(
+			'e1',
+			'{"_aws":{"Timestamp":1,"CloudWatchMetrics":[{"Namespace":"n","Dimensions":[[]],"Metrics":[{"Name":"requests","Unit":"Count"}]}]},"requests":1}'
+		);
+		expect(log.streams).toEqual([{ source: 'env:e1', label: 'e1', alive: true }]);
+		expect(log.output.map((line) => [line.source, line.text])).toEqual([
+			['env:e1', 'START RequestId: r1 Version: $LATEST']
+		]);
+		expect(Object.keys(log.metrics)).toEqual(['requests']);
+		log.environmentExit('e1');
+		expect(log.streams[0].alive).toBe(false);
 	});
 });

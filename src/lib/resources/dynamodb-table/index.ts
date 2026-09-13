@@ -6,7 +6,12 @@ import TableConfig from './TableConfig.svelte';
 import type { ResourceDefinition } from '../types';
 import { slugify } from '../shared';
 import { nodeConfig } from '$lib/graph-state.svelte';
-import { deprovisionResource, ensureRegion, provisionResource, regionExit } from '$lib/aws-region';
+import {
+	deprovisionResource,
+	ensureRegion,
+	provisionResource,
+	regionLifetime
+} from '$lib/aws-region';
 
 // DynamoDB's own rules, which the AWS SDK enforces client-side too
 export const tableNameSchema = z
@@ -104,8 +109,7 @@ export const dynamodbTable = {
 			attributeDefinitions: [{ AttributeName: partitionKey, AttributeType: 'S' }]
 		});
 		// The region is what this node is really running on, so its death is the node's
-		const death = regionExit();
-		return { exited: death.exited, stop: async () => death.cancel() };
+		return regionLifetime();
 	},
 	remove: async (node: Node) => {
 		await ensureRegion();

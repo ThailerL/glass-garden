@@ -9,6 +9,9 @@
 	import TextEditor from './TextEditor.svelte';
 	import { setFileDraftState, setFileRefresh, saveFile } from '$lib/files';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getResourceDefinition } from '$lib/resources';
+	import { toast } from 'svelte-sonner';
 	import { shellLaunchOptions } from '$lib/shell-launch';
 	import { shellSessions, type ShellOwner } from '$lib/shell-sessions.svelte';
 	import { IsCompact } from '$lib/hooks/is-compact.svelte';
@@ -58,7 +61,22 @@
 		untrack(() => initialFiles)
 	);
 
-	const save = () => saveFile(container, rootPath, selectedFilePath, fileDraftState, refresh);
+	const orchestrator = getOrchestrator();
+	const graphState = getGraphState();
+
+	// A resource that deploys its code hears about the save, so the file on disk and what
+	// runs never quietly differ
+	const save = async () => {
+		await saveFile(container, rootPath, selectedFilePath, fileDraftState, refresh);
+		const node = graphState.getNode(root);
+		const afterSave = node && getResourceDefinition(node.type).afterSave;
+		if (!afterSave) return;
+		try {
+			await afterSave(node, orchestrator.getNeighbours(root));
+		} catch {
+			toast.error('Saved, but the change could not be deployed');
+		}
+	};
 
 	const poll = setInterval(() => refresh.bump(), POLL_INTERVAL_MS);
 
@@ -67,7 +85,6 @@
 	// A shell for this node is here on arrival, as it was before tabs; the canvas opens none.
 	// The compact layout gets none either, for the reason it has no terminal
 	const shellOwner: ShellOwner = { kind: 'node', nodeId: root };
-	const orchestrator = getOrchestrator();
 	if (!isCompact.current) {
 		shellSessions.ensureFor(shellOwner, () => shellLaunchOptions(shellOwner, orchestrator));
 	}

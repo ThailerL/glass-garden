@@ -120,8 +120,8 @@ export type ResourceDefinition = {
 	gaugeLabel?: string;
 	instanceCount: (node: Node) => number;
 	// Whether an instance is a real process. A resource served by the AWS region still has one
-	// slot, but nothing listens on its port, so a port and a per-instance breakdown name
-	// nothing the user could act on
+	// slot, but no process of its own, so a per-instance breakdown names nothing the user
+	// could act on
 	runsProcesses: boolean;
 	// Provisioned rather than run: up from the moment the node exists, with no start or stop,
 	// because the region serves it and nothing spawned for it could be killed
@@ -168,4 +168,7 @@ export type ResourceDefinition = {
 	) => Promise<void>;
 	// Called when the node is deleted. For data that lives outside the node's directory
 	remove?: (node: Node, container: Vivari) => Promise<void>;
+	// Called after the editor saves one of the node's files. For a resource whose running
+	// code is deployed from its directory rather than read from it
+	afterSave?: (node: Node, neighbours: readonly ConnectedNode[]) => Promise<void>;
 };

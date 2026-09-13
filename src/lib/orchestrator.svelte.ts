@@ -59,9 +59,10 @@ export class Orchestrator {
 			if (event.kind === 'level') return this.traffic.ingest(event.nodeId, event);
 			const log = event.nodeId ? this.#controllers.get(event.nodeId)?.log : undefined;
 			if (!log) return;
-			// The region observes a resource whole, so its readings carry no dimensions
-			if (event.kind === 'metric') log.putMetric('resource', { ...event, dimensions: {} });
-			else log.event('resource', event.level, event.message);
+			if (event.kind === 'metric') log.putMetric('resource', { dimensions: {}, ...event });
+			if (event.kind === 'log') log.event('resource', event.level, event.message);
+			if (event.kind === 'output') log.environmentLine(event.environment, event.line);
+			if (event.kind === 'environment-exit') log.environmentExit(event.environment);
 		});
 		this.reconcileAllReservations();
 		for (const node of this.#graphState.nodes) this.#ensureAlwaysOn(node);

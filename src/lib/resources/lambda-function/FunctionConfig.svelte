@@ -21,7 +21,7 @@
 	name="functionName"
 	label="Function Name"
 	readonly
-	description="What your code passes to the AWS SDK to invoke this function."
+	description="What your code passes to the AWS SDK to invoke this function. Saving a file in the editor deploys it; from a shell, `aws lambda update-function-code` does."
 	bind:value={$formData.functionName}
 />
 <ConfigField

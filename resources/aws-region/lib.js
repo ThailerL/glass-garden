@@ -9,7 +9,7 @@ const noun = (service) => NODE_LABELS[service].toLowerCase();
 // The stdout line prefix for events the bridge reports and the host routes
 export const EVENT_PREFIX = 'gg:event ';
 
-const parseJson = (text) => {
+export const parseJson = (text) => {
   try {
     return JSON.parse(text);
   } catch {
@@ -20,20 +20,6 @@ const parseJson = (text) => {
 // The messages a ReceiveMessage answer carried
 export function receivedMessages(responseText) {
   return parseJson(responseText)?.Messages ?? [];
-}
-
-// The hidden queue a bucket's notifications reach a function through, named for the
-// function and owned by no node
-const NOTIFICATION_QUEUE_PREFIX = 'gg-notifications-';
-export const notificationQueueName = (nodeId) => NOTIFICATION_QUEUE_PREFIX + nodeId;
-export const isNotificationQueue = (name) => name.startsWith(NOTIFICATION_QUEUE_PREFIX);
-
-// The bucket behind each S3 notification; S3's test event names none and is skipped
-export function notifiedBuckets(messages) {
-  return messages.flatMap((message) => {
-    const bucket = parseJson(message.Body)?.Records?.[0]?.s3?.bucket?.name;
-    return bucket ? [bucket] : [];
-  });
 }
 
 // One entry per service, so a new service is added to NODE_LABELS alone

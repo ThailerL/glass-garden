@@ -2,7 +2,7 @@ import type { Edge, Node } from '@xyflow/svelte';
 import { nodeConfig, nodeName, nodePorts } from '$lib/graph-state.svelte';
 import { getResourceDefinition } from '$lib/resources';
 import type { Principal, Service, Topology } from '$lib/aws-region';
-import { emptyByService, notificationQueueName } from '../../resources/aws-region/lib.js';
+import { emptyByService } from '../../resources/aws-region/lib.js';
 
 // One table maps every AWS node type to the service it serves and where its name lives in
 // config. The name the emulator enforces on is not always the value a consumer's code wants
@@ -12,7 +12,6 @@ const AWS_SERVICES: Partial<Record<string, { service: Service; resourceKey: stri
 	s3Bucket: { service: 's3', resourceKey: 'bucketName' },
 	sqsQueue: { service: 'sqs', resourceKey: 'queueName' },
 	dynamodbTable: { service: 'dynamodb', resourceKey: 'tableName' },
-	// Served by its own manager rather than the emulator, but invoked through the region
 	lambdaFunction: { service: 'lambda', resourceKey: 'functionName' }
 };
 
@@ -38,23 +37,19 @@ export function accessKeyFor(nodeId: string) {
 // Cannot collide with a node's: ids are eight characters
 export const ADMIN_ACCESS_KEY = accessKeyFor('admin');
 
-export { notificationQueueName } from '../../resources/aws-region/lib.js';
-
 // The whole enforcement input, rebuilt from the graph: which node serves each resource, and
 // for each caller, the resource names its edges grant it. Only consumers become principals -
 // a resource node runs no code and is never issued credentials
 export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): Topology {
 	const awsNodes = new Map<string, AwsResource>();
-	// The reserved port of anything the region relays to
+	// Where the region serves each function's URL: the function node's reserved port
 	const ports: Record<string, number> = {};
 	for (const node of nodes) {
 		const resource = awsResourceOf(node);
 		if (!resource) continue;
 		awsNodes.set(node.id, resource);
 		const [port] = nodePorts(node);
-		if (getResourceDefinition(node.type).runsProcesses && port !== undefined) {
-			ports[node.id] = port;
-		}
+		if (resource.service === 'lambda' && port !== undefined) ports[node.id] = port;
 	}
 
 	// Every node that can call AWS is a principal, granted or not, so an unconnected call is
@@ -74,11 +69,6 @@ export function buildTopology(nodes: readonly Node[], edges: readonly Edge[]): T
 			if (edge.target === node.id) return awsNodes.get(edge.source) ?? [];
 			return [];
 		});
-		// A bucket pointing at code delivers its events through the code's own notification
-		// queue, which only that direction creates
-		if (edges.some((e) => e.target === node.id && awsNodes.get(e.source)?.service === 's3')) {
-			granted.push({ service: 'sqs', resourceName: notificationQueueName(node.id) });
-		}
 		for (const { service, resourceName } of granted) {
 			if (!principal.resources[service].includes(resourceName)) {
 				principal.resources[service].push(resourceName);

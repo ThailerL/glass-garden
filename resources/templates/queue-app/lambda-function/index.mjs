@@ -13,10 +13,11 @@ const COST = { N: 16384, r: 8, p: 8 };
 // ships with a timeout of 30 rather than Lambda's default of 3: at the default, every full
 // batch would fail with "Task timed out" and go back on the queue to be delivered again.
 //
-// Glass Garden polls the queue on the function's behalf, exactly as the Lambda service does,
-// and deletes the batch only when the handler returns. How many batches it runs at once is
-// max concurrency in the Config tab - one, to begin with, which is why the backlog grows.
-// Raise it and the Logs tab fills with new execution environments, each a real thread.
+// The local AWS region polls the queue on the function's behalf, exactly as the Lambda
+// service does, and deletes the batch only when the handler returns. How many batches it
+// runs at once is max concurrency in the Config tab - one, to begin with, which is why the
+// backlog grows. Raise it and the Logs tab fills with new execution environments, each a
+// real process. Saving this file deploys it; the next batch runs on the new code.
 export async function handler(event) {
   for (const record of event.Records) {
     const { email, password } = JSON.parse(record.body);

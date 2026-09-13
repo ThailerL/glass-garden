@@ -1,6 +1,4 @@
-// A function is not the emulator's: it is relayed to its own manager
-export type EmulatedService = 's3' | 'sqs' | 'dynamodb';
-export type Service = EmulatedService | 'lambda';
+export type Service = 's3' | 'sqs' | 'dynamodb' | 'lambda';
 export type Credential = { accessKeyId: string; region: string; service: string };
 // nodeId is absent for the admin, who is not a node: denials then have no log to go to
 export type Principal = {
@@ -9,8 +7,8 @@ export type Principal = {
 	resources: Record<Service, string[]>;
 };
 // owners maps a resource name back to the node serving it, so the bridge can attribute
-// what it observes about a resource to the node the user sees; ports, where each function's
-// manager listens
+// what it observes about a resource to the node the user sees; ports, where the region
+// serves each function's URL
 export type Topology = {
 	principals: Record<string, Principal>;
 	owners: Record<Service, Record<string, string>>;
@@ -24,18 +22,25 @@ export type Denial = {
 	nodeId?: string;
 };
 export type Decision = { allow: true } | Denial;
-// What the bridge reports about a node over its stdout channel: sentences for its log and
-// measurements for its metric store. Traffic for the canvas rides the same channel in the
-// vocabulary every hidden process shares (src/lib/traffic.svelte.ts)
+// What the bridge reports about a node over its stdout channel: sentences for its log,
+// measurements for its metric store, and what a function's execution environments print,
+// filed under that environment's own stream. Traffic for the canvas rides the same channel
+// in the vocabulary every hidden process shares (src/lib/traffic.svelte.ts)
 export type NodeReport =
 	| { kind: 'log'; level: 'info' | 'error'; message: string; nodeId?: string }
-	| { kind: 'metric'; nodeId: string; name: string; value: number; unit?: string };
+	| {
+			kind: 'metric';
+			nodeId: string;
+			name: string;
+			value: number;
+			unit?: string;
+			dimensions?: Record<string, string>;
+	  }
+	| { kind: 'output'; nodeId: string; environment: string; line: string }
+	| { kind: 'environment-exit'; nodeId: string; environment: string };
 
 export const EVENT_PREFIX: string;
 export function receivedMessages(responseText: string): { Body?: string }[];
-export function notificationQueueName(nodeId: string): string;
-export function isNotificationQueue(name: string): boolean;
-export function notifiedBuckets(messages: { Body?: string }[]): string[];
 export function escapeXml(text: string): string;
 export function emptyByService<T>(make: () => T): Record<Service, T>;
 export function emptyTopology(): Topology;

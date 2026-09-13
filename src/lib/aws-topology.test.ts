@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/svelte';
-import {
-	ADMIN_ACCESS_KEY,
-	accessKeyFor,
-	buildTopology,
-	notificationQueueName
-} from './aws-topology';
+import { ADMIN_ACCESS_KEY, accessKeyFor, buildTopology } from './aws-topology';
 
 const node = (
 	id: string,
@@ -71,27 +66,17 @@ describe('buildTopology', () => {
 		expect(topology.principals[accessKeyFor('q1')]).toBeUndefined();
 	});
 
-	it('grants a function the notification queue a bucket pointing at it delivers through', () => {
+	it('grants a function the bucket pointing at it, and nothing else for the trigger', () => {
 		const topology = buildTopology(
 			[fn('f', 'Resize'), bucket('b1', 'Uploads', 'uploads')],
 			[edge('b1', 'f')]
 		);
 		expect(topology.principals[accessKeyFor('f')].resources).toEqual({
 			s3: ['uploads'],
-			sqs: [notificationQueueName('f')],
+			sqs: [],
 			dynamodb: [],
 			lambda: []
 		});
-		// Owned by nobody, so the region reports nothing about it
-		expect(topology.owners.sqs).toEqual({});
-	});
-
-	it('grants no notification queue for a function that merely uses a bucket', () => {
-		const topology = buildTopology(
-			[fn('f', 'Resize'), bucket('b1', 'Uploads', 'uploads')],
-			[edge('f', 'b1')]
-		);
-		expect(topology.principals[accessKeyFor('f')].resources.sqs).toEqual([]);
 	});
 
 	it('gives a resource node no principal of its own: it runs no code and gets no credentials', () => {
@@ -113,7 +98,7 @@ describe('buildTopology', () => {
 		});
 	});
 
-	it('owns a function by its name and carries the port its manager listens on', () => {
+	it('owns a function by its name and carries the port the region serves its URL on', () => {
 		const topology = buildTopology([fn('f', 'Resize', 'resize', [4100])], []);
 		expect(topology.owners.lambda).toEqual({ resize: 'f' });
 		expect(topology.ports).toEqual({ f: 4100 });

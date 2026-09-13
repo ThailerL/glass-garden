@@ -4,7 +4,6 @@ declare module 'virtual:resource-files' {
 	import type { FileSystemTree } from '@vivari/core';
 	export const instanceGroup: FileSystemTree;
 	export const lambdaFunction: FileSystemTree;
-	export const functionManager: FileSystemTree;
 	export const httpLoadBalancer: FileSystemTree;
 	export const requestGenerator: FileSystemTree;
 	export const awsRegion: FileSystemTree;
