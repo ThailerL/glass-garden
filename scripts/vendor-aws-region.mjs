@@ -78,7 +78,7 @@ for (const file of RUNTIME_FILES) copy(path.join(PYODIDE, file), `pyodide/${file
 // loads. Its bare `pyodide` import becomes the relative path that runtime is copied to
 const BUNDLE = 'pocket-region.js';
 await build({
-	input: path.join(POCKET_REGION, 'dist', 'node.js'),
+	input: path.join(POCKET_REGION, 'dist', 'index.js'),
 	platform: 'node',
 	plugins: [
 		{

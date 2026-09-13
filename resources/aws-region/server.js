@@ -1,12 +1,13 @@
-// The region bridge. Owns the only socket (the emulator cannot listen under Pyodide), boots
-// the vendored emulator from ./cache, restores persisted state, then serves two surfaces on
-// one port: the AWS data plane (enforced against the topology, then handed to the emulator
-// in-process) and /control/* for the host manager (token-guarded).
+// The region bridge. Boots the vendored emulator from ./cache, restores persisted state, then
+// serves two surfaces on one port through pocket-region's serve (the emulator cannot listen
+// under Pyodide): the AWS data plane (enforced against the topology, then handed to the
+// emulator in-process) and /control/* for the host manager (token-guarded).
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { deprovision, provision } from './provision.js';
 import { sampleStats } from './stats.js';
+import { textOf } from './aws-api.js';
 import {
   EVENT_PREFIX,
   decideRequest,
@@ -33,7 +34,6 @@ const DATA_DIR = path.resolve('data');
 // The canvas, as the host last wrote it. A file rather than a control call so it is already
 // on disk before this process starts: a request can never be judged against an empty one
 const TOPOLOGY_FILE = path.resolve('topology.json');
-const MAX_BODY_BYTES = 64 * 1024 * 1024;
 // A lone action is saved at once; these two bound the burst behind it. They also bound what a
 // reload loses, since nothing stops the region on unload. A save costs 7-18ms at 5-55KB of
 // state and 46ms at 677KB
@@ -63,7 +63,7 @@ for (const file of meta.files) {
     throw new Error(`cache file ${file.path} is ${stats?.size ?? 'missing'}, expected ${file.bytes}`);
   }
 }
-const { createRegion } = await import('./cache/pocket-region.js');
+const { createRegion, serve } = await import('./cache/pocket-region.js');
 // Explicit indexURL: without it pyodide self-locates via fileURLToPath(import.meta.url),
 // which Vivari's module shim cannot satisfy. Restoring from stateDir and saving back to it
 // are pocket-region's, including the shuttle through MEMFS that Vivari's corrupt writes
@@ -160,30 +160,23 @@ async function sampleResources() {
   }
 }
 
-const respond = (res, status, contentType, body) => {
-  res.writeHead(status, { 'content-type': contentType });
-  res.end(body);
-};
-const json = (res, status, value) => respond(res, status, 'application/json', JSON.stringify(value));
-const denied = (res, service, denial) => {
+const encoder = new TextEncoder();
+const respond = (status, contentType, body) => ({
+  status,
+  headers: { 'content-type': contentType },
+  body: encoder.encode(body)
+});
+const json = (status, value) => respond(status, 'application/json', JSON.stringify(value));
+const denied = (service, denial) => {
   const answer = denialResponse(service, denial);
-  respond(res, answer.status, answer.contentType, answer.body);
+  return respond(answer.status, answer.contentType, answer.body);
 };
-
-// The caller's request travels verbatim; only content-length is recomputed by the receiver
-function forwardedHeaders(req) {
-  const headers = {};
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (typeof value === 'string' && key !== 'content-length') headers[key] = value;
-  }
-  return headers;
-}
 
 // Relayed to the manager that runs the function. Nothing but Invoke is answered: a function
 // exists by being a node, not by CreateFunction
-function handleLambda(req, res, body, topology, functionName, caller) {
-  if (req.method !== 'POST' || functionName === undefined) {
-    return denied(res, 'lambda', {
+function handleLambda(request, topology, functionName, caller) {
+  if (request.method !== 'POST' || functionName === undefined) {
+    return denied('lambda', {
       status: 400,
       code: 'UnsupportedOperation',
       message:
@@ -191,50 +184,52 @@ function handleLambda(req, res, body, topology, functionName, caller) {
     });
   }
   const owner = topology.owners.lambda[functionName];
-  const upstream = http.request(
-    {
-      host: 'localhost',
-      port: topology.ports[owner],
-      path: req.url,
-      method: req.method,
-      headers: forwardedHeaders(req)
-    },
-    (answer) => {
-      res.writeHead(answer.statusCode, answer.headers);
-      answer.pipe(res);
-      // The manager counts and logs it; the region only draws who called
-      if (caller) emitHop(caller, owner);
-    }
-  );
-  // Nothing answered on the reserved port: under the VM that is a hang-up, not a refusal
-  upstream.on('error', () => {
-    const message = `"${functionName}" is not running. Start the Function node to invoke it.`;
-    emitLog('error', `Invoke failed: ${message}`, caller);
-    denied(res, 'lambda', { status: 503, code: 'ServiceException', message });
+  // The caller's request travels verbatim; only content-length is recomputed by the receiver
+  const { 'content-length': _, ...headers } = request.headers;
+  return new Promise((resolve) => {
+    const upstream = http.request(
+      { host: 'localhost', port: topology.ports[owner], path: request.path, method: request.method, headers },
+      (answer) => {
+        const chunks = [];
+        answer.on('data', (chunk) => chunks.push(chunk));
+        answer.on('end', () => {
+          resolve({ status: answer.statusCode, headers: answer.headers, body: Buffer.concat(chunks) });
+          // The manager counts and logs it; the region only draws who called
+          if (caller) emitHop(caller, owner);
+        });
+      }
+    );
+    // Nothing answered on the reserved port: under the VM that is a hang-up, not a refusal
+    upstream.on('error', () => {
+      const message = `"${functionName}" is not running. Start the Function node to invoke it.`;
+      emitLog('error', `Invoke failed: ${message}`, caller);
+      resolve(denied('lambda', { status: 503, code: 'ServiceException', message }));
+    });
+    upstream.end(request.body);
   });
-  upstream.end(body);
 }
 
-async function handleControl(req, res, url, body) {
-  if (req.headers['x-gg-token'] !== TOKEN) return json(res, 403, { message: 'bad token' });
-  const route = `${req.method} ${url.pathname}`;
+async function handleControl(request, url) {
+  if (request.headers['x-gg-token'] !== TOKEN) return json(403, { message: 'bad token' });
+  const route = `${request.method} ${url.pathname}`;
   if (route === 'GET /control/health') {
-    return json(res, 200, {
+    return json(200, {
       status: 'ok',
       emulator: meta.emulatorSpec,
       pocketRegion: meta.pocketRegionVersion
     });
   }
   if (route === 'POST /control/provision') {
-    const { service, name, config } = JSON.parse(body.toString());
-    json(res, 200, await provision(region, service, name, config ?? {}));
-    return saves.arm();
+    const { service, name, config } = JSON.parse(textOf(request));
+    const created = await provision(region, service, name, config ?? {});
+    saves.arm();
+    return json(200, created);
   }
   if (route === 'POST /control/deprovision') {
-    const { service, name } = JSON.parse(body.toString());
+    const { service, name } = JSON.parse(textOf(request));
     await deprovision(region, service, name);
-    json(res, 200, { removed: name });
-    return saves.arm();
+    saves.arm();
+    return json(200, { removed: name });
   }
   if (route === 'POST /control/stop') {
     saves.stop();
@@ -244,51 +239,43 @@ async function handleControl(req, res, url, body) {
     } catch (error) {
       emitLog('error', `Final save failed: ${error?.message || error}`);
     }
-    json(res, 200, { stopped: true });
+    // Long enough for serve to write the answer first
     setTimeout(() => process.exit(0), 50);
-    return;
+    return json(200, { stopped: true });
   }
-  json(res, 404, { message: `no such control route: ${route}` });
+  return json(404, { message: `no such control route: ${route}` });
 }
 
-async function handleAws(req, res, url, body) {
+async function handleAws(request, url) {
   const topology = currentTopology();
-  const credential = parseCredential(req.headers.authorization);
+  const credential = parseCredential(request.headers.authorization);
   const service = credential?.service;
-  const bodyText =
-    service === 'sqs' || service === 'dynamodb' ? body.toString('utf8') : undefined;
-  const resourceNames = extractResourceNames(service, url.pathname, bodyText, req.headers);
+  const bodyText = service === 'sqs' || service === 'dynamodb' ? textOf(request) : undefined;
+  const resourceNames = extractResourceNames(service, url.pathname, bodyText, request.headers);
   // The first is the one the request is addressed to, which is where its traffic is attributed
   const [resourceName] = resourceNames;
   const decision = decideRequest({ credential, resourceNames }, topology);
   if (!decision.allow) {
     emitLog(
       'error',
-      `Denied ${req.method} ${url.pathname}: ${decision.message}`,
+      `Denied ${request.method} ${url.pathname}: ${decision.message}`,
       decision.nodeId
     );
-    return denied(res, service, decision);
+    return denied(service, decision);
   }
   const caller = topology.principals[credential.accessKeyId]?.nodeId;
-  if (service === 'lambda') return handleLambda(req, res, body, topology, resourceName, caller);
+  if (service === 'lambda') return handleLambda(request, topology, resourceName, caller);
 
-  const answer = await region.dispatch({
-    method: req.method,
-    path: req.url,
-    headers: forwardedHeaders(req),
-    body
-  });
+  const answer = await region.dispatch(request);
   const { status } = answer;
-  res.writeHead(status, answer.headers);
-  res.end(answer.body);
-  const target = req.headers['x-amz-target'];
+  const target = request.headers['x-amz-target'];
   const receive = target === 'AmazonSQS.ReceiveMessage';
-  const received = receive ? receivedMessages(Buffer.from(answer.body).toString('utf8')) : [];
+  const received = receive ? receivedMessages(textOf(answer)) : [];
   // A long poll that found nothing is not traffic anyone sent: a function polls forever
-  if (status < 300 && receive && received.length === 0) return;
+  if (status < 300 && receive && received.length === 0) return answer;
   const owner = topology.owners[service]?.[resourceName];
   if (owner) {
-    reportRequest(owner, req.method, url.pathname, status);
+    reportRequest(owner, request.method, url.pathname, status);
     if (caller) reportHop(owner, caller, target, received);
   } else if (caller && resourceName && isNotificationQueue(resourceName)) {
     // The hidden queue has no owner, but each notification names its bucket
@@ -299,36 +286,23 @@ async function handleAws(req, res, url, body) {
   }
   // Reads don't arm a save; SQS and DynamoDB reads are POSTs, but ReceiveMessage mutates
   // visibility state anyway, so POST always arms
-  if (status < 300 && req.method !== 'GET' && req.method !== 'HEAD') saves.arm();
+  if (status < 300 && request.method !== 'GET' && request.method !== 'HEAD') saves.arm();
+  return answer;
 }
 
-const server = http.createServer((req, res) => {
-  const chunks = [];
-  let size = 0;
-  req.on('data', (chunk) => {
-    size += chunk.length;
-    if (size > MAX_BODY_BYTES) {
-      emitLog('error', `Rejected ${req.method} ${req.url}: body larger than ${MAX_BODY_BYTES} bytes`);
-      json(res, 413, { message: 'request body too large' });
-      req.destroy();
-      return;
-    }
-    chunks.push(chunk);
-  });
-  req.on('end', () => {
-    const body = Buffer.concat(chunks);
-    const url = new URL(req.url, 'http://localhost');
-    const handler = url.pathname.startsWith('/control/') ? handleControl : handleAws;
-    handler(req, res, url, body).catch((error) => {
-      emitLog('error', `${req.method} ${url.pathname} failed: ${error.message}`);
-      if (!res.headersSent) json(res, 500, { message: 'internal error' });
-    });
-  });
-});
+async function dispatch(request) {
+  const url = new URL(request.path, 'http://localhost');
+  const handler = url.pathname.startsWith('/control/') ? handleControl : handleAws;
+  try {
+    return await handler(request, url);
+  } catch (error) {
+    emitLog('error', `${request.method} ${url.pathname} failed: ${error.message}`);
+    return json(500, { message: 'internal error' });
+  }
+}
 
-server.listen(PORT, () => {
-  console.log(`Region listening on port ${PORT}`);
-});
+await serve({ dispatch }, { port: PORT });
+console.log(`Region listening on port ${PORT}`);
 // Re-armed after each sample rather than on a fixed interval: a canvas holding enough for a
 // sample to outlast the interval would otherwise stack them, and they contend for the one
 // interpreter serving the data plane
