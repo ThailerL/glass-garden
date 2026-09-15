@@ -4,7 +4,7 @@
 // the caller the shell was given.
 import { readFile, writeFile } from 'node:fs/promises';
 import http from 'node:http';
-import { awsCli } from 'pocket-region/cli';
+import { awsCli } from 'pocket-region/node';
 // Bundled rather than imported on demand: the VM has no node_modules for a runtime import
 // to resolve against, so every client the CLI can reach has to be named here
 import * as s3 from '@aws-sdk/client-s3';

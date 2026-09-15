@@ -127,8 +127,6 @@ const observer = {
     const { environment } = event;
     if (event.kind === 'environment') {
       if (event.phase === 'stopped') emit({ kind: 'environment-exit', nodeId, environment });
-    } else if (event.kind === 'throttled') {
-      putMetric(nodeId, 'throttles', 1, 'Count');
     } else if (event.phase === 'started') {
       functionState(event.functionName).busy += 1;
       if (event.coldStart) putMetric(nodeId, 'cold starts', 1, 'Count', { environment });
@@ -157,15 +155,15 @@ for (const file of meta.files) {
     throw new Error(`cache file ${file.path} is ${stats?.size ?? 'missing'}, expected ${file.bytes}`);
   }
 }
-const { createRegion, serve } = await import('./cache/pocket-region.js');
+const { createRegion, directoryStore, serve } = await import('./cache/pocket-region.js');
 // Explicit indexURL: without it pyodide self-locates via fileURLToPath(import.meta.url),
-// which Vivari's module shim cannot satisfy. Restoring from stateDir and saving back to it
+// which Vivari's module shim cannot satisfy. Restoring from the store and saving back to it
 // are pocket-region's, including the shuttle through MEMFS that Vivari's corrupt writes
 // through a node mount force
 const region = await createRegion({
   packageCacheDir: CACHE_DIR,
   indexURL: path.join(CACHE_DIR, 'pyodide'),
-  stateDir: DATA_DIR,
+  store: directoryStore(DATA_DIR),
   // Queue URLs are built from this, and the SDK dials the URL it is given
   port: PORT,
   onOutput: (line, stream) => (stream === 'stderr' ? console.error(line) : console.log(line)),
