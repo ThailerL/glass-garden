@@ -32,6 +32,16 @@ export const queueUrlFor = (queueName: string) => `${regionEndpointUrl}/00000000
 const OUTPUT_LIMIT = 500;
 const CONTROL_TIMEOUT_MS = 10_000;
 const READY_TIMEOUT_MS = 120_000;
+const MISSING_JSPI = 'Nothing that uses AWS can run in this browser';
+const MISSING_JSPI_CAUSE =
+	'The local AWS region needs WebAssembly JSPI, which this browser does not support or has turned off.';
+// One id, so every AWS node asking at once shares a toast that stays until closed
+const MISSING_JSPI_TOAST = {
+	id: 'missing-jspi',
+	description: MISSING_JSPI_CAUSE,
+	duration: Infinity,
+	closeButton: true
+};
 
 type Region = {
 	ready: Promise<void>;
@@ -80,6 +90,11 @@ function handleOutput(line: string) {
 // needs the region share a single boot. The region then lives as long as the container:
 // every node can emit CloudWatch, so there is no point at which nothing wants it
 export async function ensureRegion(): Promise<void> {
+	// pocket-region refuses to boot without JSPI, and finding out that way costs a VM boot
+	if (!('Suspending' in WebAssembly)) {
+		toast.error(MISSING_JSPI, MISSING_JSPI_TOAST);
+		throw new Error(`${MISSING_JSPI}. ${MISSING_JSPI_CAUSE}`);
+	}
 	region ??= boot();
 	await region.ready;
 }

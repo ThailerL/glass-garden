@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'svelte-sonner';
+import { getContainer } from '$lib/container';
+import { ensureRegion } from '$lib/aws-region';
 import {
 	bucketFromPath,
 	decideRequest,
@@ -10,6 +13,30 @@ import {
 	receivedMessages,
 	type Topology
 } from '../../resources/aws-region/lib.js';
+
+vi.mock('svelte-sonner', () => ({ toast: { error: vi.fn() } }));
+vi.mock('$lib/container', () => ({
+	getContainer: vi.fn(),
+	activeProjectDirectory: () => '/projects/test'
+}));
+
+describe('ensureRegion', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('refuses without JSPI, before touching the container', async () => {
+		vi.stubGlobal('WebAssembly', {});
+
+		await expect(ensureRegion()).rejects.toThrow('needs WebAssembly JSPI');
+		await expect(ensureRegion()).rejects.toThrow('needs WebAssembly JSPI');
+
+		expect(getContainer).not.toHaveBeenCalled();
+		const shown = [
+			'Nothing that uses AWS can run in this browser',
+			expect.objectContaining({ id: 'missing-jspi', duration: Infinity, closeButton: true })
+		];
+		expect(vi.mocked(toast.error).mock.calls).toEqual([shown, shown]);
+	});
+});
 
 const auth = (service: string, accessKeyId = 'ggweb') =>
 	`AWS4-HMAC-SHA256 Credential=${accessKeyId}/20260901/us-east-1/${service}/aws4_request, ` +
