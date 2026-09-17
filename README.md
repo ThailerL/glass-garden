@@ -110,7 +110,11 @@ npm run dev
 If developing on a remote machine, you can get around the HTTPS requirement by running a browser in a container on the remote machine:
 
 ```sh
-docker run -d --name=firefox --network host jlesage/firefox
+docker run -d --name=firefox --network host \
+  -e FF_PREF_JSPI=javascript.options.wasm_js_promise_integration=true \
+  jlesage/firefox
 ```
+
+The preference turns on WebAssembly JSPI, which the local AWS region needs.
 
 Then open `http://<remote-host>:5800` and browse to `localhost:3000`.
