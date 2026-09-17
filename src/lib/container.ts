@@ -4,15 +4,10 @@ import { Vivari, type FileSystemTree } from '@vivari/core';
 // service-worker relay are all per-origin, so a second instance would collide with this one
 let containerPromise: Promise<Vivari> | undefined;
 
-// A boot waits on this rather than racing it. A container cannot be torn down until it has
-// finished booting, and a shutdown mid-boot would otherwise leave two of them
-let teardownComplete = Promise.resolve();
-
-// Run after every boot; failures are logged, never fatal
+// Run after the boot; failures are logged, never fatal
 const bootTasks: ((container: Vivari) => Promise<void>)[] = [];
 // What a late registration reads to see the boot pass has been made
 let booted: Vivari | undefined;
-let generation = 0;
 
 export function onContainerBoot(task: (container: Vivari) => Promise<void>) {
 	bootTasks.push(task);
@@ -20,48 +15,17 @@ export function onContainerBoot(task: (container: Vivari) => Promise<void>) {
 }
 
 export function getContainer() {
-	const mine = generation;
-	containerPromise ??= teardownComplete.then(async () => {
-		const container = await Vivari.boot();
-		// A shutdown mid-boot already tore this one down; holding it would keep the VM alive
-		if (mine === generation) booted = container;
+	containerPromise ??= Vivari.boot().then((container) => {
+		booted = container;
 		for (const task of bootTasks) void task(container).catch(console.error);
 		return container;
 	});
 	return containerPromise;
 }
 
-// Run before teardown so state can be flushed while processes are still alive; bounded,
-// so a hung task cannot block the next boot
-const shutdownTasks: (() => Promise<void>)[] = [];
-
-export function onContainerShutdown(task: () => Promise<void>) {
-	shutdownTasks.push(task);
-}
-
-export function shutdownContainer() {
-	const running = containerPromise;
-	containerPromise = undefined;
-	booted = undefined;
-	generation += 1;
-	mounts.clear();
-	if (!running) return;
-	// A failed boot has nothing to tear down, and must not hold up the next one
-	teardownComplete = running.then(
-		async (container) => {
-			await Promise.race([
-				Promise.allSettled(shutdownTasks.map((task) => task())),
-				new Promise((resolve) => setTimeout(resolve, 5000))
-			]);
-			container.teardown();
-		},
-		() => {}
-	);
-}
-
 export const PROJECTS_ROOT = '/projects';
 
-// Ambient: GraphState.switchTo is the single writer, and a switch tears the container down
+// Ambient: set by GraphState, and a switch between projects reloads the page
 let activeProjectId: string | undefined;
 
 export function setActiveProject(projectId: string) {

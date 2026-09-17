@@ -85,19 +85,12 @@ export class GraphState {
 	// Which node the canvas had selected. Selection otherwise lives on the nodes, but the flow
 	// unselects everything as it unmounts and that lands in `nodes`, so the id is kept apart
 	selectedNodeId = $state<string | undefined>(undefined);
-	projectId = $state('');
-	#prefix = '';
+	readonly projectId: string;
+	readonly #prefix: string;
 
 	constructor(projectId: string) {
-		this.switchTo(projectId);
-	}
-
-	switchTo(projectId: string) {
 		this.projectId = projectId;
 		setActiveProject(projectId);
-		// Another project's graph is somewhere else entirely, so it starts fitted and unselected
-		this.viewport = undefined;
-		this.selectedNodeId = undefined;
 		this.#prefix = graphKeyPrefix(projectId);
 		this.nodes = readByPrefix<Node>(`${this.#prefix}node:`).flatMap((node) => loadNode(node) ?? []);
 		// An edge to a node that did not load would be drawn into empty space

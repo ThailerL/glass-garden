@@ -14,7 +14,7 @@ import {
 import { adminEnv, consumerEnv } from './resources/env';
 import { ResourceController, type ControllerServices } from './resource-controller.svelte';
 import type { MetricStore, OutputLine, ResourceEvent, Stream } from './resource-log.svelte';
-import { getContainer, mountNodeFiles, removeNodeFiles, shutdownContainer } from './container';
+import { getContainer, mountNodeFiles, removeNodeFiles } from './container';
 import { nodeFiles } from './files/node-files';
 import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
 import { buildTopology } from './aws-topology';
@@ -93,18 +93,6 @@ export class Orchestrator {
 		for (const node of this.#graphState.nodes)
 			if (getResourceDefinition(node.type).hasEditableFiles)
 				void this.mountFiles(node.id).catch(() => {});
-	}
-
-	reset() {
-		for (const controller of this.#controllers.values()) controller.abandon();
-		this.#controllers.clear();
-		this.#containerPromise = undefined;
-		this.#containerReady = false;
-		this.#containerError = undefined;
-		this.#endBootWatch();
-		shutdownContainer();
-		this.warmUp();
-		for (const node of this.#graphState.nodes) this.#ensureAlwaysOn(node);
 	}
 
 	getStatus(nodeId: string): ResourceStatus {

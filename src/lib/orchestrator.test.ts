@@ -13,11 +13,8 @@ vi.mock('$lib/container', () => ({
 	getContainer: vi.fn(async () => ({ on: vi.fn() })),
 	mountNodeFiles: vi.fn(async () => {}),
 	removeNodeFiles: vi.fn(),
-	shutdownContainer: vi.fn(),
 	requestPersistentStorage: vi.fn(),
 	setActiveProject: vi.fn(),
-	// The orchestrator reaches the AWS region, which registers a shutdown task as it loads
-	onContainerShutdown: vi.fn(),
 	activeProjectDirectory: vi.fn(() => '/projects/test')
 }));
 vi.mock('$lib/files/node-files', () => ({ nodeFiles: () => ({}) }));
@@ -144,16 +141,6 @@ describe('Orchestrator always-on resources', () => {
 		expect(orchestrator.canStop(nodeIds[0])).toBe(false);
 
 		orchestrator.stopAll();
-		await settle();
-		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
-	});
-
-	it('comes back after a container reset', async () => {
-		fake.alwaysOn = true;
-		const { orchestrator, nodeIds } = setup([1]);
-		await settle();
-
-		orchestrator.reset();
 		await settle();
 		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
 	});

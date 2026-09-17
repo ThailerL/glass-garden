@@ -11,7 +11,6 @@ export class SaveScheduler {
   #maxWaitMs;
   #timer;
   #lastSaveAt = -Infinity;
-  #stopped = false;
   #fire = () => {
     this.#timer = undefined;
     this.#run();
@@ -25,19 +24,12 @@ export class SaveScheduler {
 
   // Called for every request that changed something
   arm() {
-    if (this.#stopped) return;
     const sinceSave = Date.now() - this.#lastSaveAt;
     if (this.#timer === undefined && sinceSave >= this.#debounceMs) return this.#run();
     // A burst always starts within a debounce of the last save, so the deadline hangs off it
     clearTimeout(this.#timer);
     const wait = Math.max(Math.min(this.#debounceMs, this.#maxWaitMs - sinceSave), 0);
     this.#timer = setTimeout(this.#fire, wait);
-  }
-
-  // No further save, however the region is torn down: the caller writes the final state itself
-  stop() {
-    this.#stopped = true;
-    clearTimeout(this.#timer);
   }
 
   #run() {

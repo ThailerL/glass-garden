@@ -50,8 +50,7 @@ vi.mock('$lib/container', () => ({
 			serverReady.push(listener);
 			return () => serverReady.splice(serverReady.indexOf(listener), 1);
 		}
-	}),
-	onContainerShutdown: vi.fn()
+	})
 }));
 
 function fakeProcess() {
@@ -289,20 +288,5 @@ describe('ShellSessions', () => {
 
 		expect(again).toBe(first);
 		expect(sessions.shells).toHaveLength(2);
-	});
-
-	it('disposeAll kills everything', async () => {
-		const fakes = [fakeProcess(), fakeProcess()];
-		spawn.mockImplementation(async () => fakes[spawn.mock.calls.length - 1].process);
-
-		sessions.open(NODE, launch());
-		sessions.open(ADMIN, launch());
-		await flush();
-		sessions.disposeAll();
-		await flush();
-
-		expect(fakes.map((fake) => fake.killed.count)).toEqual([1, 1]);
-		expect(sessions.shells).toHaveLength(0);
-		expect(sessions.activeId).toBeUndefined();
 	});
 });

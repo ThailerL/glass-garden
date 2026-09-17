@@ -1,10 +1,10 @@
 import { toast } from 'svelte-sonner';
-import type { Vivari, VivariProcess } from '@vivari/core';
+import type { Vivari } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
 import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
 import type { NodeReport, Service, Topology } from '../../resources/aws-region/lib.js';
 import type { InstanceHandle } from '$lib/resources/types';
-import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
+import { activeProjectDirectory, getContainer } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
 import { fileTree } from '$lib/files/file-tree';
 import { ADMIN_ACCESS_KEY } from '$lib/aws-topology';
@@ -35,7 +35,6 @@ const READY_TIMEOUT_MS = 120_000;
 
 type Region = {
 	ready: Promise<void>;
-	process?: VivariProcess;
 	directory: string;
 	// The page cannot dial VM ports; control calls go through Vivari's preview route
 	previewUrl: string;
@@ -95,25 +94,6 @@ export function regionLifetime(): InstanceHandle {
 	const exited = new Promise<number>((resolve) => (waiter = resolve));
 	exitWaiters.add(waiter);
 	return { exited, stop: async () => void exitWaiters.delete(waiter) };
-}
-
-// Graceful: the bridge writes the emulator's state files before exiting
-export async function stopRegion(): Promise<void> {
-	const current = region;
-	if (!current) return;
-	region = undefined;
-	try {
-		await current.ready;
-	} catch {
-		return;
-	}
-	try {
-		await control(current, 'control/stop', { method: 'POST' });
-	} catch {
-		record('Graceful stop failed; killing the region process');
-	}
-	current.process?.kill();
-	await current.process?.exit;
 }
 
 // The file is what the region judges requests by; the call that follows is for what it
@@ -238,7 +218,6 @@ function boot(): Region {
 			cwd: directory,
 			env: { PORT: String(REGION_PORT), GG_CONTROL_TOKEN: created.token }
 		});
-		created.process = process;
 		captureLines(process.output, handleOutput);
 		void process.exit.then((code) => onExit(created, code));
 		try {
@@ -312,7 +291,3 @@ async function ensureCache(container: Vivari, directory: string) {
 	// Written last: an interrupted copy leaves no meta.json, so the next boot recopies
 	await container.fs.writeFile(`${cacheDir}/meta.json`, metaText);
 }
-
-onContainerShutdown(async () => {
-	await stopRegion();
-});

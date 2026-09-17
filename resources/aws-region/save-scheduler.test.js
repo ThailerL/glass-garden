@@ -62,15 +62,4 @@ describe('SaveScheduler', () => {
     scheduler.arm();
     expect(saves).toEqual([0, 600]);
   });
-
-  it('saves nothing more after stop', () => {
-    const { scheduler, saves, advance } = setup();
-    scheduler.arm();
-    advance(100);
-    scheduler.arm();
-    scheduler.stop();
-    advance(5000);
-    scheduler.arm();
-    expect(saves).toEqual([0]);
-  });
 });

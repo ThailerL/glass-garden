@@ -51,9 +51,8 @@ export function setLastProjectId(id: string) {
 	localStorage.setItem(LAST_PROJECT_KEY, id);
 }
 
-// Reloads rather than switching in place: a switch tears the container down and boots a new
-// one, and on Chromium the preview relay does not survive that, so the page loses its control
-// channel to the region while VM-side callers still reach it
+// Reloads rather than switching in place: the container, the region, the shells and much of
+// the page's state all belong to the open project, and nothing tears them down
 export function openProject(id: string) {
 	setLastProjectId(id);
 	location.reload();

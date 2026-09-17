@@ -324,18 +324,6 @@ async function handleControl(request, url) {
     await reconcileFunctionUrls();
     return json(200, { functions: urlListeners.size });
   }
-  if (route === 'POST /control/stop') {
-    saves.stop();
-    // Lifespan shutdown writes the state files on its way out; the mirror follows
-    try {
-      await region.stop();
-    } catch (error) {
-      emitLog('error', `Final save failed: ${error?.message || error}`);
-    }
-    // Long enough for serve to write the answer first
-    setTimeout(() => process.exit(0), 50);
-    return json(200, { stopped: true });
-  }
   return json(404, { message: `no such control route: ${route}` });
 }
 

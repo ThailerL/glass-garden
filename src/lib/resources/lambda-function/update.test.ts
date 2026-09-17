@@ -4,7 +4,6 @@ import type { ConnectedNode } from '../types';
 
 vi.mock('$lib/container', () => ({
 	getContainer: vi.fn(),
-	onContainerShutdown: vi.fn(),
 	activeProjectDirectory: () => '/project',
 	nodeDirectory: (id: string) => `/project/nodes/${id}`
 }));

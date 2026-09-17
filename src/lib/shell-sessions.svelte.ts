@@ -2,7 +2,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import type { VivariProcess } from '@vivari/core';
-import { getContainer, onContainerShutdown } from './container';
+import { getContainer } from './container';
 import { messageOf } from './errors';
 
 export type ShellOwner = { kind: 'node'; nodeId: string } | { kind: 'admin' };
@@ -150,16 +150,8 @@ export class ShellSessions {
 			.filter((shell) => ownerKey(shell.owner) === key)
 			.forEach((shell) => this.close(shell.id));
 	}
-
-	disposeAll() {
-		for (const shell of this.shells.splice(0)) shell.dispose();
-		this.activeId = undefined;
-	}
 }
 
 const ownerKey = (owner: ShellOwner) => (owner.kind === 'node' ? `node:${owner.nodeId}` : 'admin');
 
 export const shellSessions = new ShellSessions();
-
-// At module scope, not in the constructor: container.ts never prunes its shutdown tasks
-onContainerShutdown(async () => shellSessions.disposeAll());
