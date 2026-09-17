@@ -13,6 +13,7 @@ import { GRAPH_PREFIX, GraphState, graphKeyPrefix, loadNode } from './graph-stat
 import { keysWithPrefix, readByPrefix } from './storage';
 import { getResourceDefinition } from './resources';
 import { nodeFiles } from './files/node-files';
+import { fileTree } from './files/file-tree';
 import {
 	applyProjectDocument,
 	buildProjectDocument,
@@ -129,18 +130,16 @@ export async function importProject(doc: ProjectDocument): Promise<Project> {
 	const project = createProject(doc.name, (graph) => {
 		ids = applyProjectDocument(graph, doc);
 	});
-	const encoder = new TextEncoder();
 	const files = Object.entries(doc.nodeFiles).flatMap(([oldId, files]) => {
 		const nodeId = ids.get(oldId);
 		if (!nodeId) return [];
-		return Object.entries(files).map(([path, contents]) => ({
-			path: `nodes/${nodeId}/${path}`,
-			bytes: encoder.encode(contents)
-		}));
+		return Object.entries(files).map(([path, contents]) => [`nodes/${nodeId}/${path}`, contents]);
 	});
 	try {
-		const { fs } = await getContainer();
-		await fs.writeTree(projectDirectory(project.id), files);
+		const container = await getContainer();
+		await container.mount(fileTree(Object.fromEntries(files)), {
+			mountPoint: projectDirectory(project.id)
+		});
 	} catch (error) {
 		deleteProject(project.id);
 		throw error;

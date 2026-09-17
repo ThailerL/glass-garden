@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { ClassValue } from 'clsx';
-	import type { Vivari } from '@vivari/core';
+	import { VivariError, type Vivari } from '@vivari/core';
 	import { droppable, type DragDropState } from '@thisux/sveltednd';
 	import * as TreeView from '$lib/components/ui/tree-view';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
@@ -71,17 +71,21 @@
 		}
 
 		// Without knowing whether something is already there, the move could silently replace it
-		const destination = await container.fs.stat(destinationFsPath).catch(() => undefined);
-		if (!destination) {
+		let destination;
+		try {
+			destination = await container.fs.stat(destinationFsPath);
+		} catch (error) {
+			if (error instanceof VivariError && error.code === 'ENOENT') return move();
 			toast.error(`Could not move ${draggedItem}`);
 			return;
 		}
-		if (!destination.exists) return move();
 
 		confirmDelete({
 			title: `Replace "${draggedItem}"?`,
 			description: `${movedPath} already exists. Replacing it deletes ${
-				destination.isDirectory ? 'that folder and everything inside it' : 'the file that is there'
+				destination.isDirectory()
+					? 'that folder and everything inside it'
+					: 'the file that is there'
 			}.`,
 			confirm: { text: 'Replace' },
 			onConfirm: move

@@ -4,6 +4,7 @@ import { Vivari, type FileSystemTree } from '@vivari/core';
 import { type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
 import type { ChartReading } from '$lib/metrics';
+import type { TextOutput } from '$lib/resource-log.svelte';
 
 // What a resource offers and what it needs from what it points at. An edge is legal when
 // its source consumes something its target provides. 'invoke' runs against the traffic of
@@ -17,12 +18,12 @@ export type InstanceHandle = {
 	// A crash on startup often says nothing else, so the code is the whole diagnosis
 	exited: Promise<number>;
 	stop: () => Promise<void>;
-	output?: ReadableStream<string>;
+	output?: TextOutput;
 };
 
 // Hands a stream of output to the node's log, for work that belongs to the node rather
 // than to one of its instances
-export type Capture = (output: ReadableStream<string>) => void;
+export type Capture = (output: TextOutput) => void;
 
 // No 'stopped': a stopped instance is dropped from its pool
 export type InstanceStatus =

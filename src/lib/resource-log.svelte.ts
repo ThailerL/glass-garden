@@ -63,7 +63,7 @@ export class ResourceLog {
 		this.#onTraffic = onTraffic;
 	}
 
-	capture(source: LogSource, output: ReadableStream<string>) {
+	capture(source: LogSource, output: TextOutput) {
 		captureLines(output, (line) => this.#routeLine(source, line));
 	}
 
@@ -176,7 +176,10 @@ export class ResourceLog {
 
 // Chunks arrive at whatever size the stream hands over, so a partial line is carried
 // until the rest of it turns up. Errors when the process is killed, which is not news
-export function captureLines(output: ReadableStream<string>, onLine: (line: string) => void) {
+// Only what is used: Vivari's OutputStream is not assignable to the DOM lib's ReadableStream
+export type TextOutput = Pick<ReadableStream<string>, 'pipeTo'>;
+
+export function captureLines(output: TextOutput, onLine: (line: string) => void) {
 	let carry = '';
 	void output
 		.pipeTo(

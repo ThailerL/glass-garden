@@ -1,7 +1,7 @@
-diff --git a/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js b/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
-index a00b16a..dc2c176 100644
---- a/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
-+++ b/node_modules/@vivari/core/dist/assets/process-worker-BYHAZTMb.js
+diff --git a/node_modules/@vivari/core/dist/assets/process-worker-Df1Yfjqu.js b/node_modules/@vivari/core/dist/assets/process-worker-Df1Yfjqu.js
+index 76cfde5..863febd 100644
+--- a/node_modules/@vivari/core/dist/assets/process-worker-Df1Yfjqu.js
++++ b/node_modules/@vivari/core/dist/assets/process-worker-Df1Yfjqu.js
 @@ -1,3 +1,216 @@
 +// Prepended to @vivari/core's process worker by patch-package - that worker is the only one
 +// that runs in-VM user code. This patch is the only copy: to change it, edit
@@ -219,7 +219,7 @@ index a00b16a..dc2c176 100644
  //#region \0rolldown/runtime.js
  var __defProp = Object.defineProperty;
  var __exportAll = (all, no_symbols) => {
-@@ -234,7 +447,7 @@ function createEventLoop({ isAlive, doNet, doChildren, doThreads, doWatch, doStd
+@@ -347,7 +560,7 @@ function createEventLoop({ isAlive, doNet, doChildren, doThreads, doWatch, doStd
  		}
  	};
  	const reportError = (e) => {
@@ -228,7 +228,7 @@ index a00b16a..dc2c176 100644
  		try {
  			process.stderr.write(msg);
  		} catch {}
-@@ -1653,7 +1866,9 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+@@ -2296,7 +2509,9 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
  				this._closed = true;
  				recount(this);
  				if (this.type === TCPConstants.SERVER) {
@@ -239,45 +239,7 @@ index a00b16a..dc2c176 100644
  					if (this._kernelPort != null && syscalls && syscalls.closeServer) {
  						try {
  							syscalls.closeServer(this._kernelPort);
-@@ -46229,6 +46444,28 @@ const FACTORIES = {
- 	"internal/encoding": encoding_default,
- 	stream: stream_default,
- 	"stream/promises": promises_default$2,
-+	// Patched by Glass Garden: Vivari vendors no stream/consumers, and pocket-region's Lambda
-+	// host and runtime import it (.notes/vivari-quirks.md §15)
-+	"stream/consumers": (exports, require, module) => {
-+		const { Buffer } = require("buffer");
-+		const chunksOf = async (stream) => {
-+			const chunks = [];
-+			for await (const chunk of stream) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-+			return chunks;
-+		};
-+		const buffer = async (stream) => Buffer.concat(await chunksOf(stream));
-+		const text = async (stream) => (await buffer(stream)).toString("utf8");
-+		module.exports = {
-+			buffer,
-+			text,
-+			json: async (stream) => JSON.parse(await text(stream)),
-+			arrayBuffer: async (stream) => {
-+				const bytes = await buffer(stream);
-+				return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-+			},
-+			blob: async (stream) => new Blob(await chunksOf(stream))
-+		};
-+	},
- 	"stream/web": (exports, require, module) => {
- 		const g = globalThis;
- 		const pick = {};
-@@ -54461,7 +54698,7 @@ function createRuntime({ ctrl, data, notify, pid = 1, ppid = 0, argv = [], env =
- 				if (err && err.__processExit !== void 0) loop.requestExit(err.__processExit);
- 				else {
- 					try {
--						process.stderr.write(String(err && err.stack || err) + "\n");
-+						process.stderr.write(__vvFormatError(err) + "\n");
- 					} catch {}
- 					loop.requestExit(1);
- 				}
-@@ -54521,7 +54758,7 @@ function bootProcess({ sab, spec, send, onReady, fsPort = null, codec = null, cr
+@@ -82768,7 +82983,7 @@ function bootProcess({ sab, spec, send, onReady, fsPort = null, codec = null, cr
  		memStats: runtime.memStats
  	});
  	runtime.run(spec.programPath).then((code) => send("exit", { code: code | 0 }), (err) => {
@@ -286,54 +248,3 @@ index a00b16a..dc2c176 100644
  		send("exit", { code: 1 });
  	});
  }
-diff --git a/node_modules/@vivari/core/dist/fs.d.ts b/node_modules/@vivari/core/dist/fs.d.ts
-index 9ad1506..2d8d33e 100644
---- a/node_modules/@vivari/core/dist/fs.d.ts
-+++ b/node_modules/@vivari/core/dist/fs.d.ts
-@@ -8,6 +8,14 @@ export declare class FileSystemAPI {
-     readFile(path: string): Promise<Uint8Array>;
-     /** Write a file (parent directories are created as needed). */
-     writeFile(path: string, contents: string | Uint8Array): Promise<void>;
-+    /**
-+     * Added by patch-package (see dist/index.js). Writes a whole tree in one message,
-+     * with no 1 MiB per-file ceiling. Paths are relative to `dir`.
-+     */
-+    writeTree(dir: string, files: {
-+        path: string;
-+        bytes: Uint8Array;
-+    }[]): Promise<number>;
-     /** List a directory. With `{ withFileTypes: true }` you get {@link DirEnt}s. */
-     readdir(path: string): Promise<string[]>;
-     readdir(path: string, options: {
-diff --git a/node_modules/@vivari/core/dist/index.js b/node_modules/@vivari/core/dist/index.js
-index d183516..bcda75c 100644
---- a/node_modules/@vivari/core/dist/index.js
-+++ b/node_modules/@vivari/core/dist/index.js
-@@ -210,6 +210,27 @@ var FileSystemAPI = class {
- 		};
- 		unwrap(await this.bridge.request("vv-write", payload));
- 	}
-+	/**
-+	 * Added to @vivari/core by patch-package; this patch is the only copy, so to change it
-+	 * edit node_modules/@vivari/core/dist/index.js (and dist/fs.d.ts) and re-run
-+	 * `npx patch-package @vivari/core`. Upstream: maitrungduc1410/vivari#2.
-+	 *
-+	 * `writeFile` and `mount` route through the kernel's `vv-write`, which crosses to the
-+	 * FS worker in a 1 MiB SharedArrayBuffer: a larger payload throws inside the handler,
-+	 * which logs and then replies `ok: true` anyway, so the file is silently missing. The
-+	 * kernel already answers `vv-import-tree` correctly - it batches the files into one
-+	 * transferred ArrayBuffer with no size ceiling, creates parent dirs, and reports real
-+	 * errors - but nothing in the public API ever sends it. This exposes it rather than
-+	 * changing the capped path, so the existing behaviour of every other write is untouched.
-+	 *
-+	 * `files` are `{ path, bytes }` with paths relative to `dir`. Returns the count written.
-+	 */
-+	async writeTree(dir, files) {
-+		return unwrap(await this.bridge.request("vv-import-tree", {
-+			dir,
-+			files
-+		})).count;
-+	}
- 	async readdir(path, options) {
- 		const entries = unwrap(await this.bridge.request("vv-readdir", { path })).entries || [];
- 		if (options?.withFileTypes) return entries.map((e) => ({

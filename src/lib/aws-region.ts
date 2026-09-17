@@ -6,6 +6,7 @@ import type { NodeReport, Service, Topology } from '../../resources/aws-region/l
 import type { InstanceHandle } from '$lib/resources/types';
 import { activeProjectDirectory, getContainer, onContainerShutdown } from '$lib/container';
 import { captureLines } from '$lib/resource-log.svelte';
+import { fileTree } from '$lib/files/file-tree';
 import { ADMIN_ACCESS_KEY } from '$lib/aws-topology';
 import type { Hop, Level } from '$lib/traffic.svelte';
 import { withTrailingSlash } from '$lib/utils';
@@ -296,7 +297,7 @@ async function ensureCache(container: Vivari, directory: string) {
 	record('Copying the Python runtime into the container');
 	const { files } = JSON.parse(metaText) as { files: { path: string; bytes: number }[] };
 	await container.fs.rm(cacheDir, { recursive: true, force: true });
-	const tree = await Promise.all(
+	const downloads = await Promise.all(
 		files.map(async (file) => {
 			const asset = await fetch(`/vendor/aws-region/${file.path}`);
 			if (!asset.ok) throw new Error(`Could not fetch ${file.path} (status ${asset.status})`);
@@ -304,10 +305,10 @@ async function ensureCache(container: Vivari, directory: string) {
 			if (bytes.length !== file.bytes) {
 				throw new Error(`${file.path} downloaded ${bytes.length} bytes, expected ${file.bytes}`);
 			}
-			return { path: file.path, bytes };
+			return [file.path, bytes] as const;
 		})
 	);
-	await container.fs.writeTree(cacheDir, tree);
+	await container.mount(fileTree(Object.fromEntries(downloads)), { mountPoint: cacheDir });
 	// Written last: an interrupted copy leaves no meta.json, so the next boot recopies
 	await container.fs.writeFile(`${cacheDir}/meta.json`, metaText);
 }
