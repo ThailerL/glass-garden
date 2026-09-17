@@ -142,8 +142,8 @@ const observer = {
   }
 };
 
-// Explicit try/catch around the whole boot: Vivari neither surfaces uncaught VM errors
-// nor implements the process-level error events
+// Explicit try/catch around the whole boot: in Vivari, a rejected top-level await exits 0
+// and prints nothing
 try {
 console.log('Starting the Python runtime');
 const meta = JSON.parse(fs.readFileSync(path.join(CACHE_DIR, 'meta.json'), 'utf8'));
@@ -401,6 +401,8 @@ await reconcileFunctionUrls();
 const sampleAgain = () => setTimeout(() => void sampleResources().finally(sampleAgain), SAMPLE_INTERVAL_MS);
 sampleAgain();
 } catch (error) {
-  console.log(`Region failed to start: ${error?.stack ?? error}`);
+  // Firefox's stack carries no message line, and without one the log only names frames
+  const stack = error?.stack ?? '';
+  console.log(`Region failed to start: ${stack.startsWith(String(error)) ? stack : `${error}\n${stack}`}`);
   process.exit(1);
 }
