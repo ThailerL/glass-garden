@@ -8,7 +8,7 @@ export type TourStep = (typeof ORDER)[number];
 // Only the steps that ask the reader for something are counted
 export const NUMBERED_STEPS: readonly TourStep[] = ORDER.slice(0, ORDER.indexOf('done'));
 
-const SEEN_KEY = 'tourSeen';
+// Names the canvas the tour is waiting on; building one arms the tour and ending it disarms it
 const PROJECT_KEY = 'tourProjectId';
 
 // Fixed shape: the tour's steps name what is on this canvas
@@ -28,14 +28,13 @@ class TourState {
 	#begun = false;
 	#held = false;
 
-	// Not marked seen, so it starts on the next visit
+	// Not ended, so it starts on the next visit
 	hold() {
 		this.#held = true;
 	}
 
 	begin(projectId: string, nodes: readonly Node[]) {
 		if (this.#begun || this.#held || localStorage.getItem(PROJECT_KEY) !== projectId) return;
-		if (localStorage.getItem(SEEN_KEY)) return;
 
 		const balancer = nodes.find((node) => node.type === 'httpLoadBalancer');
 		if (!balancer) return;
@@ -59,7 +58,7 @@ class TourState {
 
 	end() {
 		this.step = undefined;
-		localStorage.setItem(SEEN_KEY, 'true');
+		localStorage.removeItem(PROJECT_KEY);
 	}
 }
 

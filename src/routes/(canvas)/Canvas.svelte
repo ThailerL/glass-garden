@@ -38,6 +38,7 @@
 	import TrafficEdge from './TrafficEdge.svelte';
 	import ProjectsGroup from './ProjectsGroup.svelte';
 	import ResourcesGroup from './ResourcesGroup.svelte';
+	import LearnGroup from './LearnGroup.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
@@ -333,6 +334,11 @@
 				}}
 			/>
 		</Sidebar.Content>
+		{#if !embedded}
+			<Sidebar.Footer class="border-t border-sidebar-border px-0 py-2">
+				<LearnGroup />
+			</Sidebar.Footer>
+		{/if}
 	</Sidebar.Root>
 {/snippet}
 
