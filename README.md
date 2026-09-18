@@ -11,7 +11,7 @@ Everything on your canvas is running real code, and your app talks to it the sam
 - instance groups running actual Node processes with editable code
 - Lambda functions with the standard handler shape, running in execution environments that scale to zero
 - a Postgres server you connect to with the ordinary `pg` client
-- an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK
+- an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK, powered by [pocket-region](https://pocket-region.dev), which you can also use on its own in Node or a browser tab
 
 Access between resources works by drawing edges between them, and a call the canvas does not allow is refused.
 
