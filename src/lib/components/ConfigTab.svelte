@@ -1,3 +1,17 @@
+<script module lang="ts">
+	// Key order follows however each object was built, so it must not read as a change
+	const canonical = (config: Record<string, unknown>) =>
+		JSON.stringify(config, (_, value) =>
+			value && typeof value === 'object' && !Array.isArray(value)
+				? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
+				: value
+		);
+
+	export function configsMatch(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+		return canonical(a) === canonical(b);
+	}
+</script>
+
 <script lang="ts">
 	import { untrack, type Component } from 'svelte';
 	import { z } from 'zod';
@@ -50,12 +64,15 @@
 	}>;
 	const { form: formData, validateForm, errors } = form;
 
-	// Re-read live, unlike the node the form was seeded from, so the count settles after a
-	// save. The same comparison #reconcilePass makes, so it cannot disagree with what happens
+	// Read live, unlike the node the form was seeded from, so a save settles what follows
+	const liveNode = $derived(graphState.getNode(nodeId));
+
+	const isDirty = $derived(!!liveNode && !configsMatch($formData, nodeConfig(liveNode)));
+
+	// The same comparison #reconcilePass makes, so it cannot disagree with what happens
 	const bouncedInstances = $derived.by(() => {
 		// Re-applying an always-on resource's settings restarts nothing of its own
 		if (definition.alwaysOn) return 0;
-		const liveNode = graphState.getNode(nodeId);
 		const upCount = orchestrator.getUpCount(nodeId);
 		if (!liveNode || upCount === 0) return 0;
 
@@ -77,6 +94,7 @@
 	);
 
 	async function handleSubmit() {
+		if (!isDirty) return;
 		const result = await validateForm();
 
 		if (!result.valid) {
@@ -109,7 +127,7 @@
 	</form>
 </div>
 <div class="-mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">
-	<Form.Button type="submit" onclick={handleSubmit}>
+	<Form.Button type="submit" disabled={!isDirty} onclick={handleSubmit}>
 		{saveLabel}
 	</Form.Button>
 </div>
