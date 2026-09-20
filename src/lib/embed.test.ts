@@ -31,7 +31,7 @@ const { publicEnv, projects, location } = vi.hoisted(() => {
 
 vi.mock('$env/dynamic/public', () => ({ env: publicEnv }));
 vi.mock('$lib/projects.svelte', () => projects);
-vi.mock('$lib/project-document', () => ({ parseProjectDocument: JSON.parse }));
+vi.mock('$lib/project-document', () => ({ parseDocument: JSON.parse }));
 
 function makeLocalStorage(): Storage {
 	const entries = new Map<string, string>();

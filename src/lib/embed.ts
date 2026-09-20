@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/public';
-import { parseProjectDocument } from './project-document';
+import { parseDocument } from './project-document';
 import { deleteProject, getProject, importProject, setLastProjectId } from './projects.svelte';
 import { decodeShareLink } from './share-link';
 import { readEntry } from './storage';
@@ -43,7 +43,7 @@ export async function openEmbeddedProject(hash: string): Promise<string> {
 
 	if (!projectId || !getProject(projectId)) {
 		// Imported before the old one goes, so a failure leaves what was there
-		const project = await importProject(parseProjectDocument(await decodeShareLink(hash)));
+		const project = await importProject(parseDocument(await decodeShareLink(hash)));
 		if (previous) deleteProject(previous.projectId);
 		localStorage.setItem(EMBED_KEY, JSON.stringify({ hash, projectId: project.id }));
 		projectId = project.id;

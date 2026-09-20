@@ -1,7 +1,13 @@
 import type { Edge, Node } from '@xyflow/svelte';
 import type { DirEnt, FileSystemTree } from '@vivari/core';
 import { z } from 'zod';
-import { resourceDefinitions, type ResourceType } from './resources';
+import { resourceDefinitions, resourceTypeSchema, type ResourceType } from './resources';
+import {
+	challengeRefs,
+	challengeSchema,
+	type Comparison,
+	type ScriptEvent
+} from './challenge';
 import {
 	nodeChart,
 	nodeConfig,
@@ -22,7 +28,7 @@ const projectDocumentSchema = z.object({
 	nodes: z.array(
 		z.object({
 			id: z.string(),
-			type: z.enum(Object.keys(resourceDefinitions) as [ResourceType, ...ResourceType[]]),
+			type: resourceTypeSchema,
 			position: z.object({ x: z.number(), y: z.number() }),
 			config: z.record(z.string(), z.unknown()),
 			chart: z.string().optional(),
@@ -34,6 +40,144 @@ const projectDocumentSchema = z.object({
 });
 
 export type ProjectDocument = z.infer<typeof projectDocumentSchema>;
+
+// What a canvas laid onto a graph needs. A challenge's title names it, so its starting canvas
+// carries no name of its own
+const canvasDocumentSchema = projectDocumentSchema.omit({ name: true });
+export type CanvasDocument = z.infer<typeof canvasDocumentSchema>;
+
+export const CHALLENGE_FORMAT = 'gg:challenge/1';
+
+// A challenge holds the canvas it starts from rather than riding on a project, so what is
+// shared is always the challenge as written, never a reader's progress through it
+const challengeDocumentSchema = challengeSchema
+	.extend({
+		format: z.literal(CHALLENGE_FORMAT),
+		title: z.string().min(1),
+		description: z.string().min(1).optional(),
+		startingCanvas: canvasDocumentSchema
+	})
+	// The document holds the canvas its goals and events talk about, so every reference into it
+	// is checked here rather than failing silently in a run nobody can win
+	.superRefine((challenge, ctx) => {
+		const problem = (message: string) => ctx.addIssue({ code: 'custom', message });
+		const canvas = canvasByName(challenge.startingCanvas, problem);
+		for (const { where, ref, config } of challengeRefs(challenge)) {
+			// A type is the node the reader supplies, so neither it nor its settings are ours to check
+			if (!('name' in ref)) continue;
+			const target = canvas.get(ref.name);
+			if (!target) {
+				problem(
+					`${where} names a node called "${ref.name}", which the challenge's canvas does not have`
+				);
+				continue;
+			}
+			for (const [key, comparison] of Object.entries(config ?? {})) {
+				checkComparison({ where, key, comparison }, ref.name, target, problem);
+			}
+		}
+		for (const event of challenge.events) {
+			if ('set' in event) checkSetEvent(event, canvas, problem);
+		}
+	});
+
+type NamedNode = { type: ResourceType; config: Record<string, unknown> };
+
+// The name each node lands on, defaults and all, rather than the one it was written with.
+// Two of a name would be one reference meaning both, so the second is refused. A refused
+// setting is reported rather than reset, which would take the node's name down with it
+function canvasByName(starting: CanvasDocument, problem: (message: string) => void) {
+	const canvas = new Map<string, NamedNode>();
+	for (const node of starting.nodes) {
+		const definition = resourceDefinitions[node.type];
+		const parsed = definition.configSchema.safeParse(node.config);
+		if (!parsed.success) {
+			const { path } = parsed.error.issues[0];
+			const named =
+				typeof node.config.name === 'string'
+					? `"${node.config.name}"`
+					: `a ${definition.name} node`;
+			problem(`The challenge's canvas sets "${path.join('.')}" on ${named} to a value it refuses`);
+			continue;
+		}
+		const config = parsed.data;
+		const name = config.name as string;
+		if (canvas.has(name)) {
+			problem(
+				`Two of the challenge's nodes are called "${name}", so a goal naming it would mean both`
+			);
+			continue;
+		}
+		canvas.set(name, { type: node.type, config });
+	}
+	return canvas;
+}
+
+// A setting the node does not have is dropped on the way in, so a script's typo would change
+// nothing and say nothing. Checked against the canvas as shipped, which is the best the
+// document can know: the reader may have changed a setting before the run reaches this event
+function checkSetEvent(
+	event: Extract<ScriptEvent, { set: unknown }>,
+	canvas: Map<string, NamedNode>,
+	problem: (message: string) => void
+) {
+	const { name } = event.set.node;
+	const target = canvas.get(name);
+	if (!target) return;
+	const { configSchema } = resourceDefinitions[target.type];
+	for (const key of Object.keys(event.set.config)) {
+		if (key in configSchema.shape) continue;
+		problem(
+			`The event at ${event.at} s sets "${key}" on "${name}", which is not one of its settings`
+		);
+	}
+	const parsed = configSchema.safeParse({ ...target.config, ...event.set.config });
+	if (parsed.success) return;
+	const { path } = parsed.error.issues[0];
+	problem(`The event at ${event.at} s sets "${path.join('.')}" on "${name}" to a value it refuses`);
+}
+
+// A comparison the setting can never satisfy is a goal no reader can meet. A bound holds only
+// for a number, and a setting keeps its kind, so the shipped value says whether one could
+function checkComparison(
+	{ where, key, comparison }: { where: string; key: string; comparison: Comparison },
+	name: string,
+	target: NamedNode,
+	problem: (message: string) => void
+) {
+	const { configSchema } = resourceDefinitions[target.type];
+	if (!(key in configSchema.shape)) {
+		problem(`${where} compares "${key}" on "${name}", which is not one of its settings`);
+		return;
+	}
+	const { eq, gte, lte } = comparison;
+	if (eq !== undefined && !configSchema.safeParse({ ...target.config, [key]: eq }).success) {
+		problem(`${where} compares "${key}" on "${name}" against a value the setting refuses`);
+	}
+	if ((gte ?? lte) === undefined || typeof target.config[key] === 'number') return;
+	problem(`${where} compares "${key}" on "${name}" with gte or lte, but it is not a number`);
+}
+
+export type ChallengeDocument = z.infer<typeof challengeDocumentSchema>;
+
+// What a file, a share link or an embed can carry
+export type GardenDocument = ProjectDocument | ChallengeDocument;
+
+const gardenDocumentSchema = z.discriminatedUnion('format', [
+	projectDocumentSchema,
+	challengeDocumentSchema
+]);
+
+export function documentName(doc: GardenDocument): string {
+	return doc.format === CHALLENGE_FORMAT ? doc.title : doc.name;
+}
+
+// What to call it to the reader. Taken from the format tag, so a document too new to parse is
+// still called what it is
+export function documentKind(doc: GardenDocument | string): 'challenge' | 'project' {
+	const format = typeof doc === 'string' ? doc : doc.format;
+	return format.startsWith('gg:challenge/') ? 'challenge' : 'project';
+}
 
 export function buildProjectDocument(
 	name: string,
@@ -58,31 +202,63 @@ export function buildProjectDocument(
 	return JSON.stringify(doc, null, '\t');
 }
 
-export function parseProjectDocument(text: string): ProjectDocument {
+// Whatever the author put there, under keys the document does not read as its own structure
+const FREE_FORM = ['config', 'dimensions', 'nodeFiles'];
+
+// Asked of the document, not of the failure: a goal's reference sits inside a union, which
+// reports a type we do not have and a type left out as the same failure. Free-form records are
+// stepped over, so a setting or a dimension called "type" is not read as a resource type
+function namesUnknownType(raw: unknown): boolean {
+	if (Array.isArray(raw)) return raw.some(namesUnknownType);
+	if (typeof raw !== 'object' || raw === null) return false;
+	return Object.entries(raw).some(([key, value]) => {
+		if (FREE_FORM.includes(key)) return false;
+		return key === 'type' && typeof value === 'string'
+			? !resourceTypeSchema.safeParse(value).success
+			: namesUnknownType(value);
+	});
+}
+
+export function parseDocument(text: string): GardenDocument {
 	let raw: unknown;
 	try {
 		raw = JSON.parse(text);
 	} catch {
 		throw new Error('That file is not a Glass Garden project');
 	}
-	const parsed = projectDocumentSchema.safeParse(raw);
+	const parsed = gardenDocumentSchema.safeParse(raw);
 	if (parsed.success) return parsed.data;
 	const format = (raw as { format?: unknown })?.format;
+	const tag = typeof format === 'string' ? format : '';
+	if (!/^gg:(project|challenge)\//.test(tag)) {
+		throw new Error('That file is not a Glass Garden project');
+	}
+	// A tag this build writes itself is a format it understands, so the fault is the author's
+	// and they are told which one. Our own checks say it in a sentence; zod says it with a path
+	if (tag === PROJECT_FORMAT || tag === CHALLENGE_FORMAT) {
+		const authored = parsed.error.issues.find((issue) => issue.code === 'custom');
+		if (authored) throw new Error(authored.message);
+		// Resource types grow between builds while the format tag stays put, so a type we do not
+		// have is the one failure on a current tag that really is a newer version
+		if (!namesUnknownType(raw)) throw new Error(z.prettifyError(parsed.error));
+	}
+	// Called what the reader was offered
 	throw new Error(
-		typeof format === 'string' && format.startsWith('gg:project/')
-			? 'That project was made by a newer version of Glass Garden'
-			: 'That file is not a Glass Garden project'
+		`That ${documentKind(tag)} was made by a newer version of Glass Garden`
 	);
 }
 
-// Ids are minted fresh so a project can be imported beside its own export; returns old → new
-export function applyProjectDocument(graph: GraphState, doc: ProjectDocument) {
+// Ids are minted fresh so a project can be imported beside its own export; returns old → new.
+// A challenge's canvas is marked as authored, which is what lets its goals name these nodes
+export function applyCanvasDocument(graph: GraphState, doc: CanvasDocument, authored = false) {
 	const ids = new Map<string, string>();
 	for (const node of doc.nodes) {
 		const added = graph.addNode(node.type, node.position, {
 			config: parseStoredConfig(resourceDefinitions[node.type], node.config),
 			chart: node.chart,
-			testEvent: node.testEvent
+			testEvent: node.testEvent,
+			// Kept off an ordinary project's nodes rather than stored as false on every one
+			authored: authored || undefined
 		});
 		ids.set(node.id, added.id);
 	}

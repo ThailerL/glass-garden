@@ -241,14 +241,22 @@ export class Orchestrator {
 		return this.#controllers.get(nodeId)?.restartPending ?? false;
 	}
 
+	// While something else is driving starts and stops, such as a challenge's run
+	#held = $state(false);
+
+	holdLifecycle(held: boolean) {
+		this.#held = held;
+	}
+
 	// No controller means the node has never been started, so starting is what it needs
 	// and stopping is meaningless
 	canStart(nodeId: string): boolean {
-		if (!this.#graphState.getNode(nodeId)) return false;
+		if (this.#held || !this.#graphState.getNode(nodeId)) return false;
 		return this.#controllers.get(nodeId)?.canStart ?? true;
 	}
 
 	canStop(nodeId: string): boolean {
+		if (this.#held) return false;
 		return this.#controllers.get(nodeId)?.canStop ?? false;
 	}
 

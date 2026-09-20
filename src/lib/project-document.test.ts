@@ -2,12 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Node } from '@xyflow/svelte';
 import { GraphState, nodeConfig, nodeTestEvent } from '$lib/graph-state.svelte';
 import {
+	CHALLENGE_FORMAT,
 	PROJECT_FORMAT,
-	applyProjectDocument,
+	applyCanvasDocument,
 	buildProjectDocument,
-	parseProjectDocument,
+	documentName,
+	parseDocument,
 	readNodeFiles,
 	treeFiles,
+	type ProjectDocument,
 	type ReadableFs
 } from '$lib/project-document';
 
@@ -18,13 +21,18 @@ vi.mock('$lib/container', () => ({
 vi.mock('$lib/resources', async () => {
 	const { z } = await import('zod');
 	const definition = {
+		name: 'Test resource',
 		ownsStoredData: false,
 		configSchema: z.object({
 			name: z.string().default('Test resource'),
 			count: z.number().default(1)
 		})
 	};
-	return { resourceDefinitions: { test: definition }, getResourceDefinition: () => definition };
+	return {
+		resourceDefinitions: { test: definition },
+		resourceTypeSchema: z.enum(['test']),
+		getResourceDefinition: () => definition
+	};
 });
 
 function makeLocalStorage(): Storage {
@@ -79,7 +87,7 @@ const document = (): { nodes: Record<string, unknown>[]; [key: string]: unknown 
 
 describe('buildProjectDocument', () => {
 	it('keeps the definition and drops runtime and canvas state', () => {
-		const doc = parseProjectDocument(
+		const doc = parseProject(
 			buildProjectDocument(
 				'Lab',
 				[node('a'), node('b')],
@@ -99,26 +107,149 @@ describe('buildProjectDocument', () => {
 	});
 });
 
-describe('parseProjectDocument', () => {
-	it('rejects what is not a project', () => {
-		expect(() => parseProjectDocument('not json')).toThrow('not a Glass Garden project');
-		expect(() => parseProjectDocument('{"format":"gg:metric/1"}')).toThrow(
-			'not a Glass Garden project'
+// Loosely typed like `document()`, so the tests can bend it past what the schema allows
+const challengeDocument = () => ({
+	format: CHALLENGE_FORMAT,
+	title: 'Survive a lost app',
+	length: 30,
+	events: [{ at: 5, stop: { name: 'B' } }] as unknown[],
+	goals: [
+		{
+			id: 'g',
+			title: 'Wired',
+			conditions: [{ edge: { from: { name: 'A' }, to: { name: 'B' } } }] as unknown[]
+		}
+	],
+	startingCanvas: document()
+});
+
+// The tests that build a canvas want a project, which the parser does not promise
+function parseProject(text: string): ProjectDocument {
+	const doc = parseDocument(text);
+	if (doc.format !== PROJECT_FORMAT) throw new Error(`expected a project, got ${doc.format}`);
+	return doc;
+}
+
+describe('parseDocument', () => {
+	it('reads a challenge with the canvas it starts from', () => {
+		const doc = parseDocument(JSON.stringify(challengeDocument()));
+		expect(doc.format).toBe(CHALLENGE_FORMAT);
+		expect(documentName(doc)).toBe('Survive a lost app');
+		if (doc.format === CHALLENGE_FORMAT) expect(doc.startingCanvas.nodes).toHaveLength(2);
+	});
+
+	it('rejects a challenge whose canvas has two nodes of one name', () => {
+		const doc = challengeDocument();
+		doc.startingCanvas.nodes[1].config = { name: 'A' };
+		expect(() => parseDocument(JSON.stringify(doc))).toThrow('Two of the challenge');
+		// The name a node falls back to counts, so two unnamed nodes collide the same way
+		const unnamed = challengeDocument();
+		for (const node of unnamed.startingCanvas.nodes) node.config = {};
+		expect(() => parseDocument(JSON.stringify(unnamed))).toThrow('called "Test resource"');
+	});
+
+	// A goal whose only condition wires A to whatever is given
+	const wiredTo = (to: unknown) => {
+		const doc = challengeDocument();
+		doc.goals[0].conditions = [{ edge: { from: { name: 'A' }, to } }];
+		return doc;
+	};
+
+	it('rejects a name no node on the challenge canvas answers to', () => {
+		expect(() => parseDocument(JSON.stringify(wiredTo({ name: 'Bee' })))).toThrow(
+			'The goal "Wired" names a node called "Bee"'
 		);
+		const event = challengeDocument();
+		event.events = [{ at: 5, stop: { name: 'Ghost' } }];
+		expect(() => parseDocument(JSON.stringify(event))).toThrow('The event at 5 s names a node');
+		// A type is the reader's to supply, so it is not checked against the canvas
+		expect(parseDocument(JSON.stringify(wiredTo({ type: 'test' }))).format).toBe(CHALLENGE_FORMAT);
+	});
+
+	it('rejects a set event the node would ignore or refuse', () => {
+		const set = (config: Record<string, unknown>) => {
+			const doc = challengeDocument();
+			doc.events = [{ at: 5, set: { node: { name: 'A' }, config } }];
+			return () => parseDocument(JSON.stringify(doc));
+		};
+		expect(set({ count: 3 })().format).toBe(CHALLENGE_FORMAT);
+		expect(set({ nope: 1 })).toThrow('sets "nope" on "A", which is not one of its settings');
+		expect(set({ count: 'three' })).toThrow('sets "count" on "A" to a value it refuses');
+	});
+
+	it('rejects a goal comparing a setting the node could never satisfy', () => {
+		const compares = (config: Record<string, unknown>) => {
+			const doc = challengeDocument();
+			doc.goals[0].conditions = [{ node: { ref: { name: 'A' }, config } }];
+			return () => parseDocument(JSON.stringify(doc));
+		};
+		expect(compares({ count: { gte: 2 } })().format).toBe(CHALLENGE_FORMAT);
+		expect(compares({ nope: { gte: 2 } })).toThrow(
+			'The goal "Wired" compares "nope" on "A", which is not one of its settings'
+		);
+		expect(compares({ count: { eq: 'five' } })).toThrow('against a value the setting refuses');
+		expect(compares({ name: { gte: 2 } })).toThrow('with gte or lte, but it is not a number');
+		// A type's settings are the reader's
+		const byType = challengeDocument();
+		byType.goals[0].conditions = [
+			{ node: { ref: { type: 'test' }, config: { nope: { gte: 2 } } } }
+		];
+		expect(parseDocument(JSON.stringify(byType)).format).toBe(CHALLENGE_FORMAT);
+	});
+
+	it('rejects a starting canvas the resource would refuse, rather than resetting it', () => {
+		const doc = challengeDocument();
+		doc.startingCanvas.nodes[0].config = { name: 'A', count: 'five' };
+		expect(() => parseDocument(JSON.stringify(doc))).toThrow(
+			'The challenge\'s canvas sets "count" on "A" to a value it refuses'
+		);
+		// A node with no name of its own is named by its resource
+		const unnamed = challengeDocument();
+		unnamed.startingCanvas.nodes[0].config = { count: 'five' };
+		expect(() => parseDocument(JSON.stringify(unnamed))).toThrow('on a Test resource node');
+	});
+
+	it('rejects a challenge with no goals or no canvas', () => {
+		const noGoals = { ...challengeDocument(), goals: [] };
+		const { startingCanvas: _canvas, ...noCanvas } = challengeDocument();
+		expect(() => parseDocument(JSON.stringify(noGoals))).toThrow();
+		expect(() => parseDocument(JSON.stringify(noCanvas))).toThrow();
+	});
+
+	it('rejects what is not a project', () => {
+		expect(() => parseDocument('not json')).toThrow('not a Glass Garden project');
+		expect(() => parseDocument('{"format":"gg:metric/1"}')).toThrow('not a Glass Garden project');
 	});
 
 	it('rejects a newer format or an unknown resource type', () => {
-		expect(() => parseProjectDocument('{"format":"gg:project/2"}')).toThrow('newer version');
+		expect(() => parseDocument('{"format":"gg:project/2"}')).toThrow(
+			'That project was made by a newer version'
+		);
 		const doc = document();
 		doc.nodes[0].type = 'hologram';
-		expect(() => parseProjectDocument(JSON.stringify(doc))).toThrow('newer version');
+		expect(() => parseDocument(JSON.stringify(doc))).toThrow('newer version');
+		// Wherever the document names one, a goal included
+		expect(() => parseDocument(JSON.stringify(wiredTo({ type: 'hologram' })))).toThrow(
+			'newer version'
+		);
+		// A type left out is the author writing it wrong, not a build that has moved on
+		expect(() => parseDocument(JSON.stringify(wiredTo({})))).toThrow('Invalid');
+	});
+
+	it('calls a challenge a challenge when it cannot be opened', () => {
+		expect(() => parseDocument('{"format":"gg:challenge/2"}')).toThrow(
+			'That challenge was made by a newer version'
+		);
+		const doc = challengeDocument();
+		doc.startingCanvas.nodes[0].type = 'hologram';
+		expect(() => parseDocument(JSON.stringify(doc))).toThrow('That challenge was made by');
 	});
 });
 
-describe('applyProjectDocument', () => {
+describe('applyCanvasDocument', () => {
 	it('mints fresh ids and remaps edges through them', () => {
 		const graph = new GraphState('p1');
-		const ids = applyProjectDocument(graph, parseProjectDocument(JSON.stringify(document())));
+		const ids = applyCanvasDocument(graph, parseProject(JSON.stringify(document())));
 		expect(ids.get('a')).not.toBe('a');
 		expect(graph.nodes.map((n) => n.id)).toEqual([ids.get('a'), ids.get('b')]);
 		expect(graph.edges.map(({ source, target }) => [source, target])).toEqual([
@@ -132,7 +263,7 @@ describe('applyProjectDocument', () => {
 		const doc = document();
 		doc.nodes[0].config = { name: 'A', count: 'five' };
 		const graph = new GraphState('p1');
-		applyProjectDocument(graph, parseProjectDocument(JSON.stringify(doc)));
+		applyCanvasDocument(graph, parseProject(JSON.stringify(doc)));
 		expect(nodeConfig(graph.nodes[0])).toEqual({ name: 'Test resource', count: 1 });
 	});
 });

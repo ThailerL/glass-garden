@@ -1,7 +1,7 @@
 import { toast } from 'svelte-sonner';
 import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 import { messageOf } from './errors';
-import { parseProjectDocument, type ProjectDocument } from './project-document';
+import { documentKind, documentName, parseDocument, type GardenDocument } from './project-document';
 import { importProject, openProject } from './projects.svelte';
 import { decodeShareLink, hasSharedProject } from './share-link';
 import { tour } from './tour.svelte';
@@ -12,17 +12,17 @@ export async function offerSharedProject() {
 	if (!hasSharedProject(hash)) return;
 	tour.hold();
 	history.replaceState(null, '', location.pathname);
-	let doc: ProjectDocument;
+	let doc: GardenDocument;
 	try {
-		doc = parseProjectDocument(await decodeShareLink(hash));
+		doc = parseDocument(await decodeShareLink(hash));
 	} catch (error) {
 		toast.error(messageOf(error));
 		return;
 	}
+	const kind = documentKind(doc);
 	confirmDelete({
-		title: `Import "${doc.name}"?`,
-		description:
-			'Someone shared this project with you. It is added beside your own projects, and nothing starts until you start it.',
+		title: `Import ${kind === 'challenge' ? 'the challenge ' : ''}"${documentName(doc)}"?`,
+		description: `Someone shared this ${kind} with you. It will be added to your ${kind}s.`,
 		confirm: { text: 'Import', variant: 'default' },
 		onConfirm: async () => {
 			try {

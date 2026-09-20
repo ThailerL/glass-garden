@@ -15,15 +15,26 @@ import { getResourceDefinition } from './resources';
 import { nodeFiles } from './files/node-files';
 import { fileTree } from './files/file-tree';
 import {
-	applyProjectDocument,
+	applyCanvasDocument,
 	buildProjectDocument,
+	CHALLENGE_FORMAT,
+	documentName,
 	readNodeFiles,
 	treeFiles,
-	type NodeFiles,
-	type ProjectDocument
+	type ChallengeDocument,
+	type GardenDocument,
+	type NodeFiles
 } from './project-document';
 
-export type Project = { id: string; name: string; createdAt: number };
+export type Project = {
+	id: string;
+	name: string;
+	createdAt: number;
+	// The challenge as it was written: it names its nodes, so it runs this canvas as it stands
+	challenge?: ChallengeDocument;
+	// The goals the best scored run met
+	bestRun?: string[];
+};
 
 const PROJECT_PREFIX = 'project:';
 const LAST_PROJECT_KEY = 'lastProjectId';
@@ -69,8 +80,20 @@ export function renameProject(id: string, name: string) {
 	writeProject(project);
 }
 
-export function createProject(name: string, build: (graph: GraphState) => void): Project {
-	const project: Project = { id: nanoid(8), name, createdAt: Date.now() };
+// A run that met more goals than any before it becomes the best
+export function recordRun(id: string, met: readonly string[]) {
+	const project = getProject(id);
+	if (!project || met.length <= (project.bestRun?.length ?? 0)) return;
+	project.bestRun = [...met];
+	writeProject(project);
+}
+
+export function createProject(
+	name: string,
+	build: (graph: GraphState) => void,
+	challenge?: ChallengeDocument
+): Project {
+	const project: Project = { id: nanoid(8), name, createdAt: Date.now(), challenge };
 	writeProject(project);
 	projects = [...projects, project];
 	build(new GraphState(project.id));
@@ -102,6 +125,8 @@ export function deleteProject(id: string) {
 // Read from storage rather than a GraphState, so any project exports, not just the open one.
 // Only files the user can edit travel; the rest are re-laid from the resource on start
 export async function exportProject(project: Project): Promise<string> {
+	// The challenge as written, so passing it on never hands out the reader's progress
+	if (project.challenge) return JSON.stringify(project.challenge, null, '\t');
 	const prefix = graphKeyPrefix(project.id);
 	const nodes = readByPrefix<Node>(`${prefix}node:`).flatMap((node) => loadNode(node) ?? []);
 	const edges = readByPrefix<Edge>(`${prefix}edge:`);
@@ -124,12 +149,18 @@ export async function exportProject(project: Project): Promise<string> {
 
 // The record goes down before the files, so a boot in between cannot sweep them; like the
 // create dialog, this leaves the ambient project pointed at the new one, so callers reload
-export async function importProject(doc: ProjectDocument): Promise<Project> {
+export async function importProject(doc: GardenDocument): Promise<Project> {
+	const challenge = doc.format === CHALLENGE_FORMAT ? doc : undefined;
+	const canvas = doc.format === CHALLENGE_FORMAT ? doc.startingCanvas : doc;
 	let ids!: Map<string, string>;
-	const project = createProject(doc.name, (graph) => {
-		ids = applyProjectDocument(graph, doc);
-	});
-	const files = Object.entries(doc.nodeFiles).flatMap(([oldId, files]) => {
+	const project = createProject(
+		documentName(doc),
+		(graph) => {
+			ids = applyCanvasDocument(graph, canvas, challenge !== undefined);
+		},
+		challenge
+	);
+	const files = Object.entries(canvas.nodeFiles).flatMap(([oldId, files]) => {
 		const nodeId = ids.get(oldId);
 		if (!nodeId) return [];
 		return Object.entries(files).map(([path, contents]) => [`nodes/${nodeId}/${path}`, contents]);

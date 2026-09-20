@@ -8,7 +8,7 @@
 	import { toast } from 'svelte-sonner';
 	import { messageOf } from '$lib/errors';
 	import { encodeShareLink } from '$lib/share-link';
-	import { parseProjectDocument } from '$lib/project-document';
+	import { parseDocument } from '$lib/project-document';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import {
 		deleteProject,
@@ -60,7 +60,7 @@
 		input.value = '';
 		if (!file) return;
 		try {
-			openProject((await importProject(parseProjectDocument(await file.text()))).id);
+			openProject((await importProject(parseDocument(await file.text()))).id);
 		} catch (error) {
 			toast.error(messageOf(error));
 		}

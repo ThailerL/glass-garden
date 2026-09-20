@@ -21,6 +21,8 @@ export type NodeData = {
 	chart?: string;
 	// The event this node's Test tab last invoked it with
 	testEvent?: string;
+	// Laid down by a challenge's starting canvas, so its goals and events may name it
+	authored?: boolean;
 };
 
 // Takes anything carrying node data, so a NodeProps in a component reads it the same way
@@ -38,6 +40,10 @@ export function nodeChart(node: { data: Node['data'] }): string | undefined {
 
 export function nodeTestEvent(node: { data: Node['data'] }): string | undefined {
 	return (node.data as NodeData).testEvent;
+}
+
+export function nodeAuthored(node: { data: Node['data'] }): boolean | undefined {
+	return (node.data as NodeData).authored;
 }
 
 export function nodeName(node: { data: Node['data'] }): string {
@@ -114,9 +120,10 @@ export class GraphState {
 			files,
 			config,
 			chart,
-			testEvent
+			testEvent,
+			authored
 			// config arrives unparsed, so it is not NodeData's own
-		}: Pick<NodeData, 'files' | 'chart' | 'testEvent'> & {
+		}: Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'authored'> & {
 			config?: Record<string, unknown>;
 		} = {}
 	) {
@@ -129,7 +136,8 @@ export class GraphState {
 			ports: [],
 			files,
 			chart,
-			testEvent
+			testEvent,
+			authored
 		};
 		const node: Node = {
 			id: nanoid(8),

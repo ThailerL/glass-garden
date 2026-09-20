@@ -1,4 +1,5 @@
 import type { Edge } from '@xyflow/svelte';
+import { z } from 'zod';
 import type { Capability, ResourceDefinition, ConnectedNode } from './types';
 import { instanceGroup } from './instance-group';
 import { httpLoadBalancer } from './http-load-balancer';
@@ -23,6 +24,11 @@ export const resourceDefinitions = {
 } satisfies Record<string, ResourceDefinition>;
 
 export type ResourceType = keyof typeof resourceDefinitions;
+
+// For documents that name a type: one a build no longer has fails the parse
+export const resourceTypeSchema = z.enum(
+	Object.keys(resourceDefinitions) as [ResourceType, ...ResourceType[]]
+);
 
 export function getResourceDefinition(type: string | undefined): ResourceDefinition {
 	const definition = resourceDefinitions[type as ResourceType];
