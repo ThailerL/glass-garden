@@ -40,6 +40,7 @@
 	const run = setChallengeRun(
 		challenge ? new ChallengeRun(challenge, runServices(id, graphState, orchestrator)) : undefined
 	);
+	orchestrator.whileRunning(() => run?.active ?? false);
 	onDestroy(() => run?.dispose());
 
 	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a

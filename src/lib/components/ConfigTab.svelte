@@ -22,6 +22,7 @@
 	import * as Form from '$lib/components/ui/form';
 	import { getGraphState, nodeAuthored, nodeConfig, nodeName } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getEditingLock, LOCKED_UNTIL_RUN_ENDS } from '$lib/challenge-run.svelte';
 	import { launchPlan } from '$lib/resource-controller.svelte';
 	import { getProject } from '$lib/projects.svelte';
 	import { fixesSetting } from '$lib/challenge';
@@ -30,6 +31,7 @@
 	const { nodeId }: { nodeId: string } = $props();
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
+	const lock = getEditingLock();
 
 	// Read once, during init, because the graph replaces the node object on every drag and a
 	// later read would rebuild the form and discard whatever is being typed. The snapshot
@@ -86,15 +88,17 @@
 
 	// The count only tells the user something once there is more than one instance to lose
 	const saveLabel = $derived(
-		bouncedInstances === 0
-			? 'Save config'
-			: bouncedInstances === 1
-				? 'Save and restart'
-				: `Save and restart ${bouncedInstances} instances`
+		lock.current
+			? LOCKED_UNTIL_RUN_ENDS
+			: bouncedInstances === 0
+				? 'Save config'
+				: bouncedInstances === 1
+					? 'Save and restart'
+					: `Save and restart ${bouncedInstances} instances`
 	);
 
 	async function handleSubmit() {
-		if (!isDirty) return;
+		if (!isDirty || lock.current) return;
 		const result = await validateForm();
 
 		if (!result.valid) {
@@ -127,7 +131,7 @@
 	</form>
 </div>
 <div class="-mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">
-	<Form.Button type="submit" disabled={!isDirty} onclick={handleSubmit}>
+	<Form.Button type="submit" disabled={!isDirty || lock.current} onclick={handleSubmit}>
 		{saveLabel}
 	</Form.Button>
 </div>

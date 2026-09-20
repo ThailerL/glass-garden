@@ -48,7 +48,6 @@ function fakeCanvas() {
 		edges: [{ source: 'gen', target: 'app' }]
 	};
 	let statuses: Record<string, ResourceStatus> = { gen: 'stopped', app: 'stopped' };
-	let held = false;
 	const calls: string[] = [];
 	const services: RunServices = {
 		canvas: () => canvas,
@@ -66,13 +65,12 @@ function fakeCanvas() {
 				)
 			};
 		},
-		hold: (next) => (held = next),
+		stopAll: () => calls.push('stopAll'),
 		finished: vi.fn()
 	};
 	return {
 		services,
 		calls,
-		held: () => held,
 		setStatuses: (next: Record<string, ResourceStatus>) => (statuses = next),
 		edit: (next: CanvasView) => (canvas = next),
 		canvas: () => canvas
@@ -101,7 +99,8 @@ describe('ChallengeRun', () => {
 		const run = new ChallengeRun(challenge, fake.services);
 		run.start();
 		expect(fake.calls).toEqual(['startAll']);
-		expect(fake.held()).toBe(true);
+		// Locked from the press, not from the clock: a boot is part of the run
+		expect(run.active).toBe(true);
 		advance(30);
 		expect(run.phase).toBe('starting');
 		expect(run.elapsed).toBe(0);
@@ -123,16 +122,15 @@ describe('ChallengeRun', () => {
 		expect(fake.calls.at(-1)).toBe('start app');
 		expect(run.goals.calm).toBe('judging');
 
-		expect(fake.held()).toBe(true);
 		advance(4);
 		expect(run.phase).toBe('done');
-		expect(fake.held()).toBe(false);
 		expect(run.elapsed).toBe(10);
 		// The generator's store is empty, so the error share has nothing to vouch for it
 		expect(run.goals).toEqual({ wired: 'met', calm: 'failed' });
-		// The state alone no longer says when, and the card reports the second it broke
+		// The state alone no longer says when, and the panel reports the second it broke
 		expect(run.failedAt).toEqual({ calm: 10 });
 		expect(fake.services.finished).toHaveBeenCalledWith(['wired']);
+		expect(fake.calls).toContain('stopAll');
 
 		run.start();
 		expect(run.failedAt).toEqual({});
@@ -158,19 +156,16 @@ describe('ChallengeRun', () => {
 		advance(TICK_MS / 1000);
 		expect(run.phase).toBe('ended');
 		expect(run.endedBecause).toBe('App did not start, so the run was not scored');
-		expect(fake.held()).toBe(false);
+		// Nothing is cleared away: the node that crashed is the thing the reader has to look at
+		expect(fake.calls).not.toContain('stopAll');
 	});
 
-	it('hands the buttons back if it is torn down mid-run', () => {
+	it('stops on request by undoing Run, and a new start begins from nothing', () => {
 		const { fake, run } = running();
-		run.dispose();
-		expect(fake.held()).toBe(false);
-	});
-
-	it('stops on request, and a new start begins from nothing', () => {
-		const { run } = running();
 		advance(5);
 		run.stop();
+		expect(fake.calls.at(-1)).toBe('stopAll');
+		expect(run.endedBecause).toBe('Stopped before the end, so it was not scored');
 		const stoppedAt = run.elapsed;
 		expect(run.phase).toBe('ended');
 		advance(20);

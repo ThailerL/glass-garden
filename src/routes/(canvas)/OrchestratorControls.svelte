@@ -38,6 +38,7 @@
 		return STATUS_PRECEDENCE.find((candidate) => statuses.includes(candidate)) ?? 'stopped';
 	});
 
+	// A run starts and stops things itself, on its script
 	const startDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStart(node.id)));
 	const stopDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStop(node.id)));
 </script>

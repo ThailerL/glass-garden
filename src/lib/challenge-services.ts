@@ -39,7 +39,7 @@ export function runServices(
 			graph.updateNodeConfig(nodeId, parsed.data);
 			orchestrator.refresh(nodeId);
 		},
-		hold: (held) => orchestrator.holdLifecycle(held),
+		stopAll: () => orchestrator.stopAll(),
 		finished: (met) => recordRun(projectId, met)
 	};
 }

@@ -17,6 +17,7 @@
 	} from '$lib/files';
 	import FileTree from './FileTree.svelte';
 	import { toast } from 'svelte-sonner';
+	import { getEditingLock } from '$lib/challenge-run.svelte';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -34,12 +35,15 @@
 	const fileDraftState = getFileDraftState();
 	// Both are fixed for the life of the editor, so they are read once rather than tracked
 	const listing = untrack(() => directoryListing(container, root));
+	// Moving or creating files waits for a run to end, as saving does
+	const lock = getEditingLock();
 
 	async function handleDrop({
 		draggedItem,
 		sourceContainer,
 		targetContainer
 	}: DragDropState<string>) {
+		if (lock.current) return;
 		const draggedPath = [sourceContainer, draggedItem].filter(Boolean).join('/');
 		// directories can't be dragged into itself or a child directory of itself
 		if (
@@ -104,7 +108,8 @@
 </script>
 
 <ContextMenu.Root>
-	<ContextMenu.Trigger>
+	<!-- No menu rather than a menu of dead items, as the canvas does -->
+	<ContextMenu.Trigger disabled={lock.current}>
 		{#snippet child({ props })}
 			<!-- bits-ui types the child snippet's props as unknown, so class is cast to what cn
 			accepts rather than to the one shape a caller happens to pass -->

@@ -22,8 +22,7 @@ export type RunServices = {
 	start: (nodeId: string) => void;
 	stop: (nodeId: string) => void;
 	setConfig: (nodeId: string, patch: Record<string, unknown>) => void;
-	// Takes the start and stop buttons away from the reader for as long as the run lasts
-	hold: (held: boolean) => void;
+	stopAll: () => void;
 	finished: (met: string[]) => void;
 };
 
@@ -73,19 +72,18 @@ export class ChallengeRun {
 		this.endedBecause = undefined;
 		this.goals = this.#allWaiting();
 		this.failedAt = {};
-		this.#services.hold(true);
 		this.#services.startAll();
 		this.#timer = setInterval(() => this.#tick(), TICK_MS);
 	}
 
-	stop(reason = 'Stopped before the end, so it was not scored') {
+	// The reader's way out, which ends it the same way reaching the end does
+	stop() {
 		if (!this.active) return;
-		this.#end('ended');
-		this.endedBecause = reason;
+		this.#services.stopAll();
+		this.#end('ended', 'Stopped before the end, so it was not scored');
 	}
 
 	dispose() {
-		if (this.active) this.#services.hold(false);
 		clearInterval(this.#timer);
 	}
 
@@ -102,7 +100,10 @@ export class ChallengeRun {
 		const canvas = this.#services.canvas();
 		const statuses = this.#services.statuses();
 		const broken = canvas.nodes.find((node) => NOT_STARTING.includes(statuses[node.id]));
-		if (broken) return this.stop(`${broken.config.name} did not start, so the run was not scored`);
+		if (broken) {
+			// Left as it is: the node that crashed is the thing the reader has to look at
+			return this.#end('ended', `${broken.config.name} did not start, so the run was not scored`);
+		}
 		if (!canvas.nodes.every((node) => statuses[node.id] === 'running')) return;
 
 		this.#startedAt = Date.now();
@@ -135,6 +136,7 @@ export class ChallengeRun {
 		}
 		if (t < length) return;
 		this.#end('done');
+		this.#services.stopAll();
 		this.#services.finished(Object.keys(goals).filter((id) => goals[id] === 'met'));
 	}
 
@@ -151,10 +153,10 @@ export class ChallengeRun {
 		}
 	}
 
-	#end(phase: 'done' | 'ended') {
+	#end(phase: 'done' | 'ended', reason?: string) {
+		this.endedBecause = reason;
 		clearInterval(this.#timer);
 		this.#timer = undefined;
-		this.#services.hold(false);
 		this.phase = phase;
 	}
 }
@@ -165,3 +167,15 @@ const runContext = createContext<ChallengeRun | undefined>('CHALLENGE_RUN');
 
 export const setChallengeRun = runContext.set;
 export const getChallengeRun = runContext.get;
+
+// What the reader prepared is what the run judges, so every edit waits for it to end
+export const LOCKED_UNTIL_RUN_ENDS = 'Save once the run ends';
+
+export function getEditingLock() {
+	const run = getChallengeRun();
+	return {
+		get current() {
+			return run?.active ?? false;
+		}
+	};
+}

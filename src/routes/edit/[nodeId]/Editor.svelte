@@ -10,6 +10,7 @@
 	import { setFileDraftState, setFileRefresh, saveFile } from '$lib/files';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getEditingLock, LOCKED_UNTIL_RUN_ENDS } from '$lib/challenge-run.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import { toast } from 'svelte-sonner';
 	import { shellLaunchOptions } from '$lib/shell-launch';
@@ -63,10 +64,13 @@
 
 	const orchestrator = getOrchestrator();
 	const graphState = getGraphState();
+	// Typing and the draft carry on; only writing waits, since a save redeploys
+	const lock = getEditingLock();
 
 	// A resource that deploys its code hears about the save, so the file on disk and what
 	// runs never quietly differ
 	const save = async () => {
+		if (lock.current) return;
 		await saveFile(container, rootPath, selectedFilePath, fileDraftState, refresh);
 		const node = graphState.getNode(root);
 		const afterSave = node && getResourceDefinition(node.type).afterSave;
@@ -110,7 +114,8 @@ here because the key that does it on a desktop needs a keyboard -->
 		variant="ghost"
 		size="icon"
 		aria-label="Save file"
-		disabled={!fileDraftState.isDirty(selectedFilePath)}
+		title={lock.current ? LOCKED_UNTIL_RUN_ENDS : undefined}
+		disabled={lock.current || !fileDraftState.isDirty(selectedFilePath)}
 		onclick={save}
 	>
 		<SaveIcon />

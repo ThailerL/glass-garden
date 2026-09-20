@@ -17,6 +17,7 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import FileTree from './FileTree.svelte';
 	import { toast } from 'svelte-sonner';
+	import { getEditingLock } from '$lib/challenge-run.svelte';
 
 	let {
 		selectedFilePath = $bindable(),
@@ -35,6 +36,7 @@
 	const fileDraftState = getFileDraftState();
 	const refresh = getFileRefresh();
 	const tree = getFileTreeContext();
+	const lock = getEditingLock();
 
 	const itemName = untrack(() => entry.name);
 	const itemPath = untrack(() => [...parentPath, itemName]);
@@ -118,7 +120,7 @@
 		use:draggable={{
 			container: parentPath.join('/'),
 			dragData: itemName,
-			disabled: tree.anyItemBeingRenamed,
+			disabled: tree.anyItemBeingRenamed || lock.current,
 			// Makes it so that when children are dragged no event triggers on parent folders
 			handle: `.handle-${itemPath.join('-')}`
 		}}
@@ -129,7 +131,11 @@
 	>
 		<Rename.Provider>
 			<ContextMenu.Root>
-				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
+				<!-- No menu rather than a menu of dead items, as the canvas does -->
+				<ContextMenu.Trigger
+					disabled={lock.current}
+					oncontextmenu={(event) => event.stopPropagation()}
+				>
 					<TreeView.Folder
 						bind:open
 						class={[
@@ -190,12 +196,15 @@
 		use:draggable={{
 			container: parentPath.join('/'),
 			dragData: itemName,
-			disabled: tree.anyItemBeingRenamed
+			disabled: tree.anyItemBeingRenamed || lock.current
 		}}
 	>
 		<Rename.Provider>
 			<ContextMenu.Root>
-				<ContextMenu.Trigger oncontextmenu={(event) => event.stopPropagation()}>
+				<ContextMenu.Trigger
+					disabled={lock.current}
+					oncontextmenu={(event) => event.stopPropagation()}
+				>
 					<TreeView.File
 						class={[
 							'w-full cursor-pointer',

@@ -55,6 +55,7 @@
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
+	// Nodes still move and select while it runs: those change nothing a run judges
 	const run = getChallengeRun();
 	const { screenToFlowPosition, setCenter, getViewport, getNodesBounds, deleteElements } =
 		useSvelteFlow();
@@ -79,6 +80,7 @@
 	// A node's directory goes with it, so the resources holding anything worth keeping ask
 	// before the graph has parted with them
 	const onBeforeDelete: OnBeforeDelete = ({ nodes }) => {
+		if (run?.active) return Promise.resolve(false);
 		const withContents = nodes.filter((node) => {
 			const { ownsStoredData, hasEditableFiles } = getResourceDefinition(node.type);
 			return ownsStoredData || hasEditableFiles;
@@ -185,6 +187,7 @@
 	}
 
 	async function addResource(resource: ResourceType, position: XYPosition) {
+		if (run?.active) return;
 		// Named before it exists, so the node is only created once the values are settled
 		const { namedOnCreate } = getResourceDefinition(resource);
 		let config: Record<string, unknown> | undefined;
@@ -254,8 +257,10 @@
 		return at && { getBoundingClientRect: () => new DOMRect(at.x, at.y, 0, 0) };
 	});
 
+	// Delete is the menu's only item, so there is no menu while it would do nothing
 	const onNodeContextMenu: NodeEventWithPointer<MouseEvent, Node> = ({ event, node }) => {
 		event.preventDefault();
+		if (run?.active) return;
 		contextMenu = {
 			at: { x: event.clientX, y: event.clientY },
 			subject: `"${nodeName(node)}"`,
@@ -265,6 +270,7 @@
 
 	function onEdgeContextMenu({ event, edge }: { event: MouseEvent; edge: Edge }) {
 		event.preventDefault();
+		if (run?.active) return;
 		contextMenu = {
 			at: { x: event.clientX, y: event.clientY },
 			subject: 'connection',
@@ -362,6 +368,7 @@
 			{nodeTypes}
 			{edgeTypes}
 			deleteKey="Delete"
+			nodesConnectable={!run?.active}
 			onbeforedelete={onBeforeDelete}
 			ondelete={onDelete}
 			selectNodesOnDrag={!isMobile.current}

@@ -3,12 +3,14 @@
 	import { resourceDefinitions, type ResourceType } from '$lib/resources';
 	import { IsCompact } from '$lib/hooks/is-compact.svelte';
 	import { draggable } from '@thisux/sveltednd';
+	import { getEditingLock } from '$lib/challenge-run.svelte';
 
 	// A drag says where the node goes and a tap does not, so the canvas decides instead
 	const { onTap }: { onTap: (resource: ResourceType) => void } = $props();
 
 	// Where the palette opens as a sheet, a drag cannot reach the canvas behind it
 	const isCompact = new IsCompact();
+	const lock = getEditingLock();
 </script>
 
 <Sidebar.Group class="py-0">
@@ -23,10 +25,11 @@
 						use:draggable={{
 							container: 'component-sidebar',
 							dragData: resource,
-							disabled: isCompact.current
+							disabled: isCompact.current || lock.current
 						}}
 					>
 						<Sidebar.MenuButton
+							aria-disabled={lock.current}
 							class="text-sm [&>svg]:size-4.5 [&>svg]:text-resource-icon
 							       {isCompact.current ? '' : 'cursor-grab active:cursor-grabbing'}"
 							onclick={isCompact.current ? () => onTap(resource as ResourceType) : undefined}
