@@ -43,8 +43,10 @@
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getChallengeRun } from '$lib/challenge-run.svelte';
 	import OrchestratorControls from './OrchestratorControls.svelte';
 	import TourOverlay from '$lib/components/TourOverlay.svelte';
+	import ChallengePanel from './ChallengePanel.svelte';
 	import Workspace, { PANEL_FRACTION } from '$lib/components/Workspace.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { IsCompact } from '$lib/hooks/is-compact.svelte';
@@ -53,6 +55,7 @@
 
 	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
+	const run = getChallengeRun();
 	const { screenToFlowPosition, setCenter, getViewport, getNodesBounds, deleteElements } =
 		useSvelteFlow();
 
@@ -120,6 +123,9 @@
 	// Read from the restored id rather than from the selection callback, which announces changes
 	// only: a return from the editor mounts the flow with its node already selected
 	const showsInspector = $derived(!!graphState.selectedNodeId && selectedEdges.length === 0);
+	// A challenge's panel heads the sidebar with the inspector under it, so layout keeps nodes
+	// clear of it. A phone's sidebar is a sheet over half the canvas, so there the panel floats
+	const challengeInSidebar = $derived(!!run && !isMobile.current);
 
 	// Once the panel is gone the next one is a fresh arrival rather than a swap, so it opens without the fade
 	$effect(() => {
@@ -376,6 +382,9 @@
 			<Controls />
 			<Background />
 		</SvelteFlow>
+		{#if run && !challengeInSidebar}
+			<ChallengePanel {run} placement="floating" />
+		{/if}
 
 		<!-- As in the editor, a compact surface has no terminal -->
 		{#if !isCompact.current}
@@ -397,6 +406,12 @@
 
 {#snippet mainContent()}
 	<ShellDock bind:this={shellDock} owner={{ kind: 'admin' }} main={flow} />
+{/snippet}
+
+{#snippet challengeSidebar()}
+	{#if run}
+		<ChallengePanel {run} placement="sidebar" inspector={showsInspector ? inspector : undefined} />
+	{/if}
 {/snippet}
 
 {#snippet inspector()}
@@ -424,6 +439,6 @@
 <Workspace
 	{leftSidebar}
 	{mainContent}
-	rightSidebar={showsInspector ? inspector : undefined}
+	rightSidebar={challengeInSidebar ? challengeSidebar : showsInspector ? inspector : undefined}
 	onDismissRightSidebar={() => graphState.select()}
 />

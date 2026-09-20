@@ -10,6 +10,7 @@ import {
 } from './challenge';
 import type { MetricStore } from './resource-log.svelte';
 import type { ResourceStatus } from './resources';
+import { createContext } from './context';
 
 export const TICK_MS = 250;
 
@@ -31,11 +32,6 @@ export type RunPhase = 'idle' | 'starting' | 'running' | 'done' | 'ended';
 
 const NOT_STARTING: readonly ResourceStatus[] = ['crashed', 'unresponsive'];
 
-// What the reader controls, so a node moving or its ports being reserved is not an edit
-function signature({ nodes, edges }: CanvasView) {
-	return JSON.stringify([nodes, edges]);
-}
-
 const sameStates = (a: Record<string, GoalState>, b: Record<string, GoalState>) =>
 	Object.keys(b).every((id) => a[id] === b[id]);
 
@@ -45,20 +41,22 @@ export class ChallengeRun {
 	phase = $state<RunPhase>('idle');
 	elapsed = $state(0);
 	goals = $state.raw<Record<string, GoalState>>({});
+	// The whole second each goal failed at in this run, which its state alone does not keep
+	failedAt = $state.raw<Record<string, number>>({});
 	endedBecause = $state<string | undefined>();
 
-	#challenge: Challenge;
+	// As this canvas runs it, so the panel reads the same copy the judge does
+	readonly challenge: Challenge;
 	#services: RunServices;
 	#events: Challenge['events'];
 	#timer: ReturnType<typeof setInterval> | undefined;
 	#startedAt = 0;
-	// The canvas the run is judged against, which the edit check compares to as well: one
-	// baseline, so a script's own change moves both
+	// The canvas the run is judged against, as it stood when the clock started
 	#record: RunRecord | undefined;
 	#nextEvent = 0;
 
 	constructor(challenge: Challenge, services: RunServices) {
-		this.#challenge = challenge;
+		this.challenge = challenge;
 		this.#services = services;
 		this.#events = [...challenge.events].sort((a, b) => a.at - b.at);
 		this.goals = this.#allWaiting();
@@ -74,6 +72,7 @@ export class ChallengeRun {
 		this.elapsed = 0;
 		this.endedBecause = undefined;
 		this.goals = this.#allWaiting();
+		this.failedAt = {};
 		this.#services.hold(true);
 		this.#services.startAll();
 		this.#timer = setInterval(() => this.#tick(), TICK_MS);
@@ -91,7 +90,7 @@ export class ChallengeRun {
 	}
 
 	#allWaiting() {
-		return Object.fromEntries(this.#challenge.goals.map((g) => [g.id, 'waiting' as GoalState]));
+		return Object.fromEntries(this.challenge.goals.map((g) => [g.id, 'waiting' as GoalState]));
 	}
 
 	#tick() {
@@ -109,7 +108,7 @@ export class ChallengeRun {
 		this.#startedAt = Date.now();
 		this.#nextEvent = 0;
 		this.#record = {
-			length: this.#challenge.length,
+			length: this.challenge.length,
 			canvas,
 			startedAt: this.#startedAt,
 			metrics: this.#services.metrics
@@ -121,16 +120,19 @@ export class ChallengeRun {
 	#play() {
 		const record = this.#record!;
 		const t = (Date.now() - this.#startedAt) / 1000;
-		if (signature(this.#services.canvas()) !== signature(record.canvas)) {
-			return this.stop('The canvas changed during the run, so it was not scored');
-		}
 		while (this.#nextEvent < this.#events.length && this.#events[this.#nextEvent].at <= t) {
 			this.#apply(this.#events[this.#nextEvent++]);
 		}
-		const { length } = this.#challenge;
+		const { length } = this.challenge;
 		this.elapsed = Math.min(t, length);
-		const goals = judge(this.#challenge, record, this.elapsed);
-		if (!sameStates(this.goals, goals)) this.goals = goals;
+		const goals = judge(this.challenge, record, this.elapsed);
+		if (!sameStates(this.goals, goals)) {
+			for (const [id, state] of Object.entries(goals)) {
+				if (state !== 'failed' || this.goals[id] === 'failed') continue;
+				this.failedAt = { ...this.failedAt, [id]: Math.floor(this.elapsed) };
+			}
+			this.goals = goals;
+		}
 		if (t < length) return;
 		this.#end('done');
 		this.#services.finished(Object.keys(goals).filter((id) => goals[id] === 'met'));
@@ -144,7 +146,7 @@ export class ChallengeRun {
 		else if ('stop' in event) this.#services.stop(node.id);
 		else {
 			this.#services.setConfig(node.id, event.set.config);
-			// The script's own change is not the reader's edit, and the goals see it too
+			// Re-read so a goal about the setting the script just changed judges the new value
 			this.#record!.canvas = this.#services.canvas();
 		}
 	}
@@ -156,3 +158,10 @@ export class ChallengeRun {
 		this.phase = phase;
 	}
 }
+
+// Held above the routes, so opening the editor mid-run leaves the run going. Undefined on a
+// project with no challenge
+const runContext = createContext<ChallengeRun | undefined>('CHALLENGE_RUN');
+
+export const setChallengeRun = runContext.set;
+export const getChallengeRun = runContext.get;

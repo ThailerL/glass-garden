@@ -90,12 +90,16 @@ export type Goal = z.infer<typeof goal>;
 // Events act on the nodes they name the way those nodes' own buttons and settings would, and
 // name one node each: an event is the author acting on their own system, so it never reaches a
 // node the reader added, whose settings are theirs and whose presence the script cannot count on
-const at = z.number().min(0);
+const timing = {
+	at: z.number().min(0),
+	// The author's own words for what happens, since a setting's name is code vocabulary
+	text: z.string().min(1).optional()
+};
 const scriptEvent = z.union([
-	z.strictObject({ at, start: namedRef }),
-	z.strictObject({ at, stop: namedRef }),
+	z.strictObject({ ...timing, start: namedRef }),
+	z.strictObject({ ...timing, stop: namedRef }),
 	z.strictObject({
-		at,
+		...timing,
 		set: z.strictObject({
 			node: namedRef,
 			// A rename would detach the challenge's own references, so a script cannot make one
@@ -145,8 +149,9 @@ export const challengeSchema = z
 			if (ids.has(goal.id)) problem(`Two goals share the id "${goal.id}"`);
 			ids.add(goal.id);
 			for (const condition of goal.conditions) {
-				if (!('metric' in condition)) continue;
-				const [open, close] = windowOf(condition.metric, length);
+				const window = conditionWindow(condition, length);
+				if (!window) continue;
+				const [open, close] = window;
 				// A window that never closes, or closes before it opens, is a goal no run can meet
 				if (open < close && close <= length) continue;
 				problem(
@@ -271,8 +276,23 @@ function compare(value: unknown, { eq, gte, lte }: z.infer<typeof comparison>): 
 	return typeof value === 'number' && within(value, { gte, lte });
 }
 
-function windowOf(c: { from?: number; to?: number }, length: number) {
-	return [c.from ?? 0, c.to ?? length] as const;
+function windowOf(c: { from?: number; to?: number }, length: number): [number, number] {
+	return [c.from ?? 0, c.to ?? length];
+}
+
+// The stretch a condition is judged over, or nothing for one checked as the run starts. One
+// rule, so the judge, the document's checks and the panel's timeline cannot come to disagree
+export function conditionWindow(c: Condition, length: number): [number, number] | undefined {
+	return 'metric' in c ? windowOf(c.metric, length) : undefined;
+}
+
+// When each of a goal's conditions is judged
+export function windowsOf(goal: Goal, length: number) {
+	const windows = goal.conditions.map((c) => conditionWindow(c, length));
+	return {
+		atStart: windows.some((window) => window === undefined),
+		judged: windows.filter((window) => window !== undefined)
+	};
 }
 
 function judgeCondition(c: Condition, run: RunRecord, t: number): GoalState {

@@ -130,20 +130,24 @@ describe('ChallengeRun', () => {
 		expect(run.elapsed).toBe(10);
 		// The generator's store is empty, so the error share has nothing to vouch for it
 		expect(run.goals).toEqual({ wired: 'met', calm: 'failed' });
+		// The state alone no longer says when, and the card reports the second it broke
+		expect(run.failedAt).toEqual({ calm: 10 });
 		expect(fake.services.finished).toHaveBeenCalledWith(['wired']);
+
+		run.start();
+		expect(run.failedAt).toEqual({});
+		run.dispose();
 	});
 
-	it('ends the run unscored when the canvas is edited, but not for its own events', () => {
+	it('judges the canvas the clock started on, and the settings its own events change', () => {
 		const { fake, run } = running();
 		advance(1);
-		expect(run.phase).toBe('running');
-
+		// The reader's edit does not reach the goals: the run began before it
 		fake.edit({ ...fake.canvas(), edges: [] });
-		advance(TICK_MS / 1000);
-		expect(run.phase).toBe('ended');
-		expect(fake.held()).toBe(false);
-		expect(run.endedBecause).toMatch(/changed during the run/);
-		expect(fake.services.finished).not.toHaveBeenCalled();
+		advance(3);
+		expect(run.phase).toBe('running');
+		expect(run.goals.wired).toBe('met');
+		expect(fake.calls).toContain('set gen {"requestsPerSecond":5}');
 	});
 
 	it('gives up when a node fails to start, naming it', () => {
