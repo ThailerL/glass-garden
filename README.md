@@ -113,8 +113,8 @@ The folder holds one `.json` file per challenge and an `index.json` listing them
 [
 	{
 		"file": "first-challenge.json",
-		"description": "Nothing is sending the app any traffic yet. Wire it up, scale the app, and watch a run score itself.",
-		"stack": "Request generator, load balancer, instance group"
+		"description": "Nothing is sending the app traffic, and its code fails on every request. Wire it up, fix one line, and watch a run score itself.",
+		"stack": "Request generator, instance group"
 	}
 ]
 ```

@@ -2,7 +2,7 @@
 	"$schema": "./schema.json",
 	"format": "gg:challenge/1",
 	"title": "Your first challenge",
-	"description": "Every challenge works the same way: get the canvas ready, press Run, and the goals score what happens while a script drives the traffic. This one tells you exactly what to do. The load balancer already points at the app, but nothing is sending it any traffic yet.",
+	"description": "Every challenge works the same way: get the canvas ready, press Run, and the goals score what happens while a script drives the traffic. This one tells you exactly what to do. Nothing is sending Web App any traffic yet, and its code fails on every request it gets.",
 	"length": 30,
 	"events": [
 		{
@@ -14,38 +14,24 @@
 			}
 		}
 	],
-	"fixed": [
-		{ "node": { "name": "Traffic" } },
-		{ "node": { "name": "Load Balancer" } },
-		{ "node": { "name": "Web App" }, "exclude": ["instanceCount"] }
-	],
+	"fixed": [{ "node": { "name": "Traffic" } }, { "node": { "name": "Web App" } }],
 	"goals": [
 		{
-			"id": "traffic-to-balancer",
-			"title": "Drag a connection from Traffic to the load balancer",
-			"conditions": [
-				{ "edge": { "from": { "name": "Traffic" }, "to": { "name": "Load Balancer" } } }
-			]
+			"id": "wired",
+			"title": "Drag a connection from Traffic to Web App",
+			"conditions": [{ "edge": { "from": { "name": "Traffic" }, "to": { "name": "Web App" } } }]
 		},
 		{
-			"id": "scaled",
-			"title": "Open Web App and set its instance count to three",
-			"conditions": [
-				{ "node": { "ref": { "name": "Web App" }, "config": { "instanceCount": { "gte": 3 } } } }
-			]
-		},
-		{
-			"id": "served",
-			"title": "Answer 300 requests before the run ends",
+			"id": "answered",
+			"title": "Fix Web App's code so every request is answered without a failure",
 			"conditions": [
 				{
 					"metric": {
 						"node": { "name": "Traffic" },
-						"name": "requests",
-						"dimensions": { "status": "200" },
-						"statistic": "Sum",
+						"name": "errors",
+						"statistic": "Average",
 						"from": 5,
-						"gte": 300
+						"lte": 0
 					}
 				}
 			]
@@ -57,26 +43,24 @@
 			{
 				"id": "traffic",
 				"type": "requestGenerator",
-				"position": { "x": -320, "y": 0 },
+				"position": { "x": -260, "y": 0 },
 				"config": { "name": "Traffic", "requestsPerSecond": 10 },
-				"chart": "requests"
-			},
-			{
-				"id": "balancer",
-				"type": "httpLoadBalancer",
-				"position": { "x": -60, "y": 0 },
-				"config": { "name": "Load Balancer" },
-				"chart": "healthy hosts"
+				"chart": "errors"
 			},
 			{
 				"id": "app",
 				"type": "instanceGroup",
-				"position": { "x": 200, "y": 0 },
+				"position": { "x": 40, "y": 0 },
 				"config": { "name": "Web App", "instanceCount": 1 },
 				"chart": "requests"
 			}
 		],
-		"edges": [{ "source": "balancer", "target": "app" }],
-		"nodeFiles": {}
+		"edges": [],
+		"nodeFiles": {
+			"app": {
+				"package.json": "{\n  \"name\": \"instance-group\",\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^5.1.0\",\n    \"@aws-lambda-powertools/metrics\": \"^2.35.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}\n",
+				"server.js": "import express from 'express';\nimport { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';\n\n// Glass Garden gives every instance its own PORT, because they all share one machine here.\n// In a real deployment they would each be on their own machine, and could all listen on the same port.\nconst port = Number(process.env.PORT);\nif (!port) {\n  throw new Error('PORT is not set');\n}\n\n// CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the\n// Metrics tab reads. Each addMetric is one observation, not a running total\nconst metrics = new Metrics();\n// What tells one instance's numbers from another's, here and in CloudWatch: a dimension the\n// code declares. Remove it and the instances' lines merge into one\nmetrics.setDefaultDimensions({ instance: String(port) });\n\nconst app = express();\n\napp.get('/', (req, res) => {\n  metrics.addMetric('requests', MetricUnit.Count, 1);\n  metrics.publishStoredMetrics();\n\n  // One name on the line below is not the one this file declares, so every request ends in a\n  // 500 instead of an answer. The Logs tab has the error and the line it came from, and the\n  // generator's Metrics tab has the failures it is counting\n  res.type('text/plain').send(`Hello from the instance on :${instancePort}\\n`);\n});\n\n// Express hands a failed request here, which is what puts one readable line in the Logs tab\n// instead of a raw stack trace. Browsers do not agree on what a stack even contains\napp.use((error, req, res, next) => {\n  console.error(`${error.name}: ${error.message}`);\n  res.status(500).type('text/plain').send('Something went wrong\\n');\n});\n\napp.listen(port, () => {\n  console.log(`Server running on http://localhost:${port}`);\n});\n"
+			}
+		}
 	}
 }
