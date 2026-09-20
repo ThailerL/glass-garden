@@ -73,8 +73,12 @@
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import SlidersIcon from '@lucide/svelte/icons/sliders-horizontal';
+	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
+	import { toast } from 'svelte-sonner';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import { messageOf } from '$lib/errors';
 	import { getGraphState } from '$lib/graph-state.svelte';
-	import { getProject } from '$lib/projects.svelte';
+	import { getProject, openProject, resetChallenge } from '$lib/projects.svelte';
 	import type { ChallengeRun } from '$lib/challenge-run.svelte';
 
 	// It heads the sidebar with an inspector under it; on a phone it floats over the canvas
@@ -97,6 +101,24 @@
 
 	function note(goal: Goal) {
 		return stateNote(run.goals[goal.id], run.failedAt[goal.id]);
+	}
+
+	function confirmReset() {
+		confirmDelete({
+			title: 'Reset the challenge?',
+			description:
+				'The canvas goes back to how the challenge started. Your nodes, settings, code, and data are deleted. Your best run is kept.',
+			confirm: { text: 'Reset' },
+			onConfirm: async () => {
+				try {
+					if (!project) throw new Error('this project is no longer in the list');
+					// Everything of the old canvas belongs to the page, so the reset lands on a reload
+					openProject(resetChallenge(project).id);
+				} catch (error) {
+					toast.error(`Could not reset the challenge: ${messageOf(error)}`);
+				}
+			}
+		});
 	}
 </script>
 
@@ -227,7 +249,19 @@
 				<div class="truncate font-medium">{project?.name}</div>
 				<div class="text-sm text-muted-foreground">{@render status()}</div>
 			</div>
-			{@render runButton()}
+			<div class="flex shrink-0 gap-1.5">
+				<Button
+					variant="outline"
+					size="icon-sm"
+					aria-label="Reset challenge"
+					title="Reset challenge"
+					disabled={run.active}
+					onclick={confirmReset}
+				>
+					<RotateCcwIcon />
+				</Button>
+				{@render runButton()}
+			</div>
 		</Sidebar.Header>
 		<div class="flex flex-col gap-3 px-3 pb-3 text-sm">
 			<div class="flex items-center justify-between gap-3">

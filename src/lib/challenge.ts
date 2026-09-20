@@ -205,11 +205,14 @@ export function fixesSetting(
 	// a default name is not the node it meant
 	if (!challenge || !node.authored) return NOTHING_FIXED;
 	const fixed = challenge.fixed.find((entry) => entry.node.name === node.name);
-	if (!fixed) return NOTHING_FIXED;
+	// A rename would detach every goal, event and fixed entry naming this node, all at once
+	if (!fixed) return (setting) => setting === 'name';
 	const compared = comparedSettings(challenge).get(node.name);
 	const { include, exclude } = fixed;
 	return (setting) =>
-		!compared?.has(setting) && (include ? include.includes(setting) : !exclude?.includes(setting));
+		setting === 'name' ||
+		(!compared?.has(setting) &&
+			(include ? include.includes(setting) : !exclude?.includes(setting)));
 }
 
 // The settings each node's goals compare, which is the challenge asking the reader to change

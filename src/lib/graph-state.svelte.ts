@@ -144,6 +144,8 @@ export class GraphState {
 			type,
 			position,
 			data,
+			// A challenge's own nodes are named by its goals, events and fixed entries
+			deletable: !authored,
 			origin: [0.5, 0.5]
 		};
 		this.nodes = [...this.nodes, node];

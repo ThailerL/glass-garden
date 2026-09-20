@@ -78,7 +78,8 @@
 	const edgeTypes = { default: TrafficEdge };
 
 	// A node's directory goes with it, so the resources holding anything worth keeping ask
-	// before the graph has parted with them
+	// before the graph has parted with them. A challenge's own nodes never arrive here: they
+	// carry deletable: false, which the flow filters out before it asks
 	const onBeforeDelete: OnBeforeDelete = ({ nodes }) => {
 		if (run?.active) return Promise.resolve(false);
 		const withContents = nodes.filter((node) => {
@@ -260,7 +261,7 @@
 	// Delete is the menu's only item, so there is no menu while it would do nothing
 	const onNodeContextMenu: NodeEventWithPointer<MouseEvent, Node> = ({ event, node }) => {
 		event.preventDefault();
-		if (run?.active) return;
+		if (run?.active || node.deletable === false) return;
 		contextMenu = {
 			at: { x: event.clientX, y: event.clientY },
 			subject: `"${nodeName(node)}"`,

@@ -187,6 +187,17 @@ export function importProject(doc: GardenDocument, builtIn?: string): Project {
 	return project;
 }
 
+// A fresh project rather than a cleared one: deleting one already clears the region's data too
+export function resetChallenge(project: Project): Project {
+	if (!project.challenge) throw new Error(`${project.name} is not a challenge`);
+	// Imported before the old one goes, so a failure leaves what was there
+	const fresh = importProject(project.challenge, project.builtIn);
+	fresh.bestRun = project.bestRun;
+	writeProject(fresh);
+	deleteProject(project.id);
+	return fresh;
+}
+
 // Catches project dirs whose delete was skipped because the container wasn't booted
 onContainerBoot(async (container) => {
 	const keep = new Set(projects.map((project) => project.id));

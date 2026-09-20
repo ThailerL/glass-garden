@@ -60,6 +60,18 @@ describe('node chart', () => {
 	});
 });
 
+describe('deletable', () => {
+	it("is false on a challenge's own node, and survives a reload", () => {
+		const graph = new GraphState('p1');
+		const mine = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
+		const theirs = graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { authored: true });
+		expect(mine.deletable).toBe(true);
+		expect(theirs.deletable).toBe(false);
+		// The flow reads it off the node, so it has to come back with one
+		expect(new GraphState('p1').getNode(theirs.id)!.deletable).toBe(false);
+	});
+});
+
 describe('node test event', () => {
 	it('is absent until the node is tested, then survives a reload', () => {
 		const graph = new GraphState('p1');

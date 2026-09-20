@@ -23,6 +23,7 @@
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import LockIcon from '@lucide/svelte/icons/lock';
 	import { getGraphState, nodeChart, nodeName } from '$lib/graph-state.svelte';
 	import { statusText } from '$lib/status';
 	import { fans } from '$lib/lanes';
@@ -74,6 +75,15 @@
 </script>
 
 <StatusDot {status} label={statusText(status, definition)} class="absolute top-1.5 right-2" />
+{#if node.deletable === false}
+	<!-- Says so before the reader tries: the flow drops the delete without asking the canvas -->
+	<span
+		class="absolute top-1.5 left-2 text-muted-foreground"
+		title="Part of the challenge, so it cannot be renamed or deleted"
+	>
+		<LockIcon class="size-3" />
+	</span>
+{/if}
 {#if fanned}
 	<!-- Decoration: the handle beneath is the whole left side -->
 	<div class="pointer-events-none absolute top-1/2 -left-1 flex -translate-y-1/2 flex-col gap-1">

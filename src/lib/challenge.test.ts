@@ -262,6 +262,15 @@ describe('fixesSetting', () => {
 	const fixesOn = (challenge: Challenge, name: string) =>
 		fixesSetting(challenge, { name, authored: true });
 
+	it('always holds the name of one of its own nodes, listed or not', () => {
+		expect(fixesOn(withFixed([]), 'App')('name')).toBe(true);
+		expect(
+			fixesOn(withFixed([{ node: { name: 'App' }, include: ['command'] }]), 'App')('name')
+		).toBe(true);
+		// The reader's own node is theirs to rename
+		expect(fixesSetting(withFixed([]), { name: 'App' })('name')).toBe(false);
+	});
+
 	it('fixes nothing on a node the challenge did not name', () => {
 		const fixes = fixesOn(withFixed([{ node: { name: 'Traffic' } }]), 'App');
 		expect(fixes('instanceCount')).toBe(false);
