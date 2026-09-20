@@ -60,7 +60,7 @@
 		input.value = '';
 		if (!file) return;
 		try {
-			openProject((await importProject(parseDocument(await file.text()))).id);
+			openProject(importProject(parseDocument(await file.text())).id);
 		} catch (error) {
 			toast.error(messageOf(error));
 		}

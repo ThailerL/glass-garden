@@ -61,7 +61,7 @@ beforeEach(() => {
 		hash: ''
 	});
 	vi.clearAllMocks();
-	projects.importProject.mockImplementation(async (doc: { name: string }) => ({
+	projects.importProject.mockImplementation((doc: { name: string }) => ({
 		id: `${doc.name}-${++nextId}`
 	}));
 	projects.getProject.mockReturnValue({});
@@ -161,7 +161,9 @@ describe('openEmbeddedProject', () => {
 	it('keeps the previous project when the import fails', async () => {
 		const hash = await hashOf('lesson');
 		const first = await openEmbeddedProject(hash);
-		projects.importProject.mockRejectedValueOnce(new Error('no room'));
+		projects.importProject.mockImplementationOnce(() => {
+			throw new Error('no room');
+		});
 		await expect(openEmbeddedProject(await hashOf('lesson 2'))).rejects.toThrow('no room');
 		expect(projects.deleteProject).not.toHaveBeenCalled();
 		expect(await openEmbeddedProject(hash)).toBe(first);

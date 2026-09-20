@@ -14,7 +14,7 @@ import { GRAPH_PREFIX, GraphState, graphKeyPrefix, loadNode } from './graph-stat
 import { keysWithPrefix, readByPrefix } from './storage';
 import { getResourceDefinition } from './resources';
 import { nodeFiles } from './files/node-files';
-import { fileTree } from './files/file-tree';
+import { storeImportedFiles } from './files/imported-files';
 import {
 	applyCanvasDocument,
 	buildProjectDocument,
@@ -156,9 +156,9 @@ export async function exportProject(project: Project): Promise<string> {
 	return buildProjectDocument(project.name, nodes, edges, files);
 }
 
-// The record goes down before the files, so a boot in between cannot sweep them; like the
-// create dialog, this leaves the ambient project pointed at the new one, so callers reload
-export async function importProject(doc: GardenDocument, builtIn?: string): Promise<Project> {
+// Like the create dialog, this leaves the ambient project pointed at the new one, so callers
+// reload. The code is stored rather than mounted, because that reload would lose the write
+export function importProject(doc: GardenDocument, builtIn?: string): Project {
 	const challenge = doc.format === CHALLENGE_FORMAT ? doc : undefined;
 	const canvas = doc.format === CHALLENGE_FORMAT ? doc.startingCanvas : doc;
 	let ids!: Map<string, string>;
@@ -169,17 +169,18 @@ export async function importProject(doc: GardenDocument, builtIn?: string): Prom
 		},
 		{ challenge, builtIn }
 	);
-	const files = Object.entries(canvas.nodeFiles).flatMap(([oldId, files]) => {
-		const nodeId = ids.get(oldId);
-		if (!nodeId) return [];
-		return Object.entries(files).map(([path, contents]) => [`nodes/${nodeId}/${path}`, contents]);
-	});
 	try {
-		const container = await getContainer();
-		await container.mount(fileTree(Object.fromEntries(files)), {
-			mountPoint: projectDirectory(project.id)
-		});
+		for (const node of canvas.nodes) {
+			const files = canvas.nodeFiles[node.id];
+			const nodeId = ids.get(node.id);
+			// A document is anyone's text: it can name a node that is not there, or one whose
+			// files the region provisions and the reader never writes
+			if (files && nodeId && getResourceDefinition(node.type).hasEditableFiles) {
+				storeImportedFiles(nodeId, files);
+			}
+		}
 	} catch (error) {
+		// Storage is finite, so a document too big to hold leaves no half-imported project
 		deleteProject(project.id);
 		throw error;
 	}

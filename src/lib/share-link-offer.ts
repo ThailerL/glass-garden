@@ -26,7 +26,7 @@ export async function offerSharedProject() {
 		confirm: { text: 'Import', variant: 'default' },
 		onConfirm: async () => {
 			try {
-				openProject((await importProject(doc)).id);
+				openProject(importProject(doc).id);
 			} catch (error) {
 				toast.error(messageOf(error));
 			}

@@ -28,7 +28,18 @@ vi.hoisted(() => {
 	};
 });
 
-import { createProject, ensureProject, listChallenges, listProjects } from '$lib/projects.svelte';
+import {
+	createProject,
+	ensureProject,
+	importProject,
+	listChallenges,
+	listProjects
+} from '$lib/projects.svelte';
+import { readImportedFiles } from '$lib/files/imported-files';
+import { graphKeyPrefix } from '$lib/graph-state.svelte';
+import { readByPrefix } from '$lib/storage';
+import type { GardenDocument } from '$lib/project-document';
+import type { Node } from '@xyflow/svelte';
 
 // One test, since the store loads once and its records outlive a single case
 describe('listProjects and listChallenges', () => {
@@ -44,5 +55,43 @@ describe('listProjects and listChallenges', () => {
 		expect(made.challenge).toBeUndefined();
 		expect(listProjects().map((p) => p.id)).toEqual([made.id]);
 		expect(listChallenges().map((p) => p.id)).toEqual([challenge.id]);
+	});
+});
+
+// Nothing is mounted here: the import's reload would beat the kernel's persist
+describe('importProject', () => {
+	const doc = (type: string, nodeFiles: Record<string, Record<string, string>>) =>
+		({
+			format: 'gg:project/1',
+			name: 'Imported',
+			nodes: [{ id: 'written', type, position: { x: 0, y: 0 }, config: {} }],
+			edges: [],
+			nodeFiles
+		}) as GardenDocument;
+
+	const nodeIdsOf = (projectId: string) =>
+		readByPrefix<Node>(`${graphKeyPrefix(projectId)}node:`).map((node) => node.id);
+
+	it("holds a node's code under the id the canvas minted for it, not the document's", () => {
+		const project = importProject(doc('instanceGroup', { written: { 'server.js': 'authored' } }));
+		const [nodeId] = nodeIdsOf(project.id);
+
+		expect(nodeId).not.toBe('written');
+		expect(readImportedFiles(nodeId)).toEqual({ 'server.js': 'authored' });
+		expect(readImportedFiles('written')).toBeUndefined();
+	});
+
+	it('ignores files written for a node the document never placed', () => {
+		const project = importProject(doc('instanceGroup', { absent: { 'server.js': 'orphan' } }));
+
+		expect(nodeIdsOf(project.id).map((id) => readImportedFiles(id))).toEqual([undefined]);
+		expect(readImportedFiles('absent')).toBeUndefined();
+	});
+
+	// The region provisions this one from files of ours, which a document does not get to replace
+	it('ignores files written for a resource the reader does not write', () => {
+		const project = importProject(doc('dynamodbTable', { written: { 'server.js': 'theirs' } }));
+
+		expect(nodeIdsOf(project.id).map((id) => readImportedFiles(id))).toEqual([undefined]);
 	});
 });

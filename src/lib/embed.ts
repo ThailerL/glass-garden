@@ -43,7 +43,7 @@ export async function openEmbeddedProject(hash: string): Promise<string> {
 
 	if (!projectId || !getProject(projectId)) {
 		// Imported before the old one goes, so a failure leaves what was there
-		const project = await importProject(parseDocument(await decodeShareLink(hash)));
+		const project = importProject(parseDocument(await decodeShareLink(hash)));
 		if (previous) deleteProject(previous.projectId);
 		localStorage.setItem(EMBED_KEY, JSON.stringify({ hash, projectId: project.id }));
 		projectId = project.id;

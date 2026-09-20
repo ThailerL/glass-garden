@@ -11,9 +11,9 @@
 	loadCatalogue();
 	const { builtIn, imported, unread } = $derived(challengeCatalogue());
 
-	async function start(entry: BuiltInChallenge) {
+	function start(entry: BuiltInChallenge) {
 		try {
-			openProject((await importProject(entry.document, entry.id)).id);
+			openProject(importProject(entry.document, entry.id).id);
 		} catch (error) {
 			toast.error(`Could not start the challenge: ${messageOf(error)}`);
 		}
