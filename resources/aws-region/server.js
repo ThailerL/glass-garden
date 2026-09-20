@@ -90,8 +90,12 @@ function reportTrigger(nodeId, eventText, owners) {
   if (!source) return;
   const from = owners[source.service]?.[source.name];
   if (from) emitHop(from, nodeId, source.count);
-  if (source.service === 'sqs') putMetric(nodeId, 'batches', 1, 'Count', { queue: source.name });
-  else putMetric(nodeId, 'notifications', 1, 'Count', { bucket: source.name });
+  // Named for where the work came from, as every other metric on a node with two sources is
+  if (source.service === 'sqs') {
+    putMetric(nodeId, 'queue batches', 1, 'Count', { queue: source.name });
+  } else {
+    putMetric(nodeId, 'bucket notifications', 1, 'Count', { bucket: source.name });
+  }
 }
 
 // Each function's URL listens on its node's reserved port, which the topology carries.
