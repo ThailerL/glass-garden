@@ -5,7 +5,9 @@ import { resourceDefinitions, resourceTypeSchema, type ResourceType } from './re
 import {
 	challengeRefs,
 	challengeSchema,
+	comparedSettings,
 	type Comparison,
+	type FixedNode,
 	type ScriptEvent
 } from './challenge';
 import {
@@ -79,6 +81,10 @@ const challengeDocumentSchema = challengeSchema
 		for (const event of challenge.events) {
 			if ('set' in event) checkSetEvent(event, canvas, problem);
 		}
+		const compared = comparedSettings(challenge);
+		for (const fixed of challenge.fixed) {
+			checkFixedSettings(fixed, canvas, compared.get(fixed.node.name), problem);
+		}
 	});
 
 type NamedNode = { type: ResourceType; config: Record<string, unknown> };
@@ -135,6 +141,36 @@ function checkSetEvent(
 	if (parsed.success) return;
 	const { path } = parsed.error.issues[0];
 	problem(`The event at ${event.at} s sets "${path.join('.')}" on "${name}" to a value it refuses`);
+}
+
+// A misspelt setting reads as protection the reader does not get, or as a knob left to them
+// that never appears. A node named with neither list takes every setting, so there is nothing
+// to check
+function checkFixedSettings(
+	{ node, include, exclude }: FixedNode,
+	canvas: Map<string, NamedNode>,
+	compared: Set<string> | undefined,
+	problem: (message: string) => void
+) {
+	const target = canvas.get(node.name);
+	if (!target) return;
+	const { configSchema } = resourceDefinitions[target.type];
+	// Only one list can be given, so the other is empty; which one decides the wording
+	for (const key of include ?? exclude ?? []) {
+		if (key in configSchema.shape) continue;
+		problem(
+			include
+				? `The challenge fixes "${key}" on "${node.name}", which is not one of its settings`
+				: `The challenge leaves "${key}" on "${node.name}" to the reader, which is not one of its settings`
+		);
+	}
+	// A goal comparing a setting hands it back to the reader, which would quietly undo this
+	for (const key of include ?? []) {
+		if (!compared?.has(key)) continue;
+		problem(
+			`The challenge fixes "${key}" on "${node.name}", but a goal asks the reader to change it`
+		);
+	}
 }
 
 // A comparison the setting can never satisfy is a goal no reader can meet. A bound holds only
@@ -243,9 +279,7 @@ export function parseDocument(text: string): GardenDocument {
 		if (!namesUnknownType(raw)) throw new Error(z.prettifyError(parsed.error));
 	}
 	// Called what the reader was offered
-	throw new Error(
-		`That ${documentKind(tag)} was made by a newer version of Glass Garden`
-	);
+	throw new Error(`That ${documentKind(tag)} was made by a newer version of Glass Garden`);
 }
 
 // Ids are minted fresh so a project can be imported beside its own export; returns old → new.

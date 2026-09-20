@@ -113,6 +113,7 @@ const challengeDocument = () => ({
 	title: 'Survive a lost app',
 	length: 30,
 	events: [{ at: 5, stop: { name: 'B' } }] as unknown[],
+	fixed: [] as unknown[],
 	goals: [
 		{
 			id: 'g',
@@ -207,6 +208,40 @@ describe('parseDocument', () => {
 		const unnamed = challengeDocument();
 		unnamed.startingCanvas.nodes[0].config = { count: 'five' };
 		expect(() => parseDocument(JSON.stringify(unnamed))).toThrow('on a Test resource node');
+	});
+
+	// The whole fixed entry, so a case can name a node the canvas does not have
+	const withFixed = (entry: Record<string, unknown>, goalConfig?: Record<string, unknown>) => {
+		const doc = challengeDocument();
+		doc.fixed = [entry];
+		if (goalConfig)
+			doc.goals[0].conditions = [{ node: { ref: { name: 'A' }, config: goalConfig } }];
+		return parseDocument(JSON.stringify(doc));
+	};
+	const onA = (rest: Record<string, unknown> = {}) => ({ node: { name: 'A' }, ...rest });
+
+	it('rejects a fixed setting the node does not have, from either list', () => {
+		expect(withFixed(onA()).format).toBe(CHALLENGE_FORMAT);
+		expect(withFixed(onA({ include: ['count'] })).format).toBe(CHALLENGE_FORMAT);
+		expect(() => withFixed(onA({ include: ['nope'] }))).toThrow(
+			'fixes "nope" on "A", which is not one of its settings'
+		);
+		expect(() => withFixed(onA({ exclude: ['nope'] }))).toThrow(
+			'leaves "nope" on "A" to the reader, which is not one of its settings'
+		);
+		// The same walk that checks a goal's node, so a name with no node is caught here too
+		expect(() => withFixed({ node: { name: 'Ghost' } })).toThrow(
+			'The settings fixed on "Ghost" names a node'
+		);
+	});
+
+	it('rejects fixing a setting a goal asks the reader to change', () => {
+		const compares = { count: { gte: 2 } };
+		expect(() => withFixed(onA({ include: ['count'] }), compares)).toThrow(
+			'fixes "count" on "A", but a goal asks the reader to change it'
+		);
+		// The whole node and exclude both hand it back silently, which is what those forms mean
+		expect(withFixed(onA(), compares).format).toBe(CHALLENGE_FORMAT);
 	});
 
 	it('rejects a challenge with no goals or no canvas', () => {

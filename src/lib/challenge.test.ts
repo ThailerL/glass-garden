@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	challengeSchema,
+	fixesSetting,
 	judge,
 	matches,
 	MAX_RUN_SECONDS,
@@ -240,6 +241,85 @@ describe('challengeSchema', () => {
 		expect(() => challengeOf(judged({ from: 60 }))).toThrow();
 		const ok = judged({ from: 40 });
 		expect(challengeOf(ok).goals[0].conditions[0]).toEqual(ok);
+	});
+});
+
+describe('fixesSetting', () => {
+	const withFixed = (fixed: unknown[], conditions?: unknown[]) =>
+		challengeSchema.parse({
+			length: 60,
+			fixed,
+			goals: [
+				{
+					id: 'g',
+					title: 'Goal',
+					conditions: conditions ?? [{ node: { ref: { name: 'App' } } }]
+				}
+			]
+		});
+
+	// A node of the challenge's own, which is the only kind it can fix settings on
+	const fixesOn = (challenge: Challenge, name: string) =>
+		fixesSetting(challenge, { name, authored: true });
+
+	it('fixes nothing on a node the challenge did not name', () => {
+		const fixes = fixesOn(withFixed([{ node: { name: 'Traffic' } }]), 'App');
+		expect(fixes('instanceCount')).toBe(false);
+	});
+
+	it('fixes nothing on a node the reader added, whatever it is called', () => {
+		const challenge = withFixed([{ node: { name: 'Traffic' } }]);
+		expect(fixesSetting(challenge, { name: 'Traffic' })('path')).toBe(false);
+	});
+
+	it('fixes nothing on a project with no challenge', () => {
+		expect(fixesSetting(undefined, { name: 'Traffic', authored: true })('path')).toBe(false);
+	});
+
+	it('takes the whole node where it names neither list', () => {
+		const fixes = fixesOn(withFixed([{ node: { name: 'Traffic' } }]), 'Traffic');
+		// A setting the resource gains later is covered without the challenge being rewritten
+		expect(fixes('path')).toBe(true);
+		expect(fixes('somethingAddedLater')).toBe(true);
+	});
+
+	it('fixes only what include names', () => {
+		const fixes = fixesOn(withFixed([{ node: { name: 'Traffic' }, include: ['body'] }]), 'Traffic');
+		expect(fixes('body')).toBe(true);
+		expect(fixes('path')).toBe(false);
+	});
+
+	it('fixes everything exclude does not, including what the resource gains later', () => {
+		const fixes = fixesOn(
+			withFixed([{ node: { name: 'Traffic' }, exclude: ['maxInFlight'] }]),
+			'Traffic'
+		);
+		expect(fixes('maxInFlight')).toBe(false);
+		expect(fixes('body')).toBe(true);
+		expect(fixes('somethingAddedLater')).toBe(true);
+	});
+
+	it('refuses a node that names both lists', () => {
+		expect(() =>
+			withFixed([{ node: { name: 'Traffic' }, include: ['body'], exclude: ['path'] }])
+		).toThrow(/include or exclude, not both/);
+	});
+
+	it('leaves a setting a goal compares to the reader, even on a whole fixed node', () => {
+		const fixes = fixesOn(
+			withFixed(
+				[{ node: { name: 'App' } }],
+				[{ node: { ref: { name: 'App' }, config: { instanceCount: { gte: 3 } } } }]
+			),
+			'App'
+		);
+		// The challenge asks them to change it, so it cannot also be the challenge's own
+		expect(fixes('instanceCount')).toBe(false);
+		expect(fixes('command')).toBe(true);
+	});
+
+	it('defaults to fixing nothing', () => {
+		expect(challengeOf({ node: { ref: { name: 'App' } } }).fixed).toEqual([]);
 	});
 });
 

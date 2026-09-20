@@ -2,10 +2,9 @@
 	import type { SuperForm } from 'sveltekit-superforms';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import * as Collapsible from '$lib/components/ui/collapsible';
-	import * as Form from '$lib/components/ui/form';
-	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import { Separator } from '$lib/components/ui/separator';
 	import ConfigField from '$lib/components/ConfigField.svelte';
+	import ConfigRadioField from '$lib/components/ConfigRadioField.svelte';
 	import { hasAdvancedError, type Config } from './index';
 
 	const { form }: { form: SuperForm<Config> } = $props();
@@ -24,22 +23,13 @@
 </script>
 
 <ConfigField {form} name="name" label="Name" bind:value={$formData.name} />
-<Form.Fieldset {form} name="algorithm">
-	<Form.Legend>Algorithm</Form.Legend>
-	<RadioGroup.Root bind:value={$formData.algorithm} name="algorithm">
-		{#each Object.entries(algorithmLabels) as [value, label] (value)}
-			<div class="flex items-center gap-3">
-				<Form.Control>
-					{#snippet children({ props })}
-						<RadioGroup.Item {value} {...props} />
-						<Form.Label class="font-normal">{label}</Form.Label>
-					{/snippet}
-				</Form.Control>
-			</div>
-		{/each}
-	</RadioGroup.Root>
-	<Form.FieldErrors />
-</Form.Fieldset>
+<ConfigRadioField
+	{form}
+	name="algorithm"
+	label="Algorithm"
+	options={algorithmLabels}
+	bind:value={$formData.algorithm}
+/>
 
 <Separator />
 <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Health checks</h3>

@@ -6,9 +6,12 @@
 	import { toast } from 'svelte-sonner';
 	import { getResourceDefinition } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
-	import { getGraphState, nodeConfig } from '$lib/graph-state.svelte';
+	import { getGraphState, nodeAuthored, nodeConfig, nodeName } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { launchPlan } from '$lib/resource-controller.svelte';
+	import { getProject } from '$lib/projects.svelte';
+	import { fixesSetting } from '$lib/challenge';
+	import { setFixedSettings } from '$lib/challenge-settings';
 
 	const { nodeId }: { nodeId: string } = $props();
 	const graphState = getGraphState();
@@ -25,6 +28,14 @@
 
 	const definition = getResourceDefinition(node.type);
 	const schema: z.ZodObject<z.ZodRawShape> = definition.configSchema;
+
+	// A challenge owns the settings that define what it puts the reader's system through
+	setFixedSettings(
+		fixesSetting(getProject(graphState.projectId)?.challenge, {
+			name: nodeName(node),
+			authored: nodeAuthored(node)
+		})
+	);
 
 	const form = superForm(defaults(initialData, zod4(schema), { id: node.id }), {
 		SPA: true,

@@ -8,6 +8,7 @@
 	import * as Form from '$lib/components/ui/form';
 	import { Input } from '$lib/components/ui/input';
 	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
+	import { getFixedSettings } from '$lib/challenge-settings';
 
 	let {
 		form,
@@ -29,9 +30,12 @@
 		readonly?: boolean;
 		value: V;
 	} = $props();
+
+	// A challenge's own settings read the same way as one the resource never lets you change
+	const fixed = getFixedSettings();
 </script>
 
-{#if readonly}
+{#if readonly || fixed(name)}
 	<ReadOnlyValue {label} {value} {description} />
 {:else}
 	<Form.Field {form} {name}>

@@ -107,10 +107,24 @@ const scriptEvent = z.union([
 ]);
 export type ScriptEvent = z.infer<typeof scriptEvent>;
 
+// The settings a challenge owns rather than the reader: the whole node, only what include
+// names, or everything exclude does not
+const fixedNode = z
+	.strictObject({
+		node: namedRef,
+		include: z.array(z.string().min(1)).min(1).optional(),
+		exclude: z.array(z.string().min(1)).min(1).optional()
+	})
+	.refine((f) => !(f.include && f.exclude), {
+		error: 'A fixed node takes include or exclude, not both'
+	});
+export type FixedNode = z.infer<typeof fixedNode>;
+
 export const challengeSchema = z
 	.strictObject({
 		length: z.number().positive(),
 		events: z.array(scriptEvent).default([]),
+		fixed: z.array(fixedNode).default([]),
 		goals: z.array(goal).min(1)
 	})
 	// Everything a single value cannot say: what the run's length leaves room for, and whether
@@ -169,6 +183,41 @@ export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
 	for (const event of challenge.events) {
 		yield { where: `The event at ${event.at} s`, ref: eventTarget(event) };
 	}
+	for (const { node } of challenge.fixed) {
+		yield { where: `The settings fixed on "${node.name}"`, ref: node };
+	}
+}
+
+// Whether the challenge owns a setting on one of its nodes. A goal that compares a setting is
+// the challenge asking the reader to change it, so it stays theirs even under 'all'
+const NOTHING_FIXED = () => false;
+
+export function fixesSetting(
+	challenge: Challenge | undefined,
+	node: { name: string; authored?: boolean }
+): (setting: string) => boolean {
+	// The challenge's own node, by the rule matches() applies: one the reader added and left on
+	// a default name is not the node it meant
+	if (!challenge || !node.authored) return NOTHING_FIXED;
+	const fixed = challenge.fixed.find((entry) => entry.node.name === node.name);
+	if (!fixed) return NOTHING_FIXED;
+	const compared = comparedSettings(challenge).get(node.name);
+	const { include, exclude } = fixed;
+	return (setting) =>
+		!compared?.has(setting) && (include ? include.includes(setting) : !exclude?.includes(setting));
+}
+
+// The settings each node's goals compare, which is the challenge asking the reader to change
+// them. Shared with the document's checks, so what it reports is what the inspector does
+export function comparedSettings(challenge: Challenge): Map<string, Set<string>> {
+	const compared = new Map<string, Set<string>>();
+	for (const { ref, config } of challengeRefs(challenge)) {
+		if (!('name' in ref) || !config) continue;
+		const keys = compared.get(ref.name) ?? new Set<string>();
+		for (const key of Object.keys(config)) keys.add(key);
+		compared.set(ref.name, keys);
+	}
+	return compared;
 }
 
 // The one node an event acts on, whichever kind it is

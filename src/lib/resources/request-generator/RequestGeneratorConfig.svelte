@@ -1,8 +1,7 @@
 <script lang="ts">
 	import type { SuperForm } from 'sveltekit-superforms';
-	import * as Form from '$lib/components/ui/form';
-	import * as RadioGroup from '$lib/components/ui/radio-group';
 	import ConfigField from '$lib/components/ConfigField.svelte';
+	import ConfigRadioField from '$lib/components/ConfigRadioField.svelte';
 	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { nodeName } from '$lib/graph-state.svelte';
@@ -18,26 +17,22 @@
 	const targetNode = $derived(providing(targets, 'http')[0]?.node);
 	const port = $derived(targetPort(targets));
 
-	const methods: Config['method'][] = ['GET', 'POST', 'PUT', 'DELETE'];
+	const methods: Record<Config['method'], string> = {
+		GET: 'GET',
+		POST: 'POST',
+		PUT: 'PUT',
+		DELETE: 'DELETE'
+	};
 </script>
 
 <ConfigField {form} name="name" label="Name" bind:value={$formData.name} />
-<Form.Fieldset {form} name="method">
-	<Form.Legend>Method</Form.Legend>
-	<RadioGroup.Root bind:value={$formData.method} name="method">
-		{#each methods as method (method)}
-			<div class="flex items-center gap-3">
-				<Form.Control>
-					{#snippet children({ props })}
-						<RadioGroup.Item value={method} {...props} />
-						<Form.Label class="font-normal">{method}</Form.Label>
-					{/snippet}
-				</Form.Control>
-			</div>
-		{/each}
-	</RadioGroup.Root>
-	<Form.FieldErrors />
-</Form.Fieldset>
+<ConfigRadioField
+	{form}
+	name="method"
+	label="Method"
+	options={methods}
+	bind:value={$formData.method}
+/>
 <ConfigField {form} name="path" label="Path" bind:value={$formData.path} />
 <ConfigField
 	{form}
