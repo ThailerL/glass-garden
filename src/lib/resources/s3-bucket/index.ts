@@ -78,7 +78,8 @@ export const s3Bucket = {
 			}
 		]
 	},
-	metricDefaults: { objects: 'Average' },
+	// `errors` is a 1 or a 0 per call, so the average is the share that were refused
+	metricDefaults: { objects: 'Average', errors: 'Average' },
 	instanceCount: () => 1,
 	runsProcesses: false,
 	alwaysOn: true,

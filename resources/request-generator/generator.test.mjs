@@ -204,6 +204,7 @@ describe('sending', () => {
     // Every count is named up front, at zero
     expect(g.metrics.map(({ name, value }) => [name, value])).toEqual([
       ['requests', 0],
+      ['errors', 0],
       ['connection errors', 0],
       ['skipped requests', 0]
     ]);
@@ -251,6 +252,18 @@ describe('metrics', () => {
     expect(requests[0].value.length).toBe(times[0].value.length);
     expect(requests[0].value.every((v) => v === 1)).toBe(true);
     expect(times[0].value.every((ms) => Number.isInteger(ms) && ms >= 0)).toBe(true);
+  });
+
+  it('records a 1 for each failed request and a 0 for the rest, so the average is the rate', async () => {
+    let n = 0;
+    const app = target(() => ({ status: n++ % 2 === 0 ? 200 : 500 }));
+    const g = await generator({ target: app.port });
+    await g.waitFor('errors', 2);
+    const [errors] = g.of('errors');
+    expect(errors.dimensions).toEqual([[]]);
+    expect(errors.value).toContain(1);
+    expect(errors.value).toContain(0);
+    expect(errors.value.every((v) => v === 0 || v === 1)).toBe(true);
   });
 
   it('counts connection errors and complains once', async () => {

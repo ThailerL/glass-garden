@@ -114,7 +114,12 @@ export const lambdaFunction = {
 	},
 	// Lambda's own guidance for ConcurrentExecutions: a level sampled at every start and finish
 	// averages to nothing meaningful, while its peak is the number of environments in use
-	metricDefaults: { 'concurrent executions': 'Maximum' },
+	// `errors` and `cold starts` are a 1 or a 0 per invocation, so their average is a rate
+	metricDefaults: {
+		'concurrent executions': 'Maximum',
+		errors: 'Average',
+		'cold starts': 'Average'
+	},
 	gaugeLabel: 'Running invocations, against max concurrency',
 	// One slot, holding the port the region serves the function URL on; the execution
 	// environments run inside the region, so nothing of the node's own listens

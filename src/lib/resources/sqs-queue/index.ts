@@ -75,7 +75,8 @@ export const sqsQueue = {
 			}
 		]
 	},
-	metricDefaults: { messages: 'Average', 'in flight': 'Average' },
+	// `errors` is a 1 or a 0 per call, so the average is the share that were refused
+	metricDefaults: { messages: 'Average', 'in flight': 'Average', errors: 'Average' },
 	// A queue has no depth limit, so the bar fills against the busiest it has been
 	gaugeLabel: 'Messages waiting, against the most this session',
 	instanceCount: () => 1,

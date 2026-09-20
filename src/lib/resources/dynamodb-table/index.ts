@@ -88,7 +88,8 @@ export const dynamodbTable = {
 			}
 		]
 	},
-	metricDefaults: { items: 'Average' },
+	// `errors` is a 1 or a 0 per call, so the average is the share that were refused
+	metricDefaults: { items: 'Average', errors: 'Average' },
 	instanceCount: () => 1,
 	runsProcesses: false,
 	alwaysOn: true,

@@ -14,9 +14,10 @@ const TICK_MS = 1000;
 let cursor = 0;
 
 // Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line. A metric
-// is either always about a target or never about one, so its dimensions never vary between
-// readings. `fold` says the per-target lines add up to a total worth drawing on its own
-function putMetric(name, value, unit, target, fold = true) {
+// always carries the same dimensions, never some readings with and some without, so the Metrics
+// tab can break it down. `fold` says the per-dimension lines add up to a total worth drawing
+function putMetric(name, value, unit, dimensions = {}, fold = true) {
+  const named = Object.keys(dimensions);
   console.log(
     JSON.stringify({
       _aws: {
@@ -24,13 +25,13 @@ function putMetric(name, value, unit, target, fold = true) {
         CloudWatchMetrics: [
           {
             Namespace: 'glass-garden',
-            Dimensions: target === undefined ? [[]] : fold ? [[], ['target']] : [['target']],
+            Dimensions: named.length === 0 ? [[]] : fold ? [[], named] : [named],
             Metrics: [{ Name: name, Unit: unit }],
           },
         ],
       },
       [name]: value,
-      target,
+      ...dimensions,
     }),
   );
 }
@@ -91,7 +92,7 @@ function reportHealth(targets) {
   putMetric('healthy hosts', healthy, 'Count');
   putMetric('unhealthy hosts', unhealthy, 'Count');
   for (const { port, state } of states) {
-    putMetric('target health', state === 'healthy' ? 1 : 0, 'Count', String(port), false);
+    putMetric('target health', state === 'healthy' ? 1 : 0, 'Count', { target: String(port) }, false);
   }
   // choose(), not the healthy ones: with none healthy an ALB routes to every target
   reportRouting(health.choose(targets));
@@ -158,14 +159,17 @@ const server = http.createServer(async (req, res) => {
     ({ algorithm, targets } = await readConfig());
   } catch (error) {
     console.error(error.message);
-    putMetric('balancer errors', 1, 'Count');
+    // Answers the balancer wrote itself, split by the code it sent, the way an ALB keeps its
+    // own HTTPCode_ELB_5XX_Count apart from the targets': 500 it could not read its settings,
+    // 503 nothing is wired to it, 502 the target it chose could not be reached
+    putMetric('balancer errors', 1, 'Count', { status: '500' });
     res.writeHead(500, { 'content-type': 'text/plain' }).end(`${error.message}\n`);
     return;
   }
 
   // No targets at all is the one case an ALB answers itself; all-unhealthy still routes
   if (targets.length === 0) {
-    putMetric('balancer errors', 1, 'Count');
+    putMetric('balancer errors', 1, 'Count', { status: '503' });
     res
       .writeHead(503, { 'content-type': 'text/plain' })
       .end('No targets: nothing running is wired to this load balancer\n');
@@ -176,7 +180,7 @@ const server = http.createServer(async (req, res) => {
   // away above is not one and every reading here names the target it belongs to
   const target = pick(algorithm, health.choose(targets));
   const dimension = String(target);
-  putMetric('requests', 1, 'Count', dimension);
+  putMetric('requests', 1, 'Count', { target: dimension });
   reportHop(target);
 
   const started = Date.now();
@@ -184,9 +188,11 @@ const server = http.createServer(async (req, res) => {
   try {
     upstream = await forward(target, req, body);
   } catch (error) {
-    putMetric('connection errors', 1, 'Count', dimension);
-    // The 502 is the balancer's own answer, not the target's, so it is not a target failure
-    putMetric('balancer errors', 1, 'Count');
+    putMetric('target connection errors', 1, 'Count', { target: dimension });
+    // The request failed, whatever the reason, so it is one for the error rate below
+    putMetric('target errors', 1, 'Count', { target: dimension });
+    // The 502 is the balancer's own answer, not the target's, so it is counted as its own too
+    putMetric('balancer errors', 1, 'Count', { status: '502' });
     const message = `:${target} unreachable: ${reasonOf(error)}`;
     console.error(message);
     res.writeHead(502, { 'content-type': 'text/plain' }).end(`${message}\n`);
@@ -196,8 +202,12 @@ const server = http.createServer(async (req, res) => {
   // The target's own time, ending at its first response header rather than at the last byte
   // of the body, as an ALB reports it. Named for the span it covers, so it cannot be read as
   // the round trip a client sees, which a request generator reports as response time
-  putMetric('target response time', Date.now() - started, 'Milliseconds', dimension);
-  if (upstream.statusCode >= 500) putMetric('failures', 1, 'Count', dimension);
+  putMetric('target response time', Date.now() - started, 'Milliseconds', { target: dimension });
+  // A 1 when the target failed and a 0 when it did not, so the Average of `target errors` is
+  // the share of this target's requests that failed and its Sum is how many. An ALB leaves the
+  // zeros out and expects you to divide by its request count instead; S3 records them the way
+  // this does. Try it: put two targets behind the balancer, break one, and compare their lines
+  putMetric('target errors', upstream.statusCode >= 500 ? 1 : 0, 'Count', { target: dimension });
 
   res.writeHead(upstream.statusCode, upstream.headers);
   // The headers are already out, so a target dying mid-body can only be logged
@@ -217,8 +227,8 @@ await readConfig().catch((error) => {
 // `target health`, which is only ever per-target
 for (const name of [
   'requests',
-  'failures',
-  'connection errors',
+  'target errors',
+  'target connection errors',
   'balancer errors',
   'healthy hosts',
   'unhealthy hosts'

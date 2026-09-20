@@ -64,6 +64,8 @@ export const requestGenerator = {
 	singleTarget: true,
 	configComponent: RequestGeneratorConfig,
 	configSchema,
+	// Recorded as a 1 or a 0 per request, so the average is the share that failed
+	metricDefaults: { errors: 'Average' },
 	instanceCount: () => 1,
 	// A process, but one that serves no one, so its port names nothing
 	runsProcesses: false,

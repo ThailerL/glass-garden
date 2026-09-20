@@ -96,6 +96,8 @@ export const httpLoadBalancer = {
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,
 	metricDefaults: {
+		// Recorded as a 1 or a 0 per request, so the average is the share that failed
+		'target errors': 'Average',
 		'target health': 'Average',
 		'healthy hosts': 'Average',
 		'unhealthy hosts': 'Average'

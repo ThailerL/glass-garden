@@ -129,14 +129,21 @@ const observer = {
       if (event.phase === 'stopped') emit({ kind: 'environment-exit', nodeId, environment });
     } else if (event.phase === 'started') {
       functionState(event.functionName).busy += 1;
-      if (event.coldStart) putMetric(nodeId, 'cold starts', 1, 'Count', { environment });
+      // A 1 when this invocation had to wait for an environment to boot and a 0 when it did
+      // not, so the Average of `cold starts` is the share that were cold and its Sum is how
+      // many. Real Lambda publishes no cold start metric at all: the init time appears only
+      // in the REPORT line of the logs, which is why people reach for Lambda Insights
+      putMetric(nodeId, 'cold starts', event.coldStart ? 1 : 0, 'Count', { environment });
       reportTrigger(nodeId, event.event, owners);
       reportConcurrency(event.functionName, nodeId);
     } else {
       functionState(event.functionName).busy -= 1;
       putMetric(nodeId, 'invocations', 1, 'Count', { environment });
       putMetric(nodeId, 'duration', event.durationMs, 'Milliseconds', { environment });
-      if (event.failed) putMetric(nodeId, 'errors', 1, 'Count', { environment });
+      // A 1 for a failed invocation and a 0 for one that worked, so the Average of `errors`
+      // is the error rate. Real Lambda leaves the zeros out and tells you to divide Errors by
+      // Invocations yourself; the zeros are here so a chart or a challenge can read the rate
+      putMetric(nodeId, 'errors', event.failed ? 1 : 0, 'Count', { environment });
       reportConcurrency(event.functionName, nodeId);
     }
   }
@@ -234,7 +241,9 @@ const saves = new SaveScheduler({
 // the caller instead - that is who has to draw the edge - so they are not counted here
 function reportRequest(owner, method, pathname, status) {
   putMetric(owner, 'requests', 1, 'Count');
-  if (status >= 400) putMetric(owner, 'errors', 1, 'Count');
+  // A 1 for a refused call and a 0 for one that was served, so the Average of `errors` is the
+  // share that failed, exactly as S3 reports its own 4xxErrors
+  putMetric(owner, 'errors', status >= 400 ? 1 : 0, 'Count');
   emitLog('info', `${method} ${pathname} ${status}`, owner);
 }
 

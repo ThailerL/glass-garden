@@ -144,11 +144,22 @@ function send() {
 function publish() {
   const { responses, connectionErrors, skipped, lastError } = observed;
   observed = { responses: new Map(), connectionErrors: 0, skipped: 0, lastError: undefined };
+  // A 1 for every request that failed and a 0 for every one that did not, so the Average of
+  // this metric is the share that failed and its Sum is how many. Real CloudWatch does the
+  // same with S3's 4xxErrors: recording the zeros is what makes a rate readable without
+  // dividing one metric by another. A request with no answer at all counts as a failure
+  const outcomes = [...responses].flatMap(([status, times]) =>
+    times.map(() => (Number(status) >= 500 ? 1 : 0))
+  );
+  for (let i = 0; i < connectionErrors; i++) outcomes.push(1);
+  if (outcomes.length > 0) putMetric('errors', outcomes, 'Count');
+
   for (const [status, times] of responses) {
     // One reading per response, as every other resource counts them
     putMetric('requests', times.map(() => 1), 'Count', status);
     putMetric('response time', times, 'Milliseconds', status);
   }
+  // Still its own count: `errors` says how often a request failed, this says why
   if (connectionErrors > 0) putMetric('connection errors', connectionErrors, 'Count');
   if (skipped > 0) putMetric('skipped requests', skipped, 'Count');
   complainAboutTarget(lastError);
@@ -178,7 +189,7 @@ async function run() {
 try {
   await refreshConfig();
   // Every count once, so the names are in the Metrics tab before anything happens
-  for (const name of ['requests', 'connection errors', 'skipped requests']) {
+  for (const name of ['requests', 'errors', 'connection errors', 'skipped requests']) {
     putMetric(name, 0, 'Count');
   }
   setInterval(() => void refreshConfig(), CONFIG_POLL_MS);
