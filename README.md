@@ -96,6 +96,33 @@ Then visit `http://localhost:3000`. If you are not accessing the website from `l
 
 To embed your instance of Glass Garden, point the wildcard `*.embed.garden.example.com` at the same container.
 
+### Your own challenges
+
+The challenges in the catalogue are files the container serves from `/app/build/client/challenges`. Mount your own folder over it to replace them:
+
+```yaml
+services:
+  glass-garden:
+    volumes:
+      - ./challenges:/app/build/client/challenges
+```
+
+The folder holds one `.json` file per challenge and an `index.json` listing them in the order the catalogue shows them:
+
+```json
+[
+	{
+		"file": "first-challenge.json",
+		"description": "Nothing is sending the app any traffic yet. Wire it up, scale the app, and watch a run score itself.",
+		"stack": "Request generator, load balancer, instance group"
+	}
+]
+```
+
+`description` and `stack` are what the card says before anyone has opened the challenge. Everything else comes out of the challenge itself. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
+
+Keep `schema.json` in the folder and the `"$schema": "./schema.json"` line at the top of each challenge, and an editor will check the file as you type it. A file that will not parse is named on the catalogue page with what was wrong, and the rest of the folder still loads.
+
 ## Developing
 
 Run the dev server and access it on port `3000`:

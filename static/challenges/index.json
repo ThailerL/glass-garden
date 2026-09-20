@@ -1,0 +1,7 @@
+[
+	{
+		"file": "first-challenge.json",
+		"description": "Nothing is sending the app any traffic yet. Wire it up, scale the app, and watch a run score itself. Start here if you have not taken a challenge before.",
+		"stack": "Request generator, load balancer, instance group"
+	}
+]

@@ -1,0 +1,620 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"length": {
+			"type": "number",
+			"exclusiveMinimum": 0
+		},
+		"events": {
+			"default": [],
+			"type": "array",
+			"items": {
+				"anyOf": [
+					{
+						"type": "object",
+						"properties": {
+							"at": {
+								"type": "number",
+								"minimum": 0
+							},
+							"text": {
+								"type": "string",
+								"minLength": 1
+							},
+							"start": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": [
+									"name"
+								],
+								"additionalProperties": false
+							}
+						},
+						"required": [
+							"at",
+							"start"
+						],
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"properties": {
+							"at": {
+								"type": "number",
+								"minimum": 0
+							},
+							"text": {
+								"type": "string",
+								"minLength": 1
+							},
+							"stop": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"minLength": 1
+									}
+								},
+								"required": [
+									"name"
+								],
+								"additionalProperties": false
+							}
+						},
+						"required": [
+							"at",
+							"stop"
+						],
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"properties": {
+							"at": {
+								"type": "number",
+								"minimum": 0
+							},
+							"text": {
+								"type": "string",
+								"minLength": 1
+							},
+							"set": {
+								"type": "object",
+								"properties": {
+									"node": {
+										"type": "object",
+										"properties": {
+											"name": {
+												"type": "string",
+												"minLength": 1
+											}
+										},
+										"required": [
+											"name"
+										],
+										"additionalProperties": false
+									},
+									"config": {
+										"type": "object",
+										"propertyNames": {
+											"type": "string"
+										},
+										"additionalProperties": {}
+									}
+								},
+								"required": [
+									"node",
+									"config"
+								],
+								"additionalProperties": false
+							}
+						},
+						"required": [
+							"at",
+							"set"
+						],
+						"additionalProperties": false
+					}
+				]
+			}
+		},
+		"fixed": {
+			"default": [],
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"node": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"required": [
+							"name"
+						],
+						"additionalProperties": false
+					},
+					"include": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						}
+					},
+					"exclude": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				},
+				"required": [
+					"node"
+				],
+				"additionalProperties": false
+			}
+		},
+		"goals": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"minLength": 1
+					},
+					"title": {
+						"type": "string",
+						"minLength": 1
+					},
+					"conditions": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"anyOf": [
+								{
+									"type": "object",
+									"properties": {
+										"node": {
+											"type": "object",
+											"properties": {
+												"ref": {
+													"anyOf": [
+														{
+															"type": "object",
+															"properties": {
+																"name": {
+																	"type": "string",
+																	"minLength": 1
+																}
+															},
+															"required": [
+																"name"
+															],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"enum": [
+																		"instanceGroup",
+																		"lambdaFunction",
+																		"httpLoadBalancer",
+																		"requestGenerator",
+																		"postgres",
+																		"s3Bucket",
+																		"sqsQueue",
+																		"dynamodbTable"
+																	]
+																}
+															},
+															"required": [
+																"type"
+															],
+															"additionalProperties": false
+														}
+													]
+												},
+												"config": {
+													"type": "object",
+													"propertyNames": {
+														"type": "string"
+													},
+													"additionalProperties": {
+														"type": "object",
+														"properties": {
+															"eq": {
+																"anyOf": [
+																	{
+																		"type": "string"
+																	},
+																	{
+																		"type": "number"
+																	},
+																	{
+																		"type": "boolean"
+																	}
+																]
+															},
+															"gte": {
+																"type": "number"
+															},
+															"lte": {
+																"type": "number"
+															}
+														},
+														"additionalProperties": false
+													}
+												}
+											},
+											"required": [
+												"ref"
+											],
+											"additionalProperties": false
+										}
+									},
+									"required": [
+										"node"
+									],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"edge": {
+											"type": "object",
+											"properties": {
+												"from": {
+													"anyOf": [
+														{
+															"type": "object",
+															"properties": {
+																"name": {
+																	"type": "string",
+																	"minLength": 1
+																}
+															},
+															"required": [
+																"name"
+															],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"enum": [
+																		"instanceGroup",
+																		"lambdaFunction",
+																		"httpLoadBalancer",
+																		"requestGenerator",
+																		"postgres",
+																		"s3Bucket",
+																		"sqsQueue",
+																		"dynamodbTable"
+																	]
+																}
+															},
+															"required": [
+																"type"
+															],
+															"additionalProperties": false
+														}
+													]
+												},
+												"to": {
+													"anyOf": [
+														{
+															"type": "object",
+															"properties": {
+																"name": {
+																	"type": "string",
+																	"minLength": 1
+																}
+															},
+															"required": [
+																"name"
+															],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"enum": [
+																		"instanceGroup",
+																		"lambdaFunction",
+																		"httpLoadBalancer",
+																		"requestGenerator",
+																		"postgres",
+																		"s3Bucket",
+																		"sqsQueue",
+																		"dynamodbTable"
+																	]
+																}
+															},
+															"required": [
+																"type"
+															],
+															"additionalProperties": false
+														}
+													]
+												}
+											},
+											"required": [
+												"from",
+												"to"
+											],
+											"additionalProperties": false
+										}
+									},
+									"required": [
+										"edge"
+									],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"metric": {
+											"type": "object",
+											"properties": {
+												"node": {
+													"anyOf": [
+														{
+															"type": "object",
+															"properties": {
+																"name": {
+																	"type": "string",
+																	"minLength": 1
+																}
+															},
+															"required": [
+																"name"
+															],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"enum": [
+																		"instanceGroup",
+																		"lambdaFunction",
+																		"httpLoadBalancer",
+																		"requestGenerator",
+																		"postgres",
+																		"s3Bucket",
+																		"sqsQueue",
+																		"dynamodbTable"
+																	]
+																}
+															},
+															"required": [
+																"type"
+															],
+															"additionalProperties": false
+														}
+													]
+												},
+												"name": {
+													"type": "string",
+													"minLength": 1
+												},
+												"dimensions": {
+													"type": "object",
+													"propertyNames": {
+														"type": "string"
+													},
+													"additionalProperties": {
+														"type": "string"
+													}
+												},
+												"statistic": {
+													"type": "string",
+													"enum": [
+														"Average",
+														"SampleCount",
+														"Sum",
+														"Minimum",
+														"Maximum"
+													]
+												},
+												"read": {
+													"default": "whole window",
+													"type": "string",
+													"enum": [
+														"whole window",
+														"every datapoint",
+														"any datapoint"
+													]
+												},
+												"from": {
+													"type": "number",
+													"minimum": 0
+												},
+												"to": {
+													"type": "number",
+													"exclusiveMinimum": 0
+												},
+												"lte": {
+													"type": "number"
+												},
+												"gte": {
+													"type": "number"
+												}
+											},
+											"required": [
+												"node",
+												"name",
+												"statistic"
+											],
+											"additionalProperties": false
+										}
+									},
+									"required": [
+										"metric"
+									],
+									"additionalProperties": false
+								}
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"title",
+					"conditions"
+				],
+				"additionalProperties": false
+			}
+		},
+		"format": {
+			"type": "string",
+			"const": "gg:challenge/1"
+		},
+		"$schema": {
+			"type": "string"
+		},
+		"title": {
+			"type": "string",
+			"minLength": 1
+		},
+		"description": {
+			"type": "string",
+			"minLength": 1
+		},
+		"startingCanvas": {
+			"type": "object",
+			"properties": {
+				"format": {
+					"type": "string",
+					"const": "gg:project/1"
+				},
+				"nodes": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string",
+								"enum": [
+									"instanceGroup",
+									"lambdaFunction",
+									"httpLoadBalancer",
+									"requestGenerator",
+									"postgres",
+									"s3Bucket",
+									"sqsQueue",
+									"dynamodbTable"
+								]
+							},
+							"position": {
+								"type": "object",
+								"properties": {
+									"x": {
+										"type": "number"
+									},
+									"y": {
+										"type": "number"
+									}
+								},
+								"required": [
+									"x",
+									"y"
+								]
+							},
+							"config": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"chart": {
+								"type": "string"
+							},
+							"testEvent": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id",
+							"type",
+							"position",
+							"config"
+						]
+					}
+				},
+				"edges": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"source": {
+								"type": "string"
+							},
+							"target": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"source",
+							"target"
+						]
+					}
+				},
+				"nodeFiles": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"required": [
+				"format",
+				"nodes",
+				"edges",
+				"nodeFiles"
+			]
+		}
+	},
+	"required": [
+		"length",
+		"goals",
+		"format",
+		"title",
+		"startingCanvas"
+	],
+	"additionalProperties": false
+}

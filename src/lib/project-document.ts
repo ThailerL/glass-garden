@@ -55,6 +55,9 @@ export const CHALLENGE_FORMAT = 'gg:challenge/1';
 const challengeDocumentSchema = challengeSchema
 	.extend({
 		format: z.literal(CHALLENGE_FORMAT),
+		// Where an editor looks up the format to check the file as it is typed; the app reads
+		// the format tag instead
+		$schema: z.string().optional(),
 		title: z.string().min(1),
 		description: z.string().min(1).optional(),
 		startingCanvas: canvasDocumentSchema
@@ -195,6 +198,12 @@ function checkComparison(
 }
 
 export type ChallengeDocument = z.infer<typeof challengeDocumentSchema>;
+
+// Shipped beside the challenges so an editor checks one as it is written. Only the shape
+// survives the conversion; what the canvas references mean is still the parse's to say
+export function challengeJsonSchema(): unknown {
+	return z.toJSONSchema(challengeDocumentSchema, { io: 'input' });
+}
 
 // What a file, a share link or an embed can carry
 export type GardenDocument = ProjectDocument | ChallengeDocument;

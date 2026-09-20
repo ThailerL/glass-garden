@@ -1,0 +1,82 @@
+{
+	"$schema": "./schema.json",
+	"format": "gg:challenge/1",
+	"title": "Your first challenge",
+	"description": "Every challenge works the same way: get the canvas ready, press Run, and the goals score what happens while a script drives the traffic. This one tells you exactly what to do. The load balancer already points at the app, but nothing is sending it any traffic yet.",
+	"length": 30,
+	"events": [
+		{
+			"at": 8,
+			"text": "Traffic doubles to twenty requests a second",
+			"set": {
+				"node": { "name": "Traffic" },
+				"config": { "requestsPerSecond": 20 }
+			}
+		}
+	],
+	"fixed": [
+		{ "node": { "name": "Traffic" } },
+		{ "node": { "name": "Load Balancer" } },
+		{ "node": { "name": "Web App" }, "exclude": ["instanceCount"] }
+	],
+	"goals": [
+		{
+			"id": "traffic-to-balancer",
+			"title": "Drag a connection from Traffic to the load balancer",
+			"conditions": [
+				{ "edge": { "from": { "name": "Traffic" }, "to": { "name": "Load Balancer" } } }
+			]
+		},
+		{
+			"id": "scaled",
+			"title": "Open Web App and set its instance count to three",
+			"conditions": [
+				{ "node": { "ref": { "name": "Web App" }, "config": { "instanceCount": { "gte": 3 } } } }
+			]
+		},
+		{
+			"id": "served",
+			"title": "Answer 300 requests before the run ends",
+			"conditions": [
+				{
+					"metric": {
+						"node": { "name": "Traffic" },
+						"name": "requests",
+						"dimensions": { "status": "200" },
+						"statistic": "Sum",
+						"from": 5,
+						"gte": 300
+					}
+				}
+			]
+		}
+	],
+	"startingCanvas": {
+		"format": "gg:project/1",
+		"nodes": [
+			{
+				"id": "traffic",
+				"type": "requestGenerator",
+				"position": { "x": -320, "y": 0 },
+				"config": { "name": "Traffic", "requestsPerSecond": 10 },
+				"chart": "requests"
+			},
+			{
+				"id": "balancer",
+				"type": "httpLoadBalancer",
+				"position": { "x": -60, "y": 0 },
+				"config": { "name": "Load Balancer" },
+				"chart": "healthy hosts"
+			},
+			{
+				"id": "app",
+				"type": "instanceGroup",
+				"position": { "x": 200, "y": 0 },
+				"config": { "name": "Web App", "instanceCount": 1 },
+				"chart": "requests"
+			}
+		],
+		"edges": [{ "source": "balancer", "target": "app" }],
+		"nodeFiles": {}
+	}
+}

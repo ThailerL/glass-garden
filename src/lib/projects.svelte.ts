@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { resolve } from '$app/paths';
 import { buildTourCanvas } from './tour.svelte';
 import type { Edge, Node } from '@xyflow/svelte';
 import {
@@ -32,6 +33,8 @@ export type Project = {
 	createdAt: number;
 	// The challenge as it was written: it names its nodes, so it runs this canvas as it stands
 	challenge?: ChallengeDocument;
+	// Which catalogue entry it was started from, where it was not imported
+	builtIn?: string;
 	// The goals the best scored run met
 	bestRun?: string[];
 };
@@ -46,8 +49,13 @@ function readProjects(): Project[] {
 	return readByPrefix<Project>(PROJECT_PREFIX).sort((a, b) => a.createdAt - b.createdAt);
 }
 
+// A challenge is stored as a project but is never called one: it belongs to the catalogue
 export function listProjects(): readonly Project[] {
-	return projects;
+	return projects.filter((project) => !project.challenge);
+}
+
+export function listChallenges(): readonly Project[] {
+	return projects.filter((project) => project.challenge);
 }
 
 export function getProject(id: string): Project | undefined {
@@ -62,11 +70,12 @@ export function setLastProjectId(id: string) {
 	localStorage.setItem(LAST_PROJECT_KEY, id);
 }
 
-// Reloads rather than switching in place: the container, the region, the shells and much of
-// the page's state all belong to the open project, and nothing tears them down
+// A full load rather than switching in place: the container, the region, the shells and much
+// of the page's state all belong to the open project, and nothing tears them down. To the
+// canvas, not back to where we are: the catalogue would otherwise just reload itself
 export function openProject(id: string) {
 	setLastProjectId(id);
-	location.reload();
+	location.assign(resolve('/'));
 }
 
 function writeProject(project: Project) {
@@ -91,9 +100,9 @@ export function recordRun(id: string, met: readonly string[]) {
 export function createProject(
 	name: string,
 	build: (graph: GraphState) => void,
-	challenge?: ChallengeDocument
+	fields: { challenge?: ChallengeDocument; builtIn?: string } = {}
 ): Project {
-	const project: Project = { id: nanoid(8), name, createdAt: Date.now(), challenge };
+	const project: Project = { id: nanoid(8), name, createdAt: Date.now(), ...fields };
 	writeProject(project);
 	projects = [...projects, project];
 	build(new GraphState(project.id));
@@ -102,7 +111,7 @@ export function createProject(
 
 // The app always has a project open, so one is made when none exist yet or the last is deleted
 export function ensureProject(): Project {
-	return projects.at(-1) ?? createProject('My first project', buildTourCanvas);
+	return listProjects().at(-1) ?? createProject('My first project', buildTourCanvas);
 }
 
 export function deleteProject(id: string) {
@@ -149,7 +158,7 @@ export async function exportProject(project: Project): Promise<string> {
 
 // The record goes down before the files, so a boot in between cannot sweep them; like the
 // create dialog, this leaves the ambient project pointed at the new one, so callers reload
-export async function importProject(doc: GardenDocument): Promise<Project> {
+export async function importProject(doc: GardenDocument, builtIn?: string): Promise<Project> {
 	const challenge = doc.format === CHALLENGE_FORMAT ? doc : undefined;
 	const canvas = doc.format === CHALLENGE_FORMAT ? doc.startingCanvas : doc;
 	let ids!: Map<string, string>;
@@ -158,7 +167,7 @@ export async function importProject(doc: GardenDocument): Promise<Project> {
 		(graph) => {
 			ids = applyCanvasDocument(graph, canvas, challenge !== undefined);
 		},
-		challenge
+		{ challenge, builtIn }
 	);
 	const files = Object.entries(canvas.nodeFiles).flatMap(([oldId, files]) => {
 		const nodeId = ids.get(oldId);
