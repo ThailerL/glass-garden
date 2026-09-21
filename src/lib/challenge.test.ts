@@ -103,7 +103,7 @@ const errorRate = (lte: number, window: { from?: number; to?: number } = {}) => 
 	node: { name: 'Traffic' },
 	name: 'errors',
 	statistic: 'Average' as const,
-	read: 'whole window' as const,
+	over: 'whole window' as const,
 	...window,
 	lte
 });
@@ -147,7 +147,7 @@ describe('challengeSchema', () => {
 		expect(parsed.goals.g.conditions).toHaveLength(4);
 		expect(parsed.events).toEqual([{ at: 20, stop: { name: 'App' } }]);
 		// A metric condition that says nothing is read as one number for its whole window
-		expect(parsed.goals.g.conditions[2]).toMatchObject({ metric: { read: 'whole window' } });
+		expect(parsed.goals.g.conditions[2]).toMatchObject({ metric: { over: 'whole window' } });
 	});
 
 	it('defaults to no events', () => {
@@ -397,7 +397,7 @@ describe('judge', () => {
 				node: { name: 'Jobs' },
 				name: 'messages',
 				statistic: 'Maximum',
-				read: 'every datapoint',
+				over: 'every datapoint',
 				from: 10,
 				to: 20,
 				lte: 2
@@ -421,7 +421,7 @@ describe('judge', () => {
 				node: { name: 'Jobs' },
 				name: 'messages',
 				statistic: 'Sum',
-				read: 'every datapoint',
+				over: 'every datapoint',
 				period: 5,
 				from: 10,
 				to: 20,
@@ -445,7 +445,7 @@ describe('judge', () => {
 					node: { name: 'Jobs' },
 					name: 'messages',
 					statistic: 'Sum',
-					read: 'every datapoint',
+					over: 'every datapoint',
 					period: 4,
 					from: 10,
 					to: 20,
@@ -506,7 +506,7 @@ describe('judge', () => {
 				data: { node: { name: 'Accounts' }, read: 'item', args: { key: 'k' }, at: second }
 			});
 		expect(at(60).goals.g.conditions).toHaveLength(1);
-		expect(() => at(61)).toThrow(/judged from 61 s to 61 s/);
+		expect(() => at(61)).toThrow(/read at 61 s, after the challenge's 60 s end/);
 	});
 
 	it('refuses a read a resource does not offer, or arguments it cannot use', () => {
@@ -529,7 +529,7 @@ describe('judge', () => {
 				node: { name: 'Jobs' },
 				name: 'messages',
 				statistic: 'Maximum',
-				read: 'any datapoint',
+				over: 'any datapoint',
 				from: 10,
 				to: 20,
 				gte: 5
@@ -548,7 +548,7 @@ describe('judge', () => {
 				node: { type: 'sqsQueue' },
 				name: 'messages',
 				statistic: 'Maximum',
-				read: 'whole window',
+				over: 'whole window',
 				lte: 2
 			}
 		});
@@ -573,7 +573,7 @@ describe('judge', () => {
 				node: { name: 'Jobs' },
 				name: 'messages',
 				statistic: 'Maximum',
-				read: 'whole window',
+				over: 'whole window',
 				lte: 2
 			}
 		});
@@ -588,7 +588,7 @@ describe('judge', () => {
 				node: { name: 'App' },
 				name: 'requests',
 				statistic: 'Sum',
-				read: 'whole window',
+				over: 'whole window',
 				from: 10,
 				to: 20,
 				gte: 30
@@ -608,7 +608,7 @@ describe('judge', () => {
 				name: 'requests',
 				dimensions: { status: '500' },
 				statistic: 'Sum',
-				read: 'whole window',
+				over: 'whole window',
 				lte: 0
 			}
 		});

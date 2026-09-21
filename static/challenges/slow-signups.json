@@ -45,7 +45,7 @@
 						"node": { "name": "Signup Traffic" },
 						"name": "requests",
 						"statistic": "Sum",
-						"read": "every datapoint",
+						"over": "every datapoint",
 						"period": 5,
 						"from": 10,
 						"gte": 15

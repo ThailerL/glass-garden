@@ -4,7 +4,8 @@
 	"properties": {
 		"length": {
 			"type": "number",
-			"exclusiveMinimum": 0
+			"exclusiveMinimum": 0,
+			"maximum": 900
 		},
 		"events": {
 			"default": [],
@@ -441,7 +442,7 @@
 														"Maximum"
 													]
 												},
-												"read": {
+												"over": {
 													"default": "whole window",
 													"type": "string",
 													"enum": [

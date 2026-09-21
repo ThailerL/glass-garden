@@ -39,11 +39,11 @@ export type Comparison = z.infer<typeof comparison>;
 // run, by which point a longer run has dropped the datapoints its early windows were about
 export const MAX_RUN_SECONDS = (MAX_DATAPOINTS * PERIOD_MS) / 1000;
 
-// How a metric condition's window is read: one number, or one for each datapoint in it
-const metricRead = z.enum(['whole window', 'every datapoint', 'any datapoint']);
+// What a metric condition is judged over: the window as one number, or each datapoint in it
+const metricOver = z.enum(['whole window', 'every datapoint', 'any datapoint']);
 
 // Any metric a node records, read the way the metrics tab reads it, so a goal and a chart
-// of the same metric can never disagree. `read` is whether the window folds into one number
+// of the same metric can never disagree. `over` is whether the window folds into one number
 // or is judged datapoint by datapoint, each one a second of the run as the store keeps it
 const metricCondition = z
 	.strictObject({
@@ -51,7 +51,7 @@ const metricCondition = z
 		name: z.string().min(1),
 		dimensions: z.record(z.string(), z.string()).optional(),
 		statistic: z.enum(METRIC_STATISTICS),
-		read: metricRead.default('whole window'),
+		over: metricOver.default('whole window'),
 		// Seconds folded into one reading, as a CloudWatch alarm's period is
 		period: z.number().int().positive().optional(),
 		// Seconds from the moment every node reports running; a window given no end runs
@@ -64,7 +64,7 @@ const metricCondition = z
 	.refine((m) => m.lte !== undefined || m.gte !== undefined, {
 		error: 'A metric condition needs lte, gte, or both'
 	})
-	.refine((m) => m.period === undefined || m.read !== 'whole window', {
+	.refine((m) => m.period === undefined || m.over !== 'whole window', {
 		error: 'A period needs a datapoint read, since a whole window is already one reading'
 	});
 export type MetricCondition = z.infer<typeof metricCondition>;
@@ -173,7 +173,14 @@ export type FixedNode = z.infer<typeof fixedNode>;
 
 export const challengeSchema = z
 	.strictObject({
-		length: z.number().positive(),
+		// Bounded here rather than in the refinement below so the generated JSON Schema carries the
+		// maximum, and an author's editor says so before the file is imported
+		length: z
+			.number()
+			.positive()
+			.max(MAX_RUN_SECONDS, {
+				error: `A challenge runs for at most ${MAX_RUN_SECONDS} s, which is as much of a metric as a node keeps, and its goals are scored at the end`
+			}),
 		events: z.array(scriptEvent).default([]),
 		fixed: z.array(fixedNode).default([]),
 		goals: goals.refine((all) => Object.keys(all).length > 0, { error: 'A challenge needs a goal' })
@@ -181,23 +188,23 @@ export const challengeSchema = z
 	// What the run's length leaves room for, which no single value can say
 	.superRefine(({ length, events, goals }, ctx) => {
 		const problem = (message: string) => ctx.addIssue({ code: 'custom', message });
-		// Every goal is scored again at the end, so a run must be short enough that no window it
-		// judges has been evicted by then. Bounding each window instead would not do it: a short
-		// window early in a long run is the case that breaks
-		if (length > MAX_RUN_SECONDS) {
-			problem(
-				`A challenge runs for at most ${MAX_RUN_SECONDS} s, which is as much of a metric as a node keeps, and its goals are scored at the end`
-			);
-		}
 		for (const goal of Object.values(goals)) {
 			for (const condition of goal.conditions) {
+				// A moment rather than a stretch, so it is only ever past the run's end
+				if ('data' in condition) {
+					const at = momentOf(condition.data, length);
+					if (at > length) {
+						problem(
+							`The goal "${goal.title}" is read at ${at} s, after the challenge's ${length} s end`
+						);
+					}
+					continue;
+				}
 				const window = conditionWindow(condition, length);
 				if (!window) continue;
 				const [open, close] = window;
-				// A stretch has to close after it opens, where a moment is its two ends meeting,
-				// and either way nothing can be judged past the run's own end
-				const wellFormed = 'data' in condition || open < close;
-				if (!(wellFormed && close <= length)) {
+				// A stretch has to close after it opens, and nothing can be judged past the run's end
+				if (!(open < close && close <= length)) {
 					problem(
 						`The goal "${goal.title}" is judged from ${open} s to ${close} s, which must end after it starts and by the challenge's length of ${length} s`
 					);
@@ -427,21 +434,21 @@ function judgeData(c: DataCondition, run: RunRecord, t: number): GoalState {
 function judgeMetric(metric: MetricCondition, run: RunRecord, t: number): GoalState {
 	const [open, close] = windowOf(metric, run.length);
 	if (t < open) return 'waiting';
-	const { read, lte, gte } = metric;
-	if (read === 'whole window' && t < close) return 'judging';
+	const { over, lte, gte } = metric;
+	if (over === 'whole window' && t < close) return 'judging';
 	// Datapoint by datapoint as the run plays, so a goal about a backlog fails where it broke
 	const readings = matches(run.canvas, metric.node).map((node) =>
-		metricReadings(run, node.id, metric, open, read === 'whole window' ? close : Math.min(t, close))
+		metricReadings(run, node.id, metric, open, over === 'whole window' ? close : Math.min(t, close))
 	);
 	const holds = (value: number) => within(value, { lte, gte });
 	const passes = (node: number[]) =>
-		read === 'any datapoint' ? node.some(holds) : node.every(holds);
+		over === 'any datapoint' ? node.some(holds) : node.every(holds);
 	// Every node the condition names, not just one of them: a name matches a single node, so this
 	// only bites on a type, where one quiet node must not answer for the rest. A node that
 	// recorded nothing proves nothing either way and is left out until the window closes on it
 	const recording = readings.filter((node) => node.length > 0);
 	const held = recording.length > 0 && recording.every(passes);
-	if (read === 'any datapoint') {
+	if (over === 'any datapoint') {
 		// Met the moment it has happened everywhere it was asked, rather than at the window's close
 		if (held && recording.length === readings.length) return 'met';
 		if (t < close) return 'judging';
@@ -480,7 +487,7 @@ function metricReadings(
 	const ended = run.startedAt + read * 1000;
 	const span = (read - from) * 1000;
 	const rows =
-		metric.read === 'whole window'
+		metric.over === 'whole window'
 			? [metricTotals(lines, metric.statistic, ended, span)]
 			: // Rows as wide as the period, on the base grid, so they tile the window itself
 				metricWindow(lines, metric.statistic, ended, span, period * 1000, PERIOD_MS);
