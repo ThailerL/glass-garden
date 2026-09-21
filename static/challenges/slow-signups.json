@@ -38,7 +38,7 @@
 			]
 		},
 		"served": {
-			"title": "At least 15 signups every 5 seconds",
+			"title": "At least 15 signups are answered every 5 seconds",
 			"conditions": [
 				{
 					"metric": {
@@ -95,7 +95,7 @@
 					"name": "Signup Traffic",
 					"method": "POST",
 					"path": "/signup",
-					"body": "{\"email\":\"someone@example.com\",\"password\":\"hunter2\"}",
+					"body": "{\"email\":\"{{n}}@example.com\",\"password\":\"pw-{{n}}\"}",
 					"requestsPerSecond": 1
 				},
 				"chart": "response time"

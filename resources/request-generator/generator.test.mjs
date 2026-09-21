@@ -154,6 +154,42 @@ describe('sending', () => {
     });
   });
 
+  it('numbers each request it sends, counting from one', async () => {
+    const app = target();
+    await generator({
+      method: 'POST',
+      path: '/signup',
+      body: '{"email":"{{n}}@example.com","password":"pw-{{n}}"}',
+      requestsPerSecond: 20,
+      target: app.port
+    });
+    await waitUntil(
+      () => app.requests.length >= 3,
+      () => 'Never sent three requests'
+    );
+    expect(app.requests.slice(0, 3).map(({ body }) => body)).toEqual([
+      '{"email":"1@example.com","password":"pw-1"}',
+      '{"email":"2@example.com","password":"pw-2"}',
+      '{"email":"3@example.com","password":"pw-3"}'
+    ]);
+  });
+
+  it('spends no number on a request it never sent', async () => {
+    // Held at a cap of one against a target that never answers, so everything after is skipped
+    const app = target(() => undefined);
+    const gen = await generator({
+      body: '{{n}}',
+      requestsPerSecond: 20,
+      maxInFlight: 1,
+      target: app.port
+    });
+    await waitUntil(
+      () => gen.of('skipped requests').some(({ value }) => value > 0),
+      () => 'Never skipped a request'
+    );
+    expect(app.requests.map(({ body }) => body)).toEqual(['1']);
+  });
+
   it('reports each request as a hop to its target', async () => {
     // Held open at a cap of one, so exactly one request is ever sent
     const { port, requests } = target(() => undefined);

@@ -102,6 +102,11 @@ let inFlight = 0;
 // This second's observations, published together when it ends
 let observed = { responses: new Map(), connectionErrors: 0, skipped: 0, lastError: undefined };
 
+// Requests this process has actually sent, counted where the body is built rather than where
+// a tick is due, so a generator that is unwired or at its in-flight cap burns no numbers and
+// the nth request is the same request every run
+let sent = 0;
+
 // A refused connection arrives as an AggregateError whose own message is empty, one entry per
 // address tried, so the code is the only thing that names the failure
 const reasonOf = (error) => error.message || error.code || String(error);
@@ -116,7 +121,8 @@ function send() {
   }
   inFlight++;
   reportHop(target);
-  const { method, path, body } = config;
+  const { method, path } = config;
+  const body = config.body.replaceAll('{{n}}', String(++sent));
   const started = Date.now();
   const fail = (error) => {
     observed.connectionErrors++;

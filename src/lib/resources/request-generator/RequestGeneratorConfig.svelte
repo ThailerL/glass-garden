@@ -38,7 +38,7 @@
 	{form}
 	name="body"
 	label="Body"
-	description="Sent with every request. JSON goes as application/json, anything else as text/plain."
+	description="Sent with every request. JSON goes as application/json, anything else as text/plain. Write {'{{n}}'} where you want the number of the request, counting from one."
 	bind:value={$formData.body}
 />
 <ConfigField
