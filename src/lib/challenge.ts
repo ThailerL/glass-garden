@@ -83,6 +83,7 @@ export type Condition = z.infer<typeof condition>;
 const goal = z.strictObject({
 	id: z.string().min(1),
 	title: z.string().min(1),
+	hint: z.string().min(1).optional(),
 	conditions: z.array(condition).min(1)
 });
 export type Goal = z.infer<typeof goal>;

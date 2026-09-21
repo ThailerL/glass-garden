@@ -24,6 +24,7 @@
 		{
 			"id": "answered",
 			"title": "Fix Web App's code so every request is answered without a failure",
+			"hint": "Select Web App and open its Logs tab. The error names the line in server.js that every request is dying on.",
 			"conditions": [
 				{
 					"metric": {

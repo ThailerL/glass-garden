@@ -43,6 +43,8 @@ export class ChallengeRun {
 	// The whole second each goal failed at in this run, which its state alone does not keep
 	failedAt = $state.raw<Record<string, number>>({});
 	endedBecause = $state<string | undefined>();
+	// The node whose failure to start ended the run, so the panel can offer its logs
+	didNotStart = $state<string | undefined>();
 
 	// As this canvas runs it, so the panel reads the same copy the judge does
 	readonly challenge: Challenge;
@@ -70,6 +72,7 @@ export class ChallengeRun {
 		this.phase = 'starting';
 		this.elapsed = 0;
 		this.endedBecause = undefined;
+		this.didNotStart = undefined;
 		this.goals = this.#allWaiting();
 		this.failedAt = {};
 		this.#services.startAll();
@@ -102,6 +105,7 @@ export class ChallengeRun {
 		const broken = canvas.nodes.find((node) => NOT_STARTING.includes(statuses[node.id]));
 		if (broken) {
 			// Left as it is: the node that crashed is the thing the reader has to look at
+			this.didNotStart = broken.id;
 			return this.#end('ended', `${broken.config.name} did not start, so the run was not scored`);
 		}
 		if (!canvas.nodes.every((node) => statuses[node.id] === 'running')) return;

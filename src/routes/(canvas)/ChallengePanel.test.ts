@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { challengeSchema, windowsOf } from '$lib/challenge';
-import { eventSentence, shadedSpans, stateNote, timelineRows } from './ChallengePanel.svelte';
+import {
+	eventSentence,
+	offersHint,
+	shadedSpans,
+	stateNote,
+	timelineRows
+} from './ChallengePanel.svelte';
 
 // The panel's instance script reaches the project store, which reads storage as it loads; the
 // functions under test need none of it
@@ -108,6 +114,22 @@ describe('eventSentence', () => {
 		expect(
 			eventSentence({ at: 5, set: { node: { name: 'Traffic' }, config: { requestsPerSecond: 3 } } })
 		).toBe("Traffic's settings change");
+	});
+});
+
+describe('offersHint', () => {
+	const hinted = { ...goal('outage'), hint: 'The balancer needs somewhere else to send requests' };
+
+	it('offers a hint only once a scored run has failed the goal', () => {
+		expect(offersHint(hinted, 'failed', 'done')).toBe(true);
+		expect(offersHint(hinted, 'failed', 'running')).toBe(false);
+		expect(offersHint(hinted, 'met', 'done')).toBe(false);
+		// A run that was stopped or crashed is not scored, so nothing is given away
+		expect(offersHint(hinted, 'failed', 'ended')).toBe(false);
+	});
+
+	it('offers nothing for a goal written without one', () => {
+		expect(offersHint(goal('outage'), 'failed', 'done')).toBe(false);
 	});
 });
 

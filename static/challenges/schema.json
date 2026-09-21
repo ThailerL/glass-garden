@@ -180,6 +180,10 @@
 						"type": "string",
 						"minLength": 1
 					},
+					"hint": {
+						"type": "string",
+						"minLength": 1
+					},
 					"conditions": {
 						"minItems": 1,
 						"type": "array",

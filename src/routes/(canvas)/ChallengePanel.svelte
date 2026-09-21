@@ -7,6 +7,7 @@
 		type GoalState,
 		type ScriptEvent
 	} from '$lib/challenge';
+	import type { RunPhase } from '$lib/challenge-run.svelte';
 
 	// The author's sentence where there is one: a setting's name is code vocabulary
 	export function eventSentence(event: ScriptEvent) {
@@ -57,6 +58,11 @@
 		return state === 'failed' && failedAt !== undefined ? `Failed at ${failedAt} s` : '';
 	}
 
+	// Only after a scored run failed the goal: before then a hint would give away the answer
+	export function offersHint(goal: Goal, state: GoalState, phase: RunPhase) {
+		return !!goal.hint && phase === 'done' && state === 'failed';
+	}
+
 	const MARK: Record<GoalState, string> = { waiting: '', judging: '•', met: '✓', failed: '✕' };
 	const MARK_CLASS: Record<GoalState, string> = {
 		waiting: 'border-border',
@@ -78,7 +84,9 @@
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { messageOf } from '$lib/errors';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getProject, openProject, resetChallenge } from '$lib/projects.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { ChallengeRun } from '$lib/challenge-run.svelte';
 
 	// It heads the sidebar with an inspector under it; on a phone it floats over the canvas
@@ -96,6 +104,18 @@
 	const rows = timelineRows(challenge);
 	const shaded = shadedSpans(challenge);
 	const share = (seconds: number) => `${(seconds / challenge.length) * 100}%`;
+
+	// Hints the reader asked to see. Tied to the phase, not to the Run button, so any other way
+	// a run starts clears them too
+	const shownHints = new SvelteSet<string>();
+	$effect(() => {
+		if (run.phase === 'starting') shownHints.clear();
+	});
+
+	function openLogs(nodeId: string) {
+		inspectorState.tab = 'logs';
+		graphState.select(nodeId);
+	}
 
 	const metCount = $derived(Object.values(run.goals).filter((state) => state === 'met').length);
 
@@ -158,6 +178,21 @@
 	</div>
 {/snippet}
 
+{#snippet hint(goal: Goal)}
+	{#if shownHints.has(goal.id)}
+		<p class="mt-1 text-xs leading-relaxed">{goal.hint}</p>
+	{:else}
+		<Button
+			variant="link"
+			size="xs"
+			class="mt-0.5 self-start px-0 text-muted-foreground hover:text-foreground hover:underline"
+			onclick={() => shownHints.add(goal.id)}
+		>
+			Show hint
+		</Button>
+	{/if}
+{/snippet}
+
 {#snippet mark(goal: Goal, title: string | undefined)}
 	{@const state = run.goals[goal.id]}
 	<span
@@ -208,6 +243,9 @@
 									class="text-xs {state === 'failed' ? 'text-foreground' : 'text-muted-foreground'}"
 									>{line}</span
 								>
+							{/if}
+							{#if offersHint(row.goal, state, run.phase)}
+								{@render hint(row.goal)}
 							{/if}
 						</div>
 					{:else}
@@ -271,6 +309,13 @@
 				</span>
 			</div>
 			{@render bar()}
+			<!-- The line above already names the node, so the button does not repeat it -->
+			{#if run.didNotStart}
+				{@const nodeId = run.didNotStart}
+				<Button variant="outline" size="sm" class="self-start" onclick={() => openLogs(nodeId)}>
+					Open logs
+				</Button>
+			{/if}
 		</div>
 		{#if inspector}
 			<div class="min-h-0 flex-1 border-t">{@render inspector()}</div>

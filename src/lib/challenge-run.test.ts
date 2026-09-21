@@ -156,6 +156,7 @@ describe('ChallengeRun', () => {
 		advance(TICK_MS / 1000);
 		expect(run.phase).toBe('ended');
 		expect(run.endedBecause).toBe('App did not start, so the run was not scored');
+		expect(run.didNotStart).toBe('app');
 		// Nothing is cleared away: the node that crashed is the thing the reader has to look at
 		expect(fake.calls).not.toContain('stopAll');
 	});
