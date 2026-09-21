@@ -18,8 +18,8 @@ export type Scalar = z.infer<typeof scalar>;
 
 // undefined back is "nothing there", which a condition treats as false, not as an error
 export type ResourceRead = {
-	args: z.ZodType<Record<string, string>>;
-	read: (node: Node, args: Record<string, string>) => Promise<Record<string, Scalar> | undefined>;
+	args: z.ZodType<Record<string, Scalar>>;
+	read: (node: Node, args: Record<string, Scalar>) => Promise<Record<string, Scalar> | undefined>;
 };
 
 // Returned by a definition's start so the orchestrator can manage an instance's

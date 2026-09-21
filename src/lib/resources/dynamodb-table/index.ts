@@ -135,7 +135,7 @@ export const dynamodbTable = {
 		item: {
 			// The key attribute is provisioned as a string, so a number never matches
 			args: z.strictObject({ key: z.string().min(1) }),
-			read: async (node: Node, { key }: Record<string, string>) => {
+			read: async (node: Node, { key }: Record<string, Scalar>) => {
 				const { tableName, partitionKey } = launchConfig(node);
 				const answer = await callAws('dynamodb', 'DynamoDB_20120810.GetItem', {
 					TableName: tableName,
