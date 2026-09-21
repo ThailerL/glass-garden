@@ -66,7 +66,7 @@ const document = {
 	length: 10,
 	events: [],
 	fixed: [],
-	goals: [{ id: 'up', title: 'Up', conditions: [{ node: { type: 'sqsQueue' } }] }],
+	goals: [{ id: 'up', title: 'Up', conditions: [{ exists: { node: { type: 'sqsQueue' } } }] }],
 	startingCanvas: { format: 'gg:project/1', nodes: [], edges: [], nodeFiles: {} }
 } as never;
 

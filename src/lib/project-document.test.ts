@@ -159,13 +159,15 @@ describe('goalsJudgedAlike', () => {
 		const [goal] = challengeDocument().goals;
 		const reworded = changed({
 			goals: [
-				{ id: 'scaled', title: 'Scaled', conditions: [{ node: { type: 'test' } }] },
+				{ id: 'scaled', title: 'Scaled', conditions: [{ exists: { node: { type: 'test' } } }] },
 				{ ...goal, title: 'Wired up', hint: 'Drag the handle' }
 			]
 		});
 		expect([...goalsJudgedAlike(shipped, reworded)]).toEqual(['g']);
 
-		const rescored = changed({ goals: [{ ...goal, conditions: [{ node: { name: 'B' } }] }] });
+		const rescored = changed({
+			goals: [{ ...goal, conditions: [{ exists: { node: { name: 'B' } } }] }]
+		});
 		expect([...goalsJudgedAlike(shipped, rescored)]).toEqual([]);
 		// A changed id is a goal gone as far as a run scored by the old one is concerned
 		const renamed = changed({ goals: [{ ...goal, id: 'renamed' }] });
@@ -230,7 +232,7 @@ describe('parseDocument', () => {
 	it('rejects a goal comparing a setting the node could never satisfy', () => {
 		const compares = (config: Record<string, unknown>) => {
 			const doc = challengeDocument();
-			doc.goals[0].conditions = [{ node: { name: 'A' }, config }];
+			doc.goals[0].conditions = [{ exists: { node: { name: 'A' }, config } }];
 			return () => parseDocument(JSON.stringify(doc));
 		};
 		expect(compares({ count: { gte: 2 } })().format).toBe(CHALLENGE_FORMAT);
@@ -241,7 +243,9 @@ describe('parseDocument', () => {
 		expect(compares({ name: { gte: 2 } })).toThrow('with gte or lte, but it is not a number');
 		// A type's settings are the reader's
 		const byType = challengeDocument();
-		byType.goals[0].conditions = [{ node: { type: 'test' }, config: { nope: { gte: 2 } } }];
+		byType.goals[0].conditions = [
+			{ exists: { node: { type: 'test' }, config: { nope: { gte: 2 } } } }
+		];
 		expect(parseDocument(JSON.stringify(byType)).format).toBe(CHALLENGE_FORMAT);
 	});
 
@@ -261,7 +265,8 @@ describe('parseDocument', () => {
 	const withFixed = (entry: Record<string, unknown>, goalConfig?: Record<string, unknown>) => {
 		const doc = challengeDocument();
 		doc.fixed = [entry];
-		if (goalConfig) doc.goals[0].conditions = [{ node: { name: 'A' }, config: goalConfig }];
+		if (goalConfig)
+			doc.goals[0].conditions = [{ exists: { node: { name: 'A' }, config: goalConfig } }];
 		return parseDocument(JSON.stringify(doc));
 	};
 	const onA = (rest: Record<string, unknown> = {}) => ({ node: { name: 'A' }, ...rest });

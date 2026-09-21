@@ -8,6 +8,7 @@ import {
 	MAX_RUN_SECONDS,
 	type CanvasView,
 	type Challenge,
+	type Comparison,
 	type Condition,
 	type ConditionInput,
 	type DataCondition,
@@ -120,7 +121,7 @@ describe('challengeSchema', () => {
 					id: 'g',
 					title: 'All of it',
 					conditions: [
-						{ node: { name: 'App' }, config: { instanceCount: { gte: 2 } } },
+						{ exists: { node: { name: 'App' }, config: { instanceCount: { gte: 2 } } } },
 						{ edge: { from: { name: 'LB' }, to: { type: 'instanceGroup' } } },
 						{
 							metric: {
@@ -159,11 +160,13 @@ describe('challengeSchema', () => {
 		expect(() =>
 			challengeSchema.parse({ length: 1, goals: [{ id: 'g', title: 'Empty', conditions: [] }] })
 		).toThrow();
-		expect(() => challengeOf({ node: { type: 'teapot' as 'sqsQueue' } })).toThrow();
+		expect(() => challengeOf({ exists: { node: { type: 'teapot' as 'sqsQueue' } } })).toThrow();
 		expect(() =>
 			challengeOf({
-				node: { name: 'App' },
-				config: { name: { eq: ['Jobs'] as unknown as string } }
+				exists: {
+					node: { name: 'App' },
+					config: { name: { eq: ['Jobs'] as unknown as string } }
+				}
 			})
 		).toThrow();
 	});
@@ -173,7 +176,7 @@ describe('challengeSchema', () => {
 			challengeSchema.parse({
 				length: 10,
 				events: [{ at: 1, set: { node: { name: 'Traffic' }, config } }],
-				goals: [{ id: 'g', title: 'Goal', conditions: [{ node: { name: 'Traffic' } }] }]
+				goals: [{ id: 'g', title: 'Goal', conditions: [{ exists: { node: { name: 'Traffic' } } }] }]
 			});
 		expect(withEvent({ requestsPerSecond: 5 }).events).toHaveLength(1);
 		expect(() => withEvent({ name: 'Something else' })).toThrow(/cannot rename/);
@@ -188,7 +191,7 @@ describe('challengeSchema', () => {
 		expect(() =>
 			challengeSchema.parse({
 				length: 60,
-				goals: [{ id: 'g', title: 'Goal', when: [{ node: { name: 'App' } }] }]
+				goals: [{ id: 'g', title: 'Goal', when: [{ exists: { node: { name: 'App' } } }] }]
 			})
 		).toThrow();
 	});
@@ -198,7 +201,7 @@ describe('challengeSchema', () => {
 			challengeSchema.parse({
 				length: 60,
 				events: [{ at: 1, stop: node }],
-				goals: [{ id: 'g', title: 'Goal', conditions: [{ node: { name: 'App' } }] }]
+				goals: [{ id: 'g', title: 'Goal', conditions: [{ exists: { node: { name: 'App' } } }] }]
 			});
 		expect(aimedAt({ name: 'App' }).events).toHaveLength(1);
 		expect(() => aimedAt({ type: 'instanceGroup' })).toThrow();
@@ -208,8 +211,8 @@ describe('challengeSchema', () => {
 		const goals = (first: string, second: string) => ({
 			length: 60,
 			goals: [
-				{ id: first, title: 'Drain it', conditions: [{ node: { name: 'App' } }] },
-				{ id: second, title: 'Stay up', conditions: [{ node: { name: 'LB' } }] }
+				{ id: first, title: 'Drain it', conditions: [{ exists: { node: { name: 'App' } } }] },
+				{ id: second, title: 'Stay up', conditions: [{ exists: { node: { name: 'LB' } } }] }
 			]
 		});
 		expect(goalIds(challengeSchema.parse(goals('drain', 'up')))).toEqual(['drain', 'up']);
@@ -221,12 +224,10 @@ describe('challengeSchema', () => {
 	});
 
 	it('refuses a comparison that says nothing, which would hold for a missing setting', () => {
-		expect(() => challengeOf({ node: { name: 'App' }, config: { nope: {} } })).toThrow(
-			/needs eq, gte or lte/
-		);
-		expect(
-			goalIds(challengeOf({ node: { name: 'App' }, config: { instanceCount: { gte: 1 } } }))
-		).toEqual(['g']);
+		const comparing = (config: Record<string, Comparison>) =>
+			challengeOf({ exists: { node: { name: 'App' }, config } });
+		expect(() => comparing({ nope: {} })).toThrow(/needs eq, gte or lte/);
+		expect(goalIds(comparing({ instanceCount: { gte: 1 } }))).toEqual(['g']);
 	});
 
 	it('refuses an event the run would end before reaching', () => {
@@ -234,7 +235,7 @@ describe('challengeSchema', () => {
 			challengeSchema.parse({
 				length: 60,
 				events: [{ at: seconds, stop: { name: 'App' } }],
-				goals: [{ id: 'g', title: 'Goal', conditions: [{ node: { name: 'App' } }] }]
+				goals: [{ id: 'g', title: 'Goal', conditions: [{ exists: { node: { name: 'App' } } }] }]
 			});
 		expect(at(59).events).toHaveLength(1);
 		expect(() => at(60)).toThrow(/after the challenge's 60 s end/);
@@ -270,7 +271,13 @@ describe('fixesSetting', () => {
 		challengeSchema.parse({
 			length: 60,
 			fixed,
-			goals: [{ id: 'g', title: 'Goal', conditions: conditions ?? [{ node: { name: 'App' } }] }]
+			goals: [
+				{
+					id: 'g',
+					title: 'Goal',
+					conditions: conditions ?? [{ exists: { node: { name: 'App' } } }]
+				}
+			]
 		});
 
 	// A node of the challenge's own, which is the only kind it can fix settings on
@@ -339,7 +346,7 @@ describe('fixesSetting', () => {
 		const fixes = fixesOn(
 			withFixed(
 				[{ node: { name: 'App' } }],
-				[{ node: { name: 'App' }, config: { instanceCount: { gte: 3 } } }]
+				[{ exists: { node: { name: 'App' }, config: { instanceCount: { gte: 3 } } } }]
 			),
 			'App'
 		);
@@ -349,7 +356,7 @@ describe('fixesSetting', () => {
 	});
 
 	it('defaults to fixing nothing', () => {
-		expect(challengeOf({ node: { name: 'App' } }).fixed).toEqual([]);
+		expect(challengeOf({ exists: { node: { name: 'App' } } }).fixed).toEqual([]);
 	});
 });
 
@@ -369,9 +376,13 @@ describe('matches', () => {
 
 describe('judge', () => {
 	it('checks a node and its settings against the canvas the run began with', () => {
-		const enough = challengeOf({ node: { name: 'App' }, config: { instanceCount: { gte: 2 } } });
-		const tooMany = challengeOf({ node: { name: 'App' }, config: { instanceCount: { gte: 3 } } });
-		const named = challengeOf({ node: { type: 'sqsQueue' }, config: { name: { eq: 'Jobs' } } });
+		const instances = (gte: number) =>
+			challengeOf({ exists: { node: { name: 'App' }, config: { instanceCount: { gte } } } });
+		const enough = instances(2);
+		const tooMany = instances(3);
+		const named = challengeOf({
+			exists: { node: { type: 'sqsQueue' }, config: { name: { eq: 'Jobs' } } }
+		});
 		expect(stateAt(enough, run(), 0)).toBe('met');
 		expect(stateAt(tooMany, run(), 0)).toBe('failed');
 		expect(stateAt(named, run(), 0)).toBe('met');

@@ -73,7 +73,7 @@ const challenge = (fields: object = {}): ChallengeDocument => {
 		length: 30,
 		events: [],
 		fixed: [],
-		goals: [{ id: 'g', title: 'There', conditions: [{ node: { name: 'A' } }] }],
+		goals: [{ id: 'g', title: 'There', conditions: [{ exists: { node: { name: 'A' } } }] }],
 		startingCanvas: {
 			format: PROJECT_FORMAT,
 			nodes: [shippedNode('a', 'A'), shippedNode('b', 'B')],
@@ -149,7 +149,7 @@ describe('mergeStartingCanvas', () => {
 		start(challenge());
 
 		const grown = challenge({
-			goals: [{ id: 'g', title: 'There', conditions: [{ node: { name: 'C' } }] }],
+			goals: [{ id: 'g', title: 'There', conditions: [{ exists: { node: { name: 'C' } } }] }],
 			startingCanvas: threeNodes
 		});
 		expect(mergeStartingCanvas(PROJECT, challenge(), grown)).toBe(true);
@@ -180,7 +180,7 @@ describe('mergeStartingCanvas', () => {
 		expect(named('C')).toBeUndefined();
 
 		const names = challenge({
-			goals: [{ id: 'g', title: 'There', conditions: [{ node: { name: 'C' } }] }],
+			goals: [{ id: 'g', title: 'There', conditions: [{ exists: { node: { name: 'C' } } }] }],
 			startingCanvas: threeNodes
 		});
 		expect(mergeStartingCanvas(PROJECT, before, names)).toBe(true);

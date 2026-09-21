@@ -46,7 +46,7 @@ const challenge = challengeSchema.parse({
 		{
 			id: 'both',
 			title: 'Both',
-			conditions: [{ node: { name: 'App A' } }, errorRate(0.1, 22, 35)]
+			conditions: [{ exists: { node: { name: 'App A' } } }, errorRate(0.1, 22, 35)]
 		}
 	]
 });
@@ -76,8 +76,8 @@ describe('timelineRows', () => {
 				{ at: 20, start: { name: 'App A' } }
 			],
 			goals: [
-				{ id: 'a', title: 'A', conditions: [{ node: { name: 'App A' } }] },
-				{ id: 'b', title: 'B', conditions: [{ node: { name: 'App B' } }] },
+				{ id: 'a', title: 'A', conditions: [{ exists: { node: { name: 'App A' } } }] },
+				{ id: 'b', title: 'B', conditions: [{ exists: { node: { name: 'App B' } } }] },
 				{ id: 'c', title: 'C', conditions: [errorRate(0, 20, 30)] }
 			]
 		});

@@ -109,8 +109,10 @@ export function readProblem(type: string, c: DataCondition): string | undefined 
 // would leave a goal quietly meaning something other than what it says
 const condition = z.union([
 	z.strictObject({
-		node: nodeRef,
-		config: z.record(z.string(), comparison).optional()
+		exists: z.strictObject({
+			node: nodeRef,
+			config: z.record(z.string(), comparison).optional()
+		})
 	}),
 	z.strictObject({ edge: z.strictObject({ from: nodeRef, to: nodeRef }) }),
 	z.strictObject({ metric: metricCondition }),
@@ -248,7 +250,7 @@ export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
 	for (const goal of challenge.goals) {
 		const where = `The goal "${goal.title}"`;
 		for (const c of goal.conditions) {
-			if ('node' in c) yield { where, ref: c.node, config: c.config };
+			if ('exists' in c) yield { where, ref: c.exists.node, config: c.exists.config };
 			else if ('edge' in c) yield* [c.edge.from, c.edge.to].map((ref) => ({ where, ref }));
 			else if ('data' in c) yield { where, ref: c.data.node, data: c.data };
 			else yield { where, ref: c.metric.node };
@@ -405,9 +407,9 @@ export function windowsOf(goal: Goal, length: number) {
 
 function judgeCondition(c: Condition, run: RunRecord, t: number): GoalState {
 	const { canvas } = run;
-	if ('node' in c) {
-		const ok = matches(canvas, c.node).some(({ config }) =>
-			Object.entries(c.config ?? {}).every(([k, want]) => compare(config[k], want))
+	if ('exists' in c) {
+		const ok = matches(canvas, c.exists.node).some(({ config }) =>
+			Object.entries(c.exists.config ?? {}).every(([k, want]) => compare(config[k], want))
 		);
 		return ok ? 'met' : 'failed';
 	}
