@@ -6,6 +6,7 @@
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getEditingLock, RUN_DRIVES_THE_CANVAS } from '$lib/challenge-run.svelte';
 	import type { ResourceStatus } from '$lib/resources';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import StatusDot from '$lib/components/StatusDot.svelte';
@@ -38,9 +39,15 @@
 		return STATUS_PRECEDENCE.find((candidate) => statuses.includes(candidate)) ?? 'stopped';
 	});
 
-	// A run starts and stops things itself, on its script
-	const startDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStart(node.id)));
-	const stopDisabled = $derived(graphState.nodes.every((node) => !orchestrator.canStop(node.id)));
+	// A run starts and stops things itself, on its script, so a hand on these would be measured
+	// as the system's own behaviour
+	const lock = getEditingLock();
+	const startDisabled = $derived(
+		lock.current || graphState.nodes.every((node) => !orchestrator.canStart(node.id))
+	);
+	const stopDisabled = $derived(
+		lock.current || graphState.nodes.every((node) => !orchestrator.canStop(node.id))
+	);
 </script>
 
 <div
@@ -84,7 +91,9 @@
 					</Button>
 				{/snippet}
 			</Tooltip.Trigger>
-			<Tooltip.Content>Start all resources</Tooltip.Content>
+			<Tooltip.Content>
+				{lock.current ? RUN_DRIVES_THE_CANVAS : 'Start all resources'}
+			</Tooltip.Content>
 		</Tooltip.Root>
 
 		<Tooltip.Root>
@@ -101,7 +110,9 @@
 					</Button>
 				{/snippet}
 			</Tooltip.Trigger>
-			<Tooltip.Content>Stop all resources</Tooltip.Content>
+			<Tooltip.Content>
+				{lock.current ? RUN_DRIVES_THE_CANVAS : 'Stop all resources'}
+			</Tooltip.Content>
 		</Tooltip.Root>
 	</ButtonGroup.Root>
 </div>

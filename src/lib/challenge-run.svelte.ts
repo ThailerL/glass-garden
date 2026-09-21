@@ -187,6 +187,10 @@ export const getChallengeRun = runContext.get;
 // What the reader prepared is what the run judges, so every edit waits for it to end
 export const LOCKED_UNTIL_RUN_ENDS = 'Save once the run ends';
 
+// A hand on these would be measured as the system's own behaviour, so they wait too
+export const RUN_DRIVES_THE_CANVAS =
+	'A run starts and stops the canvas on its own script, so these wait until it ends';
+
 export function getEditingLock() {
 	const run = getChallengeRun();
 	return {

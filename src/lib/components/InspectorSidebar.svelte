@@ -14,6 +14,7 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { getEditingLock, RUN_DRIVES_THE_CANVAS } from '$lib/challenge-run.svelte';
 	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
@@ -33,6 +34,7 @@
 	});
 	const orchestrator = getOrchestrator();
 	const graphState = getGraphState();
+	const lock = getEditingLock();
 
 	const node = $derived(graphState.getNode(nodeId));
 	const status = $derived(orchestrator.getStatus(nodeId));
@@ -172,6 +174,10 @@
 					title="The local AWS region provides this resource and keeps it available whenever the region is up, so there is nothing to start or stop. To see a caller fail, remove the edge that grants it access."
 				>
 					Always on
+				</span>
+			{:else if lock.current}
+				<span class="text-sm text-muted-foreground" title={RUN_DRIVES_THE_CANVAS}>
+					Run in progress
 				</span>
 			{:else}
 				<ButtonGroup.Root>
