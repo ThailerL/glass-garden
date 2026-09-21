@@ -19,26 +19,40 @@
 	}
 
 	export type Row = { at: number; time: string } & (
-		{ event: ScriptEvent; goal?: undefined } | { goal: Goal; event?: undefined }
+		| { event: ScriptEvent; goal?: undefined; id?: undefined }
+		| { goal: Goal; id: string; event?: undefined }
 	);
 
+	// In the order they are judged, which is also the order the marks strip shows them, so the
+	// two views of one set of goals never disagree
+	export function goalsInOrder({ goals, length }: Challenge): [string, Goal][] {
+		return Object.entries(goals).sort(([, a], [, b]) => startOf(a, length) - startOf(b, length));
+	}
+
+	const startOf = (goal: Goal, length: number) => {
+		const { atStart, judged } = windowsOf(goal, length);
+		return atStart ? 0 : Math.min(...judged.map(([from]) => from));
+	};
+
 	// One list in run order, so the reader never matches times across two lists
-	export function timelineRows({ events, goals, length }: Challenge): Row[] {
+	export function timelineRows(challenge: Challenge): Row[] {
+		const { events, length } = challenge;
 		const eventRows: Row[] = events.map((event) => ({
 			at: event.at,
 			time: `${event.at} s`,
 			event
 		}));
-		const goalRows: Row[] = goals.map((goal) => {
+		const goalRows: Row[] = goalsInOrder(challenge).map(([id, goal]) => {
 			const { atStart, judged } = windowsOf(goal, length);
 			const spans = judged.map(([from, to]) =>
 				to >= length ? `${from} s–end` : `${from}–${to} s`
 			);
 			return {
-				at: atStart ? 0 : Math.min(...judged.map(([from]) => from)),
+				at: startOf(goal, length),
 				// Not "0 s", which on an event row means something that happens then
 				time: (atStart ? ['At start', ...spans] : spans).join(', '),
-				goal
+				goal,
+				id
 			};
 		});
 		// Sorting is stable and the events went in first, so they keep their place within a second
@@ -49,7 +63,7 @@
 
 	// Every stretch any goal is judged over, once each, shaded on the bar
 	export function shadedSpans({ goals, length }: Challenge): [number, number][] {
-		const spans = goals.flatMap((goal) => windowsOf(goal, length).judged);
+		const spans = Object.values(goals).flatMap((goal) => windowsOf(goal, length).judged);
 		return [...new Map(spans.map((span) => [`${span[0]}-${span[1]}`, span])).values()];
 	}
 
@@ -103,6 +117,7 @@
 	const challenge = untrack(() => run.challenge);
 
 	const rows = timelineRows(challenge);
+	const ordered = goalsInOrder(challenge);
 	const shaded = shadedSpans(challenge);
 	const share = (seconds: number) => `${(seconds / challenge.length) * 100}%`;
 
@@ -120,8 +135,8 @@
 
 	const metCount = $derived(Object.values(run.goals).filter((state) => state === 'met').length);
 
-	function note(goal: Goal) {
-		return stateNote(run.goals[goal.id], run.failedAt[goal.id]);
+	function note(id: string) {
+		return stateNote(run.goals[id], run.failedAt[id]);
 	}
 
 	function confirmReset() {
@@ -151,7 +166,7 @@
 	{:else if run.phase === 'running'}
 		{Math.floor(run.elapsed)} s of {challenge.length} s
 	{:else if run.phase === 'done'}
-		Last run: {metCount} of {challenge.goals.length} goals met
+		Last run: {metCount} of {ordered.length} goals met
 	{:else if run.phase === 'ended'}
 		{run.endedBecause}
 	{:else}
@@ -181,23 +196,23 @@
 	</div>
 {/snippet}
 
-{#snippet hint(goal: Goal)}
-	{#if shownHints.has(goal.id)}
+{#snippet hint(id: string, goal: Goal)}
+	{#if shownHints.has(id)}
 		<p class="mt-1 text-xs leading-relaxed">{goal.hint}</p>
 	{:else}
 		<Button
 			variant="link"
 			size="xs"
 			class="mt-0.5 self-start px-0 text-muted-foreground hover:text-foreground hover:underline"
-			onclick={() => shownHints.add(goal.id)}
+			onclick={() => shownHints.add(id)}
 		>
 			Show hint
 		</Button>
 	{/if}
 {/snippet}
 
-{#snippet mark(goal: Goal, title: string | undefined)}
-	{@const state = run.goals[goal.id]}
+{#snippet mark(id: string, title: string | undefined)}
+	{@const state = run.goals[id]}
 	<span
 		class="flex size-5 items-center justify-center rounded-full border-2 text-xs font-bold
 		       {MARK_CLASS[state]}"
@@ -209,9 +224,9 @@
 
 {#snippet marks()}
 	<ul class="flex gap-1.5" aria-label="Goals">
-		{#each challenge.goals as goal (goal.id)}
-			{@const line = note(goal)}
-			<li>{@render mark(goal, line ? `${goal.title}: ${line}` : goal.title)}</li>
+		{#each ordered as [id, goal] (id)}
+			{@const line = note(id)}
+			<li>{@render mark(id, line ? `${goal.title}: ${line}` : goal.title)}</li>
 		{/each}
 	</ul>
 {/snippet}
@@ -236,9 +251,9 @@
 				>
 					<span class="pt-0.5 text-xs text-muted-foreground tabular-nums">{row.time}</span>
 					{#if row.goal}
-						{@const state = run.goals[row.goal.id]}
-						{@const line = note(row.goal)}
-						{@render mark(row.goal, undefined)}
+						{@const state = run.goals[row.id]}
+						{@const line = note(row.id)}
+						{@render mark(row.id, undefined)}
 						<div class="flex flex-col">
 							<span class="leading-snug font-medium">{row.goal.title}</span>
 							{#if line}
@@ -248,7 +263,7 @@
 								>
 							{/if}
 							{#if offersHint(row.goal, state, run.phase)}
-								{@render hint(row.goal)}
+								{@render hint(row.id, row.goal)}
 							{/if}
 						</div>
 					{:else}
@@ -308,7 +323,7 @@
 			<div class="flex items-center justify-between gap-3">
 				{@render marks()}
 				<span class="text-xs text-muted-foreground">
-					Best run: {project?.bestRun?.length ?? 0} of {challenge.goals.length}
+					Best run: {project?.bestRun?.length ?? 0} of {ordered.length}
 				</span>
 			</div>
 			{@render bar()}

@@ -78,15 +78,18 @@ const condition = z.union([
 ]);
 export type Condition = z.infer<typeof condition>;
 
-// Every condition has to hold for the goal to be met. The id is what a run is scored by and
-// what the embedding page is told, so it names one goal and no other
+// Every condition has to hold for the goal to be met
 const goal = z.strictObject({
-	id: z.string().min(1),
 	title: z.string().min(1),
 	hint: z.string().min(1).optional(),
 	conditions: z.array(condition).min(1)
 });
 export type Goal = z.infer<typeof goal>;
+
+// Keyed rather than carrying an id, so no two goals can share one. The key is what a run is
+// scored by and what an embedding page is told, so it outlives a reworded title
+const goals = z.record(z.string().min(1), goal);
+export type Goals = z.infer<typeof goals>;
 
 // Events act on the nodes they name the way those nodes' own buttons and settings would, and
 // name one node each: an event is the author acting on their own system, so it never reaches a
@@ -130,10 +133,9 @@ export const challengeSchema = z
 		length: z.number().positive(),
 		events: z.array(scriptEvent).default([]),
 		fixed: z.array(fixedNode).default([]),
-		goals: z.array(goal).min(1)
+		goals: goals.refine((all) => Object.keys(all).length > 0, { error: 'A challenge needs a goal' })
 	})
-	// Everything a single value cannot say: what the run's length leaves room for, and whether
-	// the goals name themselves apart
+	// What the run's length leaves room for, which no single value can say
 	.superRefine(({ length, events, goals }, ctx) => {
 		const problem = (message: string) => ctx.addIssue({ code: 'custom', message });
 		// Every goal is scored again at the end, so a run must be short enough that no window it
@@ -144,11 +146,7 @@ export const challengeSchema = z
 				`A challenge runs for at most ${MAX_RUN_SECONDS} s, which is as much of a metric as a node keeps, and its goals are scored at the end`
 			);
 		}
-		const ids = new Set<string>();
-		for (const goal of goals) {
-			// One state per id, so two goals of an id would score and report as one
-			if (ids.has(goal.id)) problem(`Two goals share the id "${goal.id}"`);
-			ids.add(goal.id);
+		for (const goal of Object.values(goals)) {
 			for (const condition of goal.conditions) {
 				const window = conditionWindow(condition, length);
 				if (!window) continue;
@@ -178,7 +176,7 @@ export type ChallengeRef = {
 };
 
 export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
-	for (const goal of challenge.goals) {
+	for (const goal of Object.values(challenge.goals)) {
 		const where = `The goal "${goal.title}"`;
 		for (const c of goal.conditions) {
 			if ('node' in c) yield { where, ref: c.node.ref, config: c.node.config };
@@ -229,9 +227,9 @@ export function comparedSettings(challenge: Challenge): Map<string, Set<string>>
 	return compared;
 }
 
-// One owner for the denominator an embedding page is told, in the order the challenge lists them
+// One owner for the denominator an embedding page is told
 export function goalIds(challenge: Challenge): string[] {
-	return challenge.goals.map((goal) => goal.id);
+	return Object.keys(challenge.goals);
 }
 
 // The one node an event acts on, whichever kind it is
@@ -386,9 +384,9 @@ const PRECEDENCE: readonly GoalState[] = ['failed', 'judging', 'waiting'];
 // Live as well as final
 export function judge(challenge: Challenge, run: RunRecord, t: number): Record<string, GoalState> {
 	const states: Record<string, GoalState> = {};
-	for (const g of challenge.goals) {
-		const parts = g.conditions.map((c) => judgeCondition(c, run, t));
-		states[g.id] = PRECEDENCE.find((s) => parts.includes(s)) ?? 'met';
+	for (const [id, goal] of Object.entries(challenge.goals)) {
+		const parts = goal.conditions.map((c) => judgeCondition(c, run, t));
+		states[id] = PRECEDENCE.find((s) => parts.includes(s)) ?? 'met';
 	}
 	return states;
 }

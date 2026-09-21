@@ -15,14 +15,12 @@
 		}
 	],
 	"fixed": [{ "node": { "name": "Traffic" } }, { "node": { "name": "Web App" } }],
-	"goals": [
-		{
-			"id": "wired",
+	"goals": {
+		"wired": {
 			"title": "Drag a connection from Traffic to Web App",
 			"conditions": [{ "edge": { "from": { "name": "Traffic" }, "to": { "name": "Web App" } } }]
 		},
-		{
-			"id": "answered",
+		"answered": {
 			"title": "Fix Web App's code so every request is answered without a failure",
 			"hint": "Select Web App and open its Logs tab. The error names the line in server.js that every request is dying on.",
 			"conditions": [
@@ -37,7 +35,7 @@
 				}
 			]
 		}
-	],
+	},
 	"startingCanvas": {
 		"format": "gg:project/1",
 		"nodes": [

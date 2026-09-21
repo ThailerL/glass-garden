@@ -88,9 +88,8 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 		{ "at": 35, "text": "App A comes back", "start": { "name": "App A" } }
 	],
 	"fixed": [{ "node": { "name": "Traffic" } }],
-	"goals": [
-		{
-			"id": "outage",
+	"goals": {
+		"outage": {
 			"title": "Fewer than 1 in 20 requests fail while App A is down",
 			"hint": "The balancer needs somewhere else to send requests.",
 			"conditions": [
@@ -106,7 +105,7 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 				}
 			]
 		}
-	],
+	},
 	"startingCanvas": { "format": "gg:project/1", "nodes": […], "edges": […], "nodeFiles": {} }
 }
 ```
@@ -118,6 +117,8 @@ An event starts a node, stops it, or sets its settings, `at` so many seconds aft
 A goal is met when all of its conditions hold. A `node` condition wants one matching node to exist, and takes `config` comparisons such as `{ "maxConcurrency": { "gte": 2 } }`, each reading `eq`, `gte`, `lte`, or a mix. An `edge` condition wants one edge between a matching pair, `from` one node `to` another.
 
 A `metric` condition holds any metric a node records within `lte`, `gte`, or both, read by `Average`, `SampleCount`, `Sum`, `Minimum`, or `Maximum`, the same statistics the metrics tab offers, and it has to hold at every matching node that recorded anything rather than at one of them. Open that tab to see what a node records, whether that is a queue's messages, a function's concurrent executions, or whatever your own code reports. `dimensions` picks one series out of several published under the same name. `from` and `to` are the seconds of the run it is judged over, defaulting to the start and the end. `read` is `"whole window"` unless you say otherwise, which folds the window into one number. `"every datapoint"` needs the bound to hold at every second in the window and fails at the one that breaks it, and `"any datapoint"` is met as soon as one second satisfies it. A second the node recorded nothing in is skipped rather than counted as zero.
+
+Each goal sits under a key of your choosing, which is the name a run is scored by and the name an embedding page is told, so keep it short and leave it alone once anyone is reading it. Avoid keys that are plain whole numbers, such as `"1"`, since a JSON object puts those first in numeric order however you wrote them.
 
 `length` is how long the run lasts, up to 900 seconds. A `hint` is offered once a scored run has failed its goal, and shown only when the reader asks for it.
 
@@ -137,7 +138,7 @@ window.addEventListener('message', (event) => {
 });
 ```
 
-Every goal is named by the `id` it carries in the challenge file, and `all` lists them in the order the file gives, so a page can draw the whole checklist from the first message without repeating the challenge in its own code. `reason` is a code rather than the wording the reader sees, so your page can say something of its own. Anyone can send these from their browser's console, so use them to show progress and offer help, never to award anything.
+Every goal is named by the key it sits under in the challenge file, and `all` lists them in the order the file gives, so a page can draw the whole checklist from the first message without repeating the challenge in its own code. `reason` is a code rather than the wording the reader sees, so your page can say something of its own. Anyone can send these from their browser's console, so use them to show progress and offer help, never to award anything.
 
 ## Self-hosting
 

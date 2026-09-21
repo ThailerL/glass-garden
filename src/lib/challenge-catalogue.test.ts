@@ -20,7 +20,7 @@ const folder: ChallengeFolder = {
 			id: 'spike',
 			description: 'A spike',
 			stack: 'One node',
-			document: { title: 'Keep up', goals: [{}, {}] } as never
+			document: { title: 'Keep up', goals: { one: {}, two: {} } } as never
 		}
 	],
 	unread: [{ file: 'broken.json', problem: 'That file is not a Glass Garden project' }]
@@ -46,7 +46,7 @@ import { createProject } from '$lib/projects.svelte';
 
 const challenge = (name: string, fields: Record<string, unknown>) =>
 	createProject(name, () => {}, {
-		challenge: { title: name, goals: [{}, {}] } as never,
+		challenge: { title: name, goals: { one: {}, two: {} } } as never,
 		...fields
 	});
 

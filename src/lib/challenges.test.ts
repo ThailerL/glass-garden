@@ -30,7 +30,9 @@ describe('the challenges the app ships', () => {
 		const { challenges, unread } = await readChallengeFolder(serveFolder);
 		expect(unread).toEqual([]);
 		expect(challenges.length).toBeGreaterThan(0);
-		for (const challenge of challenges) expect(challenge.document.goals.length).toBeGreaterThan(0);
+		for (const challenge of challenges) {
+			expect(Object.keys(challenge.document.goals).length).toBeGreaterThan(0);
+		}
 	});
 
 	it('names each one apart, since a started one is recorded by the file it came from', async () => {

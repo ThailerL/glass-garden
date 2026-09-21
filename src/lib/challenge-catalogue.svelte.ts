@@ -4,6 +4,7 @@ import {
 	type ChallengeFolder,
 	type UnreadChallenge
 } from './challenges';
+import { goalIds } from './challenge';
 import { listChallenges, type Project } from './projects.svelte';
 
 export type CatalogueEntry = {
@@ -35,7 +36,7 @@ export function challengeCatalogue(): {
 	const shipped = new Set(folder?.challenges.map((entry) => entry.id));
 	const builtIn = (folder?.challenges ?? []).map((entry) => {
 		const project = started.find((p) => p.builtIn === entry.id);
-		const goals = entry.document.goals.length;
+		const goals = goalIds(entry.document).length;
 		const best = project?.bestRun?.length ?? 0;
 		return {
 			entry,

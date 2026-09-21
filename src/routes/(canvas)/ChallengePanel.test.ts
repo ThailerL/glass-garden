@@ -35,28 +35,24 @@ const challenge = challengeSchema.parse({
 		},
 		{ at: 10, stop: { name: 'App A' } }
 	],
-	goals: [
-		{
-			id: 'wired',
+	goals: {
+		wired: {
 			title: 'Wired',
 			conditions: [{ edge: { from: { name: 'LB' }, to: { name: 'App B' } } }]
 		},
-		{ id: 'outage', title: 'Outage', conditions: [errorRate(0.05, 22, 35)] },
-		{ id: 'after', title: 'After', conditions: [errorRate(0, 40)] },
-		{
-			id: 'both',
+		outage: { title: 'Outage', conditions: [errorRate(0.05, 22, 35)] },
+		after: { title: 'After', conditions: [errorRate(0, 40)] },
+		both: {
 			title: 'Both',
 			conditions: [{ node: { ref: { name: 'App A' } } }, errorRate(0.1, 22, 35)]
 		}
-	]
+	}
 });
-const goal = (id: string) => challenge.goals.find((g) => g.id === id)!;
+const goal = (id: string) => challenge.goals[id];
 
 describe('timelineRows', () => {
 	it('puts events and goals in one run order, events first within a second', () => {
-		expect(
-			timelineRows(challenge).map((row) => [row.time, row.event ? 'event' : row.goal.id])
-		).toEqual([
+		expect(timelineRows(challenge).map((row) => [row.time, row.event ? 'event' : row.id])).toEqual([
 			['0 s', 'event'],
 			// Not "0 s": the canvas check reads the canvas the clock started on
 			['At start', 'wired'],
@@ -75,15 +71,13 @@ describe('timelineRows', () => {
 				{ at: 20, stop: { name: 'App A' } },
 				{ at: 20, start: { name: 'App A' } }
 			],
-			goals: [
-				{ id: 'a', title: 'A', conditions: [{ node: { ref: { name: 'App A' } } }] },
-				{ id: 'b', title: 'B', conditions: [{ node: { ref: { name: 'App B' } } }] },
-				{ id: 'c', title: 'C', conditions: [errorRate(0, 20, 30)] }
-			]
+			goals: {
+				a: { title: 'A', conditions: [{ node: { ref: { name: 'App A' } } }] },
+				b: { title: 'B', conditions: [{ node: { ref: { name: 'App B' } } }] },
+				c: { title: 'C', conditions: [errorRate(0, 20, 30)] }
+			}
 		});
-		expect(
-			timelineRows(shared).map((row) => [row.time, row.event ? 'event' : row.goal.id])
-		).toEqual([
+		expect(timelineRows(shared).map((row) => [row.time, row.event ? 'event' : row.id])).toEqual([
 			['At start', 'a'],
 			['', 'b'],
 			['20 s', 'event'],

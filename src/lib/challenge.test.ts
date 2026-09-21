@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	challengeSchema,
 	fixesSetting,
+	goalIds,
 	judge,
 	matches,
 	MAX_RUN_SECONDS,
@@ -33,7 +34,7 @@ const canvas: CanvasView = {
 };
 
 function challengeOf(...conditions: Condition[]): Challenge {
-	return challengeSchema.parse({ length: 60, goals: [{ id: 'g', title: 'Goal', conditions }] });
+	return challengeSchema.parse({ length: 60, goals: { g: { title: 'Goal', conditions } } });
 }
 
 const STARTED_AT = 1_700_000_000_000;
@@ -98,9 +99,8 @@ describe('challengeSchema', () => {
 		const parsed = challengeSchema.parse({
 			length: 60,
 			events: [{ at: 20, stop: { name: 'App' } }],
-			goals: [
-				{
-					id: 'g',
+			goals: {
+				g: {
 					title: 'All of it',
 					conditions: [
 						{ node: { ref: { name: 'App' }, config: { instanceCount: { gte: 2 } } } },
@@ -126,12 +126,12 @@ describe('challengeSchema', () => {
 						}
 					]
 				}
-			]
+			}
 		});
-		expect(parsed.goals[0].conditions).toHaveLength(4);
+		expect(parsed.goals.g.conditions).toHaveLength(4);
 		expect(parsed.events).toEqual([{ at: 20, stop: { name: 'App' } }]);
 		// A metric condition that says nothing is read as one number for its whole window
-		expect(parsed.goals[0].conditions[2]).toMatchObject({ metric: { read: 'whole window' } });
+		expect(parsed.goals.g.conditions[2]).toMatchObject({ metric: { read: 'whole window' } });
 	});
 
 	it('defaults to no events', () => {
@@ -140,7 +140,7 @@ describe('challengeSchema', () => {
 
 	it('refuses a goal with no conditions and a type that is not a resource', () => {
 		expect(() =>
-			challengeSchema.parse({ length: 1, goals: [{ id: 'g', title: 'Empty', conditions: [] }] })
+			challengeSchema.parse({ length: 1, goals: { g: { title: 'Empty', conditions: [] } } })
 		).toThrow();
 		expect(() => challengeOf({ node: { ref: { type: 'teapot' as 'sqsQueue' } } })).toThrow();
 		expect(() =>
@@ -155,7 +155,7 @@ describe('challengeSchema', () => {
 			challengeSchema.parse({
 				length: 10,
 				events: [{ at: 1, set: { node: { name: 'Traffic' }, config } }],
-				goals: [{ id: 'g', title: 'Goal', conditions: [{ node: { ref: { name: 'Traffic' } } }] }]
+				goals: { g: { title: 'Goal', conditions: [{ node: { ref: { name: 'Traffic' } } }] } }
 			});
 		expect(withEvent({ requestsPerSecond: 5 }).events).toHaveLength(1);
 		expect(() => withEvent({ name: 'Something else' })).toThrow(/cannot rename/);
@@ -170,7 +170,7 @@ describe('challengeSchema', () => {
 		expect(() =>
 			challengeSchema.parse({
 				length: 60,
-				goals: [{ id: 'g', title: 'Goal', when: [{ node: { ref: { name: 'App' } } }] }]
+				goals: { g: { title: 'Goal', when: [{ node: { ref: { name: 'App' } } }] } }
 			})
 		).toThrow();
 	});
@@ -180,23 +180,25 @@ describe('challengeSchema', () => {
 			challengeSchema.parse({
 				length: 60,
 				events: [{ at: 1, stop: node }],
-				goals: [{ id: 'g', title: 'Goal', conditions: [{ node: { ref: { name: 'App' } } }] }]
+				goals: { g: { title: 'Goal', conditions: [{ node: { ref: { name: 'App' } } }] } }
 			});
 		expect(aimedAt({ name: 'App' }).events).toHaveLength(1);
 		expect(() => aimedAt({ type: 'instanceGroup' })).toThrow();
 	});
 
-	it('refuses two goals of one id, which would score and report as one', () => {
+	it('keys goals by their id, so two can never score and report as one', () => {
 		const goals = (second: string) => ({
 			length: 60,
-			goals: [
-				{ id: 'drain', title: 'Drain it', conditions: [{ node: { ref: { name: 'App' } } }] },
-				{ id: second, title: 'Stay up', conditions: [{ node: { ref: { name: 'LB' } } }] }
-			]
+			goals: {
+				drain: { title: 'Drain it', conditions: [{ node: { ref: { name: 'App' } } }] },
+				[second]: { title: 'Stay up', conditions: [{ node: { ref: { name: 'LB' } } }] }
+			}
 		});
-		expect(challengeSchema.parse(goals('up')).goals).toHaveLength(2);
-		expect(() => challengeSchema.parse(goals('drain'))).toThrow(/Two goals share the id/);
+		expect(goalIds(challengeSchema.parse(goals('up')))).toEqual(['drain', 'up']);
+		// Written twice in one document, the later goal is the only one JSON keeps
+		expect(goalIds(challengeSchema.parse(goals('drain')))).toEqual(['drain']);
 		expect(() => challengeSchema.parse(goals(''))).toThrow();
+		expect(() => challengeSchema.parse({ length: 60, goals: {} })).toThrow(/needs a goal/);
 	});
 
 	it('refuses a comparison that says nothing, which would hold for a missing setting', () => {
@@ -204,8 +206,10 @@ describe('challengeSchema', () => {
 			/needs eq, gte or lte/
 		);
 		expect(
-			challengeOf({ node: { ref: { name: 'App' }, config: { instanceCount: { gte: 1 } } } }).goals
-		).toHaveLength(1);
+			goalIds(
+				challengeOf({ node: { ref: { name: 'App' }, config: { instanceCount: { gte: 1 } } } })
+			)
+		).toEqual(['g']);
 	});
 
 	it('refuses an event the run would end before reaching', () => {
@@ -213,7 +217,7 @@ describe('challengeSchema', () => {
 			challengeSchema.parse({
 				length: 60,
 				events: [{ at: seconds, stop: { name: 'App' } }],
-				goals: [{ id: 'g', title: 'Goal', conditions: [{ node: { ref: { name: 'App' } } }] }]
+				goals: { g: { title: 'Goal', conditions: [{ node: { ref: { name: 'App' } } }] } }
 			});
 		expect(at(59).events).toHaveLength(1);
 		expect(() => at(60)).toThrow(/after the challenge's 60 s end/);
@@ -224,9 +228,9 @@ describe('challengeSchema', () => {
 		const lasting = (length: number) =>
 			challengeSchema.parse({
 				length,
-				goals: [
-					{ id: 'g', title: 'Quiet early on', conditions: [{ metric: errorRate(1, { to: 100 }) }] }
-				]
+				goals: {
+					g: { title: 'Quiet early on', conditions: [{ metric: errorRate(1, { to: 100 }) }] }
+				}
 			});
 		expect(lasting(MAX_RUN_SECONDS).length).toBe(MAX_RUN_SECONDS);
 		// The window here is only 100 s, but by the end of a longer run its datapoints are gone
@@ -240,7 +244,7 @@ describe('challengeSchema', () => {
 		expect(() => challengeOf(judged({ to: 90 }))).toThrow(/length of 60 s/);
 		expect(() => challengeOf(judged({ from: 60 }))).toThrow();
 		const ok = judged({ from: 40 });
-		expect(challengeOf(ok).goals[0].conditions[0]).toEqual(ok);
+		expect(challengeOf(ok).goals.g.conditions[0]).toEqual(ok);
 	});
 });
 
@@ -249,13 +253,9 @@ describe('fixesSetting', () => {
 		challengeSchema.parse({
 			length: 60,
 			fixed,
-			goals: [
-				{
-					id: 'g',
-					title: 'Goal',
-					conditions: conditions ?? [{ node: { ref: { name: 'App' } } }]
-				}
-			]
+			goals: {
+				g: { title: 'Goal', conditions: conditions ?? [{ node: { ref: { name: 'App' } } }] }
+			}
 		});
 
 	// A node of the challenge's own, which is the only kind it can fix settings on

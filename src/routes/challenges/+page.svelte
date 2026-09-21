@@ -3,6 +3,7 @@
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import { toast } from 'svelte-sonner';
 	import { messageOf } from '$lib/errors';
+	import { goalIds } from '$lib/challenge';
 	import { type BuiltInChallenge } from '$lib/challenges';
 	import { challengeCatalogue, loadCatalogue } from '$lib/challenge-catalogue.svelte';
 	import { importProject, openProject } from '$lib/projects.svelte';
@@ -48,7 +49,7 @@
 					<ChallengeCard
 						title={project.challenge?.title ?? project.name}
 						description={project.challenge?.description}
-						goals={project.challenge?.goals.length ?? 0}
+						goals={project.challenge ? goalIds(project.challenge).length : 0}
 						best={project.bestRun?.length ?? 0}
 						action="Continue"
 						onstart={async () => openProject(project.id)}

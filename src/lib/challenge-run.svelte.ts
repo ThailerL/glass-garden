@@ -1,5 +1,6 @@
 import {
 	eventTarget,
+	goalIds,
 	judge,
 	matches,
 	type CanvasView,
@@ -92,7 +93,7 @@ export class ChallengeRun {
 	}
 
 	#allWaiting() {
-		return Object.fromEntries(this.challenge.goals.map((g) => [g.id, 'waiting' as GoalState]));
+		return Object.fromEntries(goalIds(this.challenge).map((id) => [id, 'waiting' as GoalState]));
 	}
 
 	#tick() {

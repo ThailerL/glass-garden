@@ -167,15 +167,14 @@
 			}
 		},
 		"goals": {
-			"minItems": 1,
-			"type": "array",
-			"items": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"minLength": 1
+			},
+			"additionalProperties": {
 				"type": "object",
 				"properties": {
-					"id": {
-						"type": "string",
-						"minLength": 1
-					},
 					"title": {
 						"type": "string",
 						"minLength": 1
@@ -484,7 +483,6 @@
 					}
 				},
 				"required": [
-					"id",
 					"title",
 					"conditions"
 				],
