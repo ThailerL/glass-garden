@@ -399,6 +399,46 @@ describe('judge', () => {
 		expect(stateAt(low, queue(backedUp), 18)).toBe('failed');
 	});
 
+	it('folds a period into one reading, so a slow second inside it does not fail the goal', () => {
+		const rate = challengeOf({
+			metric: {
+				node: { name: 'Jobs' },
+				name: 'messages',
+				statistic: 'Sum',
+				read: 'every datapoint',
+				period: 5,
+				from: 10,
+				to: 20,
+				gte: 15
+			}
+		});
+		const queue = (at: Record<number, number>) => run({ metrics: () => recorded('messages', at) });
+		// Four a second, bar one that stalled: short per second, comfortable over five
+		const bumpy = { 10: 4, 11: 4, 12: 0, 13: 4, 14: 4, 15: 4, 16: 4, 17: 4, 18: 4, 19: 4 };
+		const halted = { ...bumpy, 15: 0, 16: 0, 17: 0, 18: 0, 19: 0 };
+		expect(stateAt(rate, queue(bumpy), 20)).toBe('met');
+		expect(stateAt(rate, queue(halted), 20)).toBe('failed');
+		// The period it lands in has to be over before it is judged, as a second is without one
+		expect(stateAt(rate, queue(halted), 17)).toBe('judging');
+	});
+
+	it('refuses a period that does not divide the window it is judged over', () => {
+		expect(() =>
+			challengeOf({
+				metric: {
+					node: { name: 'Jobs' },
+					name: 'messages',
+					statistic: 'Sum',
+					read: 'every datapoint',
+					period: 4,
+					from: 10,
+					to: 20,
+					gte: 15
+				}
+			})
+		).toThrow(/periods of 4 s/);
+	});
+
 	it('meets a goal asking for any datapoint the moment one arrives', () => {
 		const busy = challengeOf({
 			metric: {

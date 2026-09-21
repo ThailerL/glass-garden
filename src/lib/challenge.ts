@@ -51,6 +51,8 @@ const metricCondition = z
 		dimensions: z.record(z.string(), z.string()).optional(),
 		statistic: z.enum(METRIC_STATISTICS),
 		read: metricRead.default('whole window'),
+		// Seconds folded into one reading, as a CloudWatch alarm's period is
+		period: z.number().int().positive().optional(),
 		// Seconds from the moment every node reports running; a window given no end runs
 		// to the end of the challenge
 		from: z.number().min(0).optional(),
@@ -60,6 +62,9 @@ const metricCondition = z
 	})
 	.refine((m) => m.lte !== undefined || m.gte !== undefined, {
 		error: 'A metric condition needs lte, gte, or both'
+	})
+	.refine((m) => m.period === undefined || m.read !== 'whole window', {
+		error: 'A period needs a datapoint read, since a whole window is already one reading'
 	});
 export type MetricCondition = z.infer<typeof metricCondition>;
 
@@ -152,9 +157,17 @@ export const challengeSchema = z
 				if (!window) continue;
 				const [open, close] = window;
 				// A window that never closes, or closes before it opens, is a goal no run can meet
-				if (open < close && close <= length) continue;
+				if (!(open < close && close <= length)) {
+					problem(
+						`The goal "${goal.title}" is judged from ${open} s to ${close} s, which must end after it starts and by the challenge's length of ${length} s`
+					);
+					continue;
+				}
+				// A part-finished period is never judged, so one left over is a stretch nothing reads
+				const period = 'metric' in condition ? condition.metric.period : undefined;
+				if (period === undefined || (close - open) % period === 0) continue;
 				problem(
-					`The goal "${goal.title}" is judged from ${open} s to ${close} s, which must end after it starts and by the challenge's length of ${length} s`
+					`The goal "${goal.title}" is judged from ${open} s to ${close} s in periods of ${period} s, which has to divide the ${close - open} s between them`
 				);
 			}
 		}
@@ -381,14 +394,18 @@ function metricReadings(
 	to: number
 ): number[] {
 	const series = seriesFor(run.metrics(nodeId), metric.name, metric.dimensions);
-	if (series.length === 0 || to <= from) return [];
+	const period = metric.period ?? 1;
+	// Whole periods only, so one still filling cannot fail a goal before it is over
+	const read = period === 1 ? to : from + Math.floor((to - from) / period) * period;
+	if (series.length === 0 || read <= from) return [];
 	const { lines } = breakDown(series, NO_BREAKDOWN);
-	const ended = run.startedAt + to * 1000;
-	const span = (to - from) * 1000;
+	const ended = run.startedAt + read * 1000;
+	const span = (read - from) * 1000;
 	const rows =
 		metric.read === 'whole window'
 			? [metricTotals(lines, metric.statistic, ended, span)]
-			: metricWindow(lines, metric.statistic, ended, span, PERIOD_MS);
+			: // Rows as wide as the period, on the base grid, so they tile the window itself
+				metricWindow(lines, metric.statistic, ended, span, period * 1000, PERIOD_MS);
 	return rows.flatMap((row) => (row.all === null ? [] : [row.all]));
 }
 
