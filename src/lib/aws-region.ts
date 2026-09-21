@@ -166,51 +166,45 @@ export async function deprovisionResource(service: Service, name: string) {
 	});
 }
 
-export type Invocation = { status: number; functionError?: string; payload: string };
-
 // SigV4's shape without a signature, which is all the region enforces on
 function adminAuthorization(service: Service) {
 	return `AWS4-HMAC-SHA256 Credential=${ADMIN_ACCESS_KEY}/20260101/us-east-1/${service}/aws4_request, SignedHeaders=host, Signature=glass-garden`;
 }
 
-// The path an SDK caller takes, so a test reaches the log and metrics like any invocation
-export async function invokeFunction(functionName: string, payload: string): Promise<Invocation> {
+// One signed POST for a protocol the caller speaks itself: it owns the path, the content type
+// and the answer. observe keeps the call off the node's charts - user code is never given the
+// token, so an app cannot hide its own traffic this way
+export async function regionRequest(
+	service: Service,
+	path: string,
+	init: {
+		headers?: Record<string, string>;
+		body: BodyInit;
+		observe?: boolean;
+		signal?: AbortSignal;
+	}
+): Promise<Response> {
 	await ensureRegion();
 	const current = region;
 	if (!current) throw new Error('The region is not running');
-	const response = await fetch(
-		`${withTrailingSlash(current.previewUrl)}2015-03-31/functions/${encodeURIComponent(functionName)}/invocations`,
-		{
-			method: 'POST',
-			headers: {
-				authorization: adminAuthorization('lambda'),
-				'content-type': 'application/json'
-			},
-			body: payload
-		}
-	);
-	return {
-		status: response.status,
-		functionError: response.headers.get('x-amz-function-error') ?? undefined,
-		payload: await response.text()
-	};
-}
-
-// The AWS JSON protocol the SDK speaks. x-gg-observe keeps the read off the node's charts;
-// user code is never given the token, so an app cannot hide its own traffic this way
-export async function callAws(service: Service, target: string, body: unknown) {
-	await ensureRegion();
-	const current = region;
-	if (!current) throw new Error('The region is not running');
-	const response = await fetch(withTrailingSlash(current.previewUrl), {
+	return fetch(`${withTrailingSlash(current.previewUrl)}${path}`, {
 		method: 'POST',
 		headers: {
 			authorization: adminAuthorization(service),
-			'content-type': 'application/x-amz-json-1.0',
-			'x-amz-target': target,
-			'x-gg-observe': current.token
+			...(init.observe ? { 'x-gg-observe': current.token } : {}),
+			...init.headers
 		},
+		body: init.body,
+		signal: init.signal
+	});
+}
+
+// The AWS JSON protocol the SDK speaks, which every resource addresses at the region's root
+export async function callAws(service: Service, target: string, body: unknown) {
+	const response = await regionRequest(service, '', {
+		headers: { 'content-type': 'application/x-amz-json-1.0', 'x-amz-target': target },
 		body: JSON.stringify(body),
+		observe: true,
 		// A read that never answers would leave its goal judging for the rest of the run
 		signal: AbortSignal.timeout(CONTROL_TIMEOUT_MS)
 	});

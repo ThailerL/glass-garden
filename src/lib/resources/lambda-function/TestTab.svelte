@@ -1,10 +1,25 @@
 <script module lang="ts">
 	import type { Node } from '@xyflow/svelte';
 	import { awsResourceOf } from '$lib/aws-topology';
-	import type { Invocation, Service } from '$lib/aws-region';
+	import { regionRequest, type Service } from '$lib/aws-region';
 
 	export type EventTemplate = { id: string; label: string; event: unknown };
 	export type Outcome = { ok: boolean; detail?: string; body: string };
+	type Invocation = { status: number; functionError?: string; payload: string };
+
+	// The path an SDK caller takes, so a test reaches the log and metrics like any invocation
+	async function invokeFunction(functionName: string, payload: string): Promise<Invocation> {
+		const response = await regionRequest(
+			'lambda',
+			`2015-03-31/functions/${encodeURIComponent(functionName)}/invocations`,
+			{ headers: { 'content-type': 'application/json' }, body: payload }
+		);
+		return {
+			status: response.status,
+			functionError: response.headers.get('x-amz-function-error') ?? undefined,
+			payload: await response.text()
+		};
+	}
 
 	const named = (sources: readonly Node[], service: Service) =>
 		sources.map(awsResourceOf).find((resource) => resource?.service === service)?.resourceName;
@@ -108,7 +123,6 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { getGraphState, nodeConfig, nodeTestEvent } from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { invokeFunction } from '$lib/aws-region';
 	import { messageOf } from '$lib/errors';
 	import type { Config } from './index';
 
