@@ -504,6 +504,14 @@
 			"type": "string",
 			"minLength": 1
 		},
+		"instructions": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"minLength": 1
+			}
+		},
 		"startingCanvas": {
 			"type": "object",
 			"properties": {

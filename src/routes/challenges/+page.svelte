@@ -65,7 +65,7 @@
 					{title}
 					{goals}
 					{best}
-					description={entry.description}
+					description={entry.document.description}
 					stack={entry.stack}
 					action={started ? 'Continue' : 'Start'}
 					onstart={async () => (started ? openProject(started.id) : start(entry))}

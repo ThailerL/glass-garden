@@ -2,7 +2,12 @@
 	"$schema": "./schema.json",
 	"format": "gg:challenge/1",
 	"title": "Your first challenge",
-	"description": "Every challenge works the same way: get the canvas ready, press Run, and the goals score what happens while a script drives the traffic. This one tells you exactly what to do. Nothing is sending Web App any traffic yet, and its code fails on every request it gets.",
+	"description": "Nothing is sending the app traffic, and its code fails on every request. Wire it up, fix one line, and watch a run score itself.",
+	"instructions": [
+		"Every challenge works the same way: get the canvas ready, press Run, and the goals score what happens while a script drives the traffic. This one walks you through it.",
+		"Drag a connection from Traffic to Web App, then press Run. Every request will fail, and that is the bug you are here to fix.",
+		"Once the run starts, select Web App and open its Logs tab to see the error. Fix the line it names, then run again."
+	],
 	"length": 30,
 	"events": [
 		{

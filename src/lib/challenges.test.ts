@@ -54,7 +54,7 @@ describe('the challenges the app ships', () => {
 
 describe('readChallengeFolder', () => {
 	const index = (...files: string[]) =>
-		JSON.stringify(files.map((file) => ({ file, description: 'A challenge', stack: 'One node' })));
+		JSON.stringify(files.map((file) => ({ file, stack: 'One node' })));
 
 	it('keeps the challenges it could read and names the file it could not', async () => {
 		const good = await readFile(`${FOLDER}/first-challenge.json`, 'utf8');

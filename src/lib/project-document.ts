@@ -59,7 +59,10 @@ const challengeDocumentSchema = challengeSchema
 		// the format tag instead
 		$schema: z.string().optional(),
 		title: z.string().min(1),
+		// What the card says to someone who has not opened it; instructions stand in the panel
+		// of the open challenge, where the reader is doing the work
 		description: z.string().min(1).optional(),
+		instructions: z.array(z.string().min(1)).min(1).optional(),
 		startingCanvas: canvasDocumentSchema
 	})
 	// The document holds the canvas its goals and events talk about, so every reference into it

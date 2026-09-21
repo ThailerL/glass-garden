@@ -89,7 +89,9 @@
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlayIcon from '@lucide/svelte/icons/play';
 	import SquareIcon from '@lucide/svelte/icons/square';
 	import SlidersIcon from '@lucide/svelte/icons/sliders-horizontal';
@@ -115,6 +117,8 @@
 	// The record, for its name and best run; the run carries the challenge as it plays
 	const project = getProject(graphState.projectId);
 	const challenge = untrack(() => run.challenge);
+	// The author's standing words to the reader, which the card's description never repeats
+	const instructions = project?.challenge?.instructions;
 
 	const rows = timelineRows(challenge);
 	const ordered = goalsInOrder(challenge);
@@ -239,8 +243,19 @@
 	{/if}
 {/snippet}
 
+{#snippet prose(className: string)}
+	<div class={className}>
+		{#each instructions ?? [] as paragraph, i (i)}
+			<p>{paragraph}</p>
+		{/each}
+	</div>
+{/snippet}
+
 {#snippet timeline()}
 	<Sidebar.Content class="gap-3 px-3 pb-3 text-sm">
+		{#if instructions}
+			{@render prose('flex flex-col gap-2 leading-relaxed text-muted-foreground')}
+		{/if}
 		<!-- One grid, so the time column is as wide as its longest span on every row -->
 		<ol class="grid grid-cols-[max-content_1.25rem_minmax(0,1fr)] gap-x-2 gap-y-2.5">
 			{#each rows as row, i (i)}
@@ -293,6 +308,22 @@
 		</div>
 		{@render bar()}
 		{@render marks()}
+		<!-- The canvas is what a phone has least of, so the words fold away rather than go missing -->
+		{#if instructions}
+			<Collapsible.Root class="group/instructions">
+				<Collapsible.Trigger
+					class="flex items-center text-xs text-muted-foreground hover:text-foreground"
+				>
+					<ChevronRightIcon
+						class="mr-1 size-3.5 transition-transform group-data-[state=open]/instructions:rotate-90"
+					/>
+					What to do
+				</Collapsible.Trigger>
+				<Collapsible.Content>
+					{@render prose('flex flex-col gap-2 pt-1 text-xs leading-relaxed text-muted-foreground')}
+				</Collapsible.Content>
+			</Collapsible.Root>
+		{/if}
 	</section>
 {:else}
 	<!-- Selecting a node swaps only what is under the header, so Run and the marks never move -->

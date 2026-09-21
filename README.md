@@ -82,6 +82,10 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 	"format": "gg:challenge/1",
 	"title": "Survive a lost app",
 	"description": "One of two apps goes down for 25 seconds. Keep answering.",
+	"instructions": [
+		"Put a load balancer in front of the two apps and connect the traffic to it.",
+		"Press Run. App A goes down partway through, and the run is scored on what the traffic sees while it is gone."
+	],
 	"length": 55,
 	"events": [
 		{ "at": 10, "stop": { "name": "App A" } },
@@ -121,6 +125,8 @@ A `metric` condition holds any metric a node records within `lte`, `gte`, or bot
 Each goal sits under a key of your choosing, which is the name a run is scored by and the name an embedding page is told, so keep it short and leave it alone once anyone is reading it. Avoid keys that are plain whole numbers, such as `"1"`, since a JSON object puts those first in numeric order however you wrote them.
 
 `length` is how long the run lasts, up to 900 seconds. A `hint` is offered once a scored run has failed its goal, and shown only when the reader asks for it.
+
+`description` is the card on the Challenges page, read by someone deciding whether to start. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there.
 
 Every name a goal or event mentions is checked as the file is read, so a challenge nobody could win is refused rather than failing halfway through a run. The import button on the **Projects** group takes a challenge file as well as a project, and what it imports appears under **Imported** on the Challenges page. To ship your own with a self-hosted build, see [Your own built-in challenges](#your-own-built-in-challenges).
 
@@ -183,13 +189,12 @@ The folder holds one `.json` file per challenge and an `index.json` listing them
 [
 	{
 		"file": "first-challenge.json",
-		"description": "Nothing is sending the app traffic, and its code fails on every request. Wire it up, fix one line, and watch a run score itself.",
 		"stack": "Request generator, instance group"
 	}
 ]
 ```
 
-`description` and `stack` are what the card says before anyone has opened the challenge. Everything else comes out of the challenge itself. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
+`stack` is the resources the challenge involves, which the card says before anyone has opened it. It sits here rather than in the document because a challenge may ask for a node the reader has to add. Everything else on the card comes out of the challenge itself. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
 
 Keep `schema.json` in the folder and the `"$schema": "./schema.json"` line at the top of each challenge, and an editor will check the file as you type it. A file that will not parse is named on the catalogue page with what was wrong, and the rest of the folder still loads.
 

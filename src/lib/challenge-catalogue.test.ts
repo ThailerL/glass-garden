@@ -18,7 +18,6 @@ const folder: ChallengeFolder = {
 	challenges: [
 		{
 			id: 'spike',
-			description: 'A spike',
 			stack: 'One node',
 			document: { title: 'Keep up', goals: { one: {}, two: {} } } as never
 		}
