@@ -23,21 +23,24 @@
 		{ "node": { "name": "Signup Balancer" } },
 		{ "node": { "name": "Accounts" } }
 	],
-	"goals": {
-		"queued": {
+	"goals": [
+		{
+			"id": "queued",
 			"title": "Put a queue and a function behind the API",
 			"conditions": [
 				{ "edge": { "from": { "name": "Signup API" }, "to": { "type": "sqsQueue" } } },
 				{ "edge": { "from": { "type": "sqsQueue" }, "to": { "type": "lambdaFunction" } } }
 			]
 		},
-		"stored": {
+		{
+			"id": "stored",
 			"title": "Store the hashed password from the function",
 			"conditions": [
 				{ "edge": { "from": { "type": "lambdaFunction" }, "to": { "type": "dynamodbTable" } } }
 			]
 		},
-		"served": {
+		{
+			"id": "served",
 			"title": "At least 15 signups are answered every 5 seconds",
 			"conditions": [
 				{
@@ -53,7 +56,8 @@
 				}
 			]
 		},
-		"fast": {
+		{
+			"id": "fast",
 			"title": "Signups are answered in under 100 ms on average",
 			"hint": "More instances share the signups out between them, so the traffic keeps being answered. They do not make one signup any faster, which is what this goal asks for.",
 			"conditions": [
@@ -68,7 +72,8 @@
 				}
 			]
 		},
-		"drained": {
+		{
+			"id": "drained",
 			"title": "Leave the queue drained at the end",
 			"hint": "The queue's gauge is its backlog. If it climbs instead of staying flat, whatever is reading the queue is not keeping up or is failing part way, and that node's Logs tab says which.",
 			"conditions": [
@@ -83,7 +88,7 @@
 				}
 			]
 		}
-	},
+	],
 	"startingCanvas": {
 		"format": "gg:project/1",
 		"nodes": [

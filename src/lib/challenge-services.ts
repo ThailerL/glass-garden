@@ -1,10 +1,10 @@
 import { nodeAuthored, nodeConfig, type GraphState } from './graph-state.svelte';
 import type { Orchestrator } from './orchestrator.svelte';
 import type { RunServices } from './challenge-run.svelte';
-import { goalIds, type Challenge } from './challenge';
+import type { Challenge } from './challenge';
 import { getResourceDefinition, readOf } from './resources';
 import { recordRun } from './projects.svelte';
-import { tellHost } from './embed';
+import { hostGoals, tellHost } from './embed';
 
 // A script's events are the same operations as the node's own buttons and Save config
 export function runServices(
@@ -13,7 +13,7 @@ export function runServices(
 	graph: GraphState,
 	orchestrator: Orchestrator
 ): RunServices {
-	const allGoals = goalIds(challenge);
+	const goals = hostGoals(challenge);
 	return {
 		canvas: () => ({
 			nodes: graph.nodes.map((node) => ({
@@ -53,8 +53,8 @@ export function runServices(
 			return offered.read(node, offered.args.parse(args));
 		},
 		finished: ({ met, failed }) => {
-			tellHost({ event: 'run', scored: true, met, failed });
-			if (recordRun(projectId, met)) tellHost({ event: 'best', met, all: allGoals });
+			tellHost({ event: 'run', scored: true, met, failed, goals });
+			if (recordRun(projectId, met)) tellHost({ event: 'best', met, goals });
 		},
 		unscored: (end) => {
 			// The reader stopping their own run is their business, not the page's

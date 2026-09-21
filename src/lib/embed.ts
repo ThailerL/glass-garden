@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/public';
+import type { Challenge } from './challenge';
 import { parseDocument } from './project-document';
 import { deleteProject, importProject, listEmbedded, setLastProjectId } from './projects.svelte';
 import { decodeShareLink } from './share-link';
@@ -24,12 +25,25 @@ export function leaveForMainApp(): boolean {
 // Versioned and documented in the README, since a host page's own code reads these
 export const EMBED_FORMAT = 'gg:embed/1';
 
+// The id for identity and the title for display, in the order the challenge lists them
+export type HostGoal = { id: string; title: string };
+
 export type HostMessage =
-	// 'best' carries every goal as well, so a page can show progress without knowing the challenge
-	| { event: 'best'; met: readonly string[]; all: readonly string[] }
-	| { event: 'run'; scored: true; met: readonly string[]; failed: readonly string[] }
+	// Every goal rides along, so a page can draw the checklist without knowing the challenge
+	| { event: 'best'; met: readonly string[]; goals: readonly HostGoal[] }
+	| {
+			event: 'run';
+			scored: true;
+			met: readonly string[];
+			failed: readonly string[];
+			goals: readonly HostGoal[];
+	  }
 	// The node is named because every way a run fails to get going is one node's doing
 	| { event: 'run'; scored: false; reason: 'did-not-start' | 'not-cleared'; nodeName: string };
+
+export function hostGoals(challenge: Challenge): HostGoal[] {
+	return challenge.goals.map(({ id, title }) => ({ id, title }));
+}
 
 // Nothing in a message is private, so a host that sent no referrer still hears it
 export function tellHost(message: HostMessage) {

@@ -94,8 +94,9 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 		{ "at": 35, "text": "App A comes back", "start": { "name": "App A" } }
 	],
 	"fixed": [{ "node": { "name": "Traffic" } }],
-	"goals": {
-		"outage": {
+	"goals": [
+		{
+			"id": "outage",
 			"title": "Fewer than 1 in 20 requests fail while App A is down",
 			"hint": "The balancer needs somewhere else to send requests.",
 			"conditions": [
@@ -111,7 +112,7 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 				}
 			]
 		}
-	},
+	],
 	"startingCanvas": { "format": "gg:project/1", "nodes": […], "edges": […], "nodeFiles": {} }
 }
 ```
@@ -120,17 +121,17 @@ Goals and events refer to a node by its name, which matches exactly one. Writing
 
 An event starts a node, stops it, or sets its settings, `at` so many seconds after everything reports running. Give it `text` and the timeline shows your sentence rather than a setting's name. `fixed` is the settings the challenge owns rather than the reader. Naming a node holds all of them, and `include` or `exclude` holds or releases only the ones you list. A setting some goal compares stays the reader's either way, since comparing it is how a challenge asks for it to be changed.
 
-A goal is met when all of its conditions hold. Its `title` is read beside the seconds it is judged over, so word it as what has to be true then rather than as an instruction to the reader. A `node` condition wants one matching node to exist, and takes `config` comparisons such as `{ "maxConcurrency": { "gte": 2 } }`, each reading `eq`, `gte`, `lte`, or a mix. An `edge` condition wants one edge between a matching pair, `from` one node `to` another.
+A goal is met when all of its conditions hold. Its `title` is read beside the seconds it is judged over, so word it as what has to be true then rather than as an instruction to the reader. A `node` condition wants one matching node to exist, and takes `config` comparisons beside it, as in `{ "node": { "name": "App A" }, "config": { "maxConcurrency": { "gte": 2 } } }`, each reading `eq`, `gte`, `lte`, or a mix. An `edge` condition wants one edge between a matching pair, `from` one node `to` another.
 
 A `metric` condition holds any metric a node records within `lte`, `gte`, or both, read by `Average`, `SampleCount`, `Sum`, `Minimum`, or `Maximum`, the same statistics the metrics tab offers, and it has to hold at every matching node that recorded anything rather than at one of them. Open that tab to see what a node records, whether that is a queue's messages, a function's concurrent executions, or whatever your own code reports. `dimensions` picks one series out of several published under the same name. `from` and `to` are the seconds of the run it is judged over, defaulting to the start and the end. `over` is what the bound is judged over, `"whole window"` unless you say otherwise, which folds the window into one number. `"every datapoint"` needs the bound to hold at every second in the window and fails at the one that breaks it, and `"any datapoint"` is met as soon as one second satisfies it. `period` folds that many seconds into each of those readings. It needs one of the datapoint reads, and has to divide the seconds between `from` and `to`. A stretch the node recorded nothing in is skipped rather than counted as zero.
 
-A `data` condition asks what a resource holds, through one of the reads that kind of resource offers: a Table (DynamoDB) offers `item`, which takes the key of one item as its `args`. `where` compares what the read found, attribute by attribute, each one reading `eq`, `gte`, `lte`, or a mix, and a condition comparing nothing at all asks only that there is something there. Only an attribute holding a string, a number, or a boolean can be compared. The read is taken once, `at` that second of the run, or at its end where the goal says nothing, and the goal reads as still being judged until it answers. Every matching node has to satisfy it, and a `{ "type": … }` the reader never added fails, since there is nothing there to read. A read a resource does not offer, or arguments it cannot use, is refused as the file is read, and `schema.json` lists the names, so an editor offers them as you type.
+A `data` condition asks what a resource holds, through one of the reads that kind of resource offers: a Table (DynamoDB) offers `item`, which takes the key of one item as its `args`. `has` compares what the read found, attribute by attribute, each one reading `eq`, `gte`, `lte`, or a mix, and a condition comparing nothing at all asks only that there is something there. Only an attribute holding a string, a number, or a boolean can be compared. The read is taken once, `at` that second of the run, or at its end where the goal says nothing, and the goal reads as still being judged until it answers. Every matching node has to satisfy it, and a `{ "type": … }` the reader never added fails, since there is nothing there to read. A read a resource does not offer, or arguments it cannot use, is refused as the file is read, and `schema.json` lists the names, so an editor offers them as you type.
 
-Each goal sits under a key of your choosing, which is the name a run is scored by and the name an embedding page is told, so keep it short and leave it alone once anyone is reading it. Avoid keys that are plain whole numbers, such as `"1"`, since a JSON object puts those first in numeric order however you wrote them.
+Each goal has an `id` of your choosing, which is the name a run is scored by and the name an embedding page is told, so keep it short and leave it alone once anyone is reading it. No two goals can share one.
 
 `length` is how long the run lasts, up to 900 seconds. A `hint` is offered once a scored run has failed its goal, and shown only when the reader asks for it.
 
-`description` is the card on the Challenges page, read by someone deciding whether to start. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there.
+`description` is the card on the Challenges page, read by someone deciding whether to start. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there. A challenge needs both, since a goal's title never says what to do.
 
 Every name a goal or event mentions is checked as the file is read, so a challenge nobody could win is refused rather than failing halfway through a run. The import button on the **Projects** group takes a challenge file as well as a project, and what it imports appears under **Imported** on the Challenges page. To ship your own with a self-hosted build, see [Your own built-in challenges](#your-own-built-in-challenges).
 
@@ -142,16 +143,16 @@ window.addEventListener('message', (event) => {
 		return;
 	const message = event.data;
 	if (message.format !== 'gg:embed/1') return;
-	// { event: 'best', met: [...], all: [...] } is the goals the reader's best run met and every goal the challenge has, sent on load and whenever the best improves
-	// { event: 'run', scored: true, met: [...], failed: [...] } is every scored run
+	// { event: 'best', met: [...], goals: [{ id, title }, ...] } is the goals the reader's best run met and every goal the challenge has, sent on load and whenever the best improves
+	// { event: 'run', scored: true, met: [...], failed: [...], goals: [{ id, title }, ...] } is every scored run
 	// { event: 'run', scored: false, reason: 'did-not-start', nodeName: 'App A' } is a node that never started
 	// { event: 'run', scored: false, reason: 'not-cleared', nodeName: 'Accounts' } is a resource the run could not clear before it began
 });
 ```
 
-Every goal is named by the key it sits under in the challenge file, and `all` lists them in the order the file gives, so a page can draw the whole checklist from the first message without repeating the challenge in its own code. That first one is sent as the frame finishes loading and nothing can ask for it again, so add the listener before that happens rather than on your own page's load event, which fires after the frames in it. `reason` is a code rather than the wording the reader sees, so your page can say something of its own.
+`met` and `failed` name goals by the `id` each has in the challenge file, and `goals` lists every one with its `title` in the order the file gives, so a page can draw the whole checklist from the first message without repeating the challenge in its own code. Key what your page keeps by the `id`, since a title can be reworded. That first one is sent as the frame finishes loading and nothing can ask for it again, so add the listener before that happens rather than on your own page's load event, which fires after the frames in it. `reason` is a code rather than the wording the reader sees, so your page can say something of its own.
 
-Ignore an `event` or a `reason` you don't know, since new ones can arrive without `format` changing. A page that missed the first message still has the whole checklist after one run: every goal is in either `met` or `failed`.
+Ignore an `event` or a `reason` you don't know, since new ones can arrive without `format` changing. A page that missed the first message still has the whole checklist after one run, since a scored run carries `goals` as well.
 
 Anyone can send these from their browser's console, so use them to show progress and offer help, never to award anything.
 
@@ -197,6 +198,7 @@ The folder holds one `.json` file per challenge and an `index.json` listing them
 ```json
 [
 	{
+		"id": "first-challenge",
 		"file": "first-challenge.json",
 		"stack": "Request generator, instance group"
 	}
@@ -205,7 +207,7 @@ The folder holds one `.json` file per challenge and an `index.json` listing them
 
 `stack` is the resources the challenge involves, which the card says before anyone has opened it. It sits here rather than in the document because a challenge may ask for a node the reader has to add. Everything else on the card comes out of the challenge itself. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
 
-A challenge is known by its file name, which is what a reader's progress is stored against, so renaming a file makes it a challenge nobody has started and leaves the old record behind. Editing one in place is how a challenge changes: a reader keeps the goals they had met, apart from any the edit judges differently.
+A challenge is known by its `id`, which is what a reader's progress is stored against, so a file can be renamed freely, while changing an `id` makes it a challenge nobody has started and leaves the old record behind. Editing one in place is how a challenge changes: a reader keeps the goals they had met, apart from any the edit judges differently.
 
 Keep `schema.json` in the folder and the `"$schema": "./schema.json"` line at the top of each challenge, and an editor will check the file as you type it. A file that will not parse is named on the catalogue page with what was wrong, and the rest of the folder still loads.
 

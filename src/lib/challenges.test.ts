@@ -31,11 +31,11 @@ describe('the challenges the app ships', () => {
 		expect(unread).toEqual([]);
 		expect(challenges.length).toBeGreaterThan(0);
 		for (const challenge of challenges) {
-			expect(Object.keys(challenge.document.goals).length).toBeGreaterThan(0);
+			expect(challenge.document.goals.length).toBeGreaterThan(0);
 		}
 	});
 
-	it('names each one apart, since a started one is recorded by the file it came from', async () => {
+	it('names each one apart, since a started one is recorded by its id', async () => {
 		const { challenges } = await readChallengeFolder(serveFolder);
 		const ids = challenges.map((challenge) => challenge.id);
 		expect(new Set(ids).size).toBe(ids.length);
@@ -44,17 +44,17 @@ describe('the challenges the app ships', () => {
 	// A challenge nobody listed is one nobody can start, which is not something to discover in
 	// the catalogue
 	it('lists every challenge in the folder', async () => {
-		const { challenges } = await readChallengeFolder(serveFolder);
+		const listed: { file: string }[] = JSON.parse(await readFile(`${FOLDER}/index.json`, 'utf8'));
 		const files = (await readdir(FOLDER)).filter(
 			(file) => file.endsWith('.json') && file !== 'index.json' && file !== 'schema.json'
 		);
-		expect(files.sort()).toEqual(challenges.map((challenge) => `${challenge.id}.json`).sort());
+		expect(files.sort()).toEqual(listed.map((entry) => entry.file).sort());
 	});
 });
 
 describe('readChallengeFolder', () => {
 	const index = (...files: string[]) =>
-		JSON.stringify(files.map((file) => ({ file, stack: 'One node' })));
+		JSON.stringify(files.map((file, i) => ({ id: `c${i}`, file, stack: 'One node' })));
 
 	it('keeps the challenges it could read and names the file it could not', async () => {
 		const good = await readFile(`${FOLDER}/first-challenge.json`, 'utf8');
@@ -65,7 +65,8 @@ describe('readChallengeFolder', () => {
 				'broken.json': '{ not json'
 			})
 		);
-		expect(challenges.map((challenge) => challenge.id)).toEqual(['first-challenge']);
+		// By the id the index gives, so renaming the file keeps a reader's progress
+		expect(challenges.map((challenge) => challenge.id)).toEqual(['c0']);
 		expect(unread).toEqual([
 			{ file: 'broken.json', problem: 'That file is not a Glass Garden project' }
 		]);
@@ -81,5 +82,13 @@ describe('readChallengeFolder', () => {
 		expect(challenges).toEqual([]);
 		expect(unread[0].file).toBe('index.json');
 		expect(unread[0].problem).toContain('file');
+	});
+
+	it('refuses two entries sharing an id, which would share one reader’s progress', async () => {
+		const twice = JSON.stringify(
+			['a.json', 'b.json'].map((file) => ({ id: 'same', file, stack: 'One node' }))
+		);
+		const { unread } = await readChallengeFolder(serve({ 'index.json': twice }));
+		expect(unread[0].problem).toContain('Two challenges share the id "same"');
 	});
 });

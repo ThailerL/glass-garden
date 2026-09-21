@@ -10,12 +10,14 @@ const challenge = challengeSchema.parse({
 		{ at: 0, set: { node: { name: 'Traffic' }, config: { requestsPerSecond: 5 } } },
 		{ at: 6, start: { name: 'App' } }
 	],
-	goals: {
-		wired: {
+	goals: [
+		{
+			id: 'wired',
 			title: 'Wired',
 			conditions: [{ edge: { from: { name: 'Traffic' }, to: { name: 'App' } } }]
 		},
-		calm: {
+		{
+			id: 'calm',
 			title: 'Calm',
 			conditions: [
 				{
@@ -29,7 +31,7 @@ const challenge = challengeSchema.parse({
 				}
 			]
 		}
-	}
+	]
 });
 
 function fakeCanvas(clearFails = false) {

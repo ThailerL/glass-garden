@@ -20,12 +20,14 @@
 		}
 	],
 	"fixed": [{ "node": { "name": "Traffic" } }, { "node": { "name": "Web App" } }],
-	"goals": {
-		"wired": {
+	"goals": [
+		{
+			"id": "wired",
 			"title": "Traffic is connected to Web App",
 			"conditions": [{ "edge": { "from": { "name": "Traffic" }, "to": { "name": "Web App" } } }]
 		},
-		"answered": {
+		{
+			"id": "answered",
 			"title": "Web App answers every request without an error",
 			"hint": "The error in Web App's logs names the line in server.js that every request is dying on.",
 			"conditions": [
@@ -40,7 +42,7 @@
 				}
 			]
 		}
-	},
+	],
 	"startingCanvas": {
 		"format": "gg:project/1",
 		"nodes": [

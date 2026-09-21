@@ -4,13 +4,12 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import ResourceNameDialog from '$lib/components/ResourceNameDialog.svelte';
 	import { setGraphState } from '$lib/graph-state.svelte';
-	import { embedded, tellHost, whenInView } from '$lib/embed';
+	import { embedded, hostGoals, tellHost, whenInView } from '$lib/embed';
 	import { anyDraftsDirty } from '$lib/files';
 	import { offerSharedProject } from '$lib/share-link-offer';
 	import { tour } from '$lib/tour.svelte';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
 	import { getProject } from '$lib/projects.svelte';
-	import { goalIds } from '$lib/challenge';
 	import { ChallengeRun, setChallengeRun } from '$lib/challenge-run.svelte';
 	import { runServices } from '$lib/challenge-services';
 	import { onContainerBoot } from '$lib/container';
@@ -48,7 +47,7 @@
 	onDestroy(() => run?.dispose());
 	// Sent on load as well as after a run, so an embedding page keeps no score of its own
 	if (challenge) {
-		tellHost({ event: 'best', met: project?.bestRun ?? [], all: goalIds(challenge) });
+		tellHost({ event: 'best', met: project?.bestRun ?? [], goals: hostGoals(challenge) });
 	}
 
 	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a

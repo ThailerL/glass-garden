@@ -72,8 +72,8 @@ const challengeDocumentSchema = challengeSchema
 		title: z.string().min(1),
 		// What the card says to someone who has not opened it; instructions stand in the panel
 		// of the open challenge, where the reader is doing the work
-		description: z.string().min(1).optional(),
-		instructions: z.array(z.string().min(1)).min(1).optional(),
+		description: z.string().min(1),
+		instructions: z.array(z.string().min(1)).min(1),
 		startingCanvas: canvasDocumentSchema
 	})
 	// The document holds the canvas its goals and events talk about, so every reference into it
@@ -235,13 +235,10 @@ export function sameRunScript(before: ChallengeDocument, after: ChallengeDocumen
 	return script(before) === script(after);
 }
 
-// Keyed rather than listed, so the order goals are written in is not a change at all
+// Keyed by id, so the order goals are written in is not a change at all
 function judgedGoals(document: ChallengeDocument): Map<string, string> {
 	return new Map(
-		Object.entries(document.goals).map(([id, { title, hint, ...judged }]) => [
-			id,
-			JSON.stringify(judged)
-		])
+		document.goals.map(({ id, title, hint, ...judged }) => [id, JSON.stringify(judged)])
 	);
 }
 

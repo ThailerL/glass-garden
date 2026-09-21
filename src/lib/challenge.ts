@@ -80,7 +80,7 @@ export const dataCondition = z
 		// The second of the run it is read at; the run's end if omitted
 		at: z.number().min(0).optional(),
 		// Empty asks only that there is something there
-		where: z.record(z.string(), comparison).default({})
+		has: z.record(z.string(), comparison).default({})
 	})
 	// A named node is checked by the document instead, which has the canvas
 	.superRefine((c, ctx) => {
@@ -109,10 +109,8 @@ export function readProblem(type: string, c: DataCondition): string | undefined 
 // would leave a goal quietly meaning something other than what it says
 const condition = z.union([
 	z.strictObject({
-		node: z.strictObject({
-			ref: nodeRef,
-			config: z.record(z.string(), comparison).optional()
-		})
+		node: nodeRef,
+		config: z.record(z.string(), comparison).optional()
 	}),
 	z.strictObject({ edge: z.strictObject({ from: nodeRef, to: nodeRef }) }),
 	z.strictObject({ metric: metricCondition }),
@@ -123,16 +121,24 @@ export type ConditionInput = z.input<typeof condition>;
 
 // Every condition has to hold for the goal to be met
 const goal = z.strictObject({
+	// What a run is scored by and what an embedding page is told, so it outlives a reworded title
+	id: z.string().min(1),
 	title: z.string().min(1),
 	hint: z.string().min(1).optional(),
 	conditions: z.array(condition).min(1)
 });
 export type Goal = z.infer<typeof goal>;
 
-// Keyed rather than carrying an id, so no two goals can share one. The key is what a run is
-// scored by and what an embedding page is told, so it outlives a reworded title
-const goals = z.record(z.string().min(1), goal);
-export type Goals = z.infer<typeof goals>;
+const goals = z
+	.array(goal)
+	.min(1, { error: 'A challenge needs a goal' })
+	.superRefine((all, ctx) => {
+		const seen = new Set<string>();
+		for (const { id } of all) {
+			if (seen.has(id)) ctx.addIssue({ code: 'custom', message: `Two goals share the id "${id}"` });
+			seen.add(id);
+		}
+	});
 
 // Events act on the nodes they name the way those nodes' own buttons and settings would, and
 // name one node each: an event is the author acting on their own system, so it never reaches a
@@ -183,12 +189,12 @@ export const challengeSchema = z
 			}),
 		events: z.array(scriptEvent).default([]),
 		fixed: z.array(fixedNode).default([]),
-		goals: goals.refine((all) => Object.keys(all).length > 0, { error: 'A challenge needs a goal' })
+		goals
 	})
 	// What the run's length leaves room for, which no single value can say
 	.superRefine(({ length, events, goals }, ctx) => {
 		const problem = (message: string) => ctx.addIssue({ code: 'custom', message });
-		for (const goal of Object.values(goals)) {
+		for (const goal of goals) {
 			for (const condition of goal.conditions) {
 				// A moment rather than a stretch, so it is only ever past the run's end
 				if ('data' in condition) {
@@ -239,10 +245,10 @@ export type ChallengeRef = {
 };
 
 export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
-	for (const goal of Object.values(challenge.goals)) {
+	for (const goal of challenge.goals) {
 		const where = `The goal "${goal.title}"`;
 		for (const c of goal.conditions) {
-			if ('node' in c) yield { where, ref: c.node.ref, config: c.node.config };
+			if ('node' in c) yield { where, ref: c.node, config: c.config };
 			else if ('edge' in c) yield* [c.edge.from, c.edge.to].map((ref) => ({ where, ref }));
 			else if ('data' in c) yield { where, ref: c.data.node, data: c.data };
 			else yield { where, ref: c.metric.node };
@@ -305,7 +311,7 @@ export function comparedSettings(challenge: Challenge): Map<string, Set<string>>
 
 // One owner for the denominator an embedding page is told
 export function goalIds(challenge: Challenge): string[] {
-	return Object.keys(challenge.goals);
+	return challenge.goals.map((goal) => goal.id);
 }
 
 // The one node an event acts on, whichever kind it is
@@ -341,7 +347,7 @@ export type RunRecord = {
 };
 
 export function dataConditions(challenge: Challenge): DataCondition[] {
-	return Object.values(challenge.goals).flatMap((goal) =>
+	return challenge.goals.flatMap((goal) =>
 		goal.conditions.flatMap((c) => ('data' in c ? [c.data] : []))
 	);
 }
@@ -400,8 +406,8 @@ export function windowsOf(goal: Goal, length: number) {
 function judgeCondition(c: Condition, run: RunRecord, t: number): GoalState {
 	const { canvas } = run;
 	if ('node' in c) {
-		const ok = matches(canvas, c.node.ref).some(({ config }) =>
-			Object.entries(c.node.config ?? {}).every(([k, want]) => compare(config[k], want))
+		const ok = matches(canvas, c.node).some(({ config }) =>
+			Object.entries(c.config ?? {}).every(([k, want]) => compare(config[k], want))
 		);
 		return ok ? 'met' : 'failed';
 	}
@@ -420,7 +426,7 @@ function judgeData(c: DataCondition, run: RunRecord, t: number): GoalState {
 	const nodes = matches(run.canvas, c.node);
 	// Nothing to read, which no comparison can be true of
 	if (nodes.length === 0) return 'failed';
-	const wanted = Object.entries(c.where);
+	const wanted = Object.entries(c.has);
 	let state: GoalState = 'met';
 	for (const node of nodes) {
 		const reading = run.readings(node.id, c);
@@ -500,9 +506,9 @@ const PRECEDENCE: readonly GoalState[] = ['failed', 'judging', 'waiting'];
 // Live as well as final
 export function judge(challenge: Challenge, run: RunRecord, t: number): Record<string, GoalState> {
 	const states: Record<string, GoalState> = {};
-	for (const [id, goal] of Object.entries(challenge.goals)) {
+	for (const goal of challenge.goals) {
 		const parts = goal.conditions.map((c) => judgeCondition(c, run, t));
-		states[id] = PRECEDENCE.find((s) => parts.includes(s)) ?? 'met';
+		states[goal.id] = PRECEDENCE.find((s) => parts.includes(s)) ?? 'met';
 	}
 	return states;
 }

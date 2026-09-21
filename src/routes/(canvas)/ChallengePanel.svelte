@@ -19,14 +19,13 @@
 	}
 
 	export type Row = { at: number; time: string } & (
-		| { event: ScriptEvent; goal?: undefined; id?: undefined }
-		| { goal: Goal; id: string; event?: undefined }
+		{ event: ScriptEvent; goal?: undefined } | { goal: Goal; event?: undefined }
 	);
 
 	// In the order they are judged, which is also the order the marks strip shows them, so the
 	// two views of one set of goals never disagree
-	export function goalsInOrder({ goals, length }: Challenge): [string, Goal][] {
-		return Object.entries(goals).sort(([, a], [, b]) => startOf(a, length) - startOf(b, length));
+	export function goalsInOrder({ goals, length }: Challenge): Goal[] {
+		return goals.toSorted((a, b) => startOf(a, length) - startOf(b, length));
 	}
 
 	const startOf = (goal: Goal, length: number) => {
@@ -42,7 +41,7 @@
 			time: `${event.at} s`,
 			event
 		}));
-		const goalRows: Row[] = goalsInOrder(challenge).map(([id, goal]) => {
+		const goalRows: Row[] = goalsInOrder(challenge).map((goal) => {
 			const { atStart, judged } = windowsOf(goal, length);
 			const spans = judged.map(([from, to]) => {
 				// A read is taken at a moment, where the two ends of its window meet
@@ -53,8 +52,7 @@
 				at: startOf(goal, length),
 				// Not "0 s", which on an event row means something that happens then
 				time: (atStart ? ['At start', ...spans] : spans).join(', '),
-				goal,
-				id
+				goal
 			};
 		});
 		// Sorting is stable and the events went in first, so they keep their place within a second
@@ -66,7 +64,7 @@
 	// Every stretch any goal is judged over, once each, shaded on the bar. A moment shades
 	// nothing, since a zero-width band would be a line the bar already has for events
 	export function shadedSpans({ goals, length }: Challenge): [number, number][] {
-		const spans = Object.values(goals)
+		const spans = goals
 			.flatMap((goal) => windowsOf(goal, length).judged)
 			.filter(([from, to]) => from !== to);
 		return [...new Map(spans.map((span) => [`${span[0]}-${span[1]}`, span])).values()];
@@ -218,15 +216,15 @@
 	</div>
 {/snippet}
 
-{#snippet hint(id: string, goal: Goal)}
-	{#if shownHints.has(id)}
+{#snippet hint(goal: Goal)}
+	{#if shownHints.has(goal.id)}
 		<p class="mt-1 text-xs leading-relaxed">{goal.hint}</p>
 	{:else}
 		<Button
 			variant="link"
 			size="xs"
 			class="mt-0.5 self-start px-0 text-muted-foreground hover:text-foreground hover:underline"
-			onclick={() => shownHints.add(id)}
+			onclick={() => shownHints.add(goal.id)}
 		>
 			Show hint
 		</Button>
@@ -246,9 +244,9 @@
 
 {#snippet marks()}
 	<ul class="flex gap-1.5" aria-label="Goals">
-		{#each ordered as [id, goal] (id)}
-			{@const line = note(id)}
-			<li>{@render mark(id, line ? `${goal.title}: ${line}` : goal.title)}</li>
+		{#each ordered as goal (goal.id)}
+			{@const line = note(goal.id)}
+			<li>{@render mark(goal.id, line ? `${goal.title}: ${line}` : goal.title)}</li>
 		{/each}
 	</ul>
 {/snippet}
@@ -284,9 +282,9 @@
 				>
 					<span class="pt-0.5 text-xs text-muted-foreground tabular-nums">{row.time}</span>
 					{#if row.goal}
-						{@const state = run.goals[row.id]}
-						{@const line = note(row.id)}
-						{@render mark(row.id, undefined)}
+						{@const state = run.goals[row.goal.id]}
+						{@const line = note(row.goal.id)}
+						{@render mark(row.goal.id, undefined)}
 						<div class="flex flex-col">
 							<span class="leading-snug font-medium">{row.goal.title}</span>
 							{#if line}
@@ -296,7 +294,7 @@
 								>
 							{/if}
 							{#if offersHint(row.goal, state, run.phase)}
-								{@render hint(row.id, row.goal)}
+								{@render hint(row.goal)}
 							{/if}
 						</div>
 					{:else}

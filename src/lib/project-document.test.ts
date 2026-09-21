@@ -120,15 +120,18 @@ describe('buildProjectDocument', () => {
 const challengeDocument = () => ({
 	format: CHALLENGE_FORMAT,
 	title: 'Survive a lost app',
+	description: 'One of two apps stops partway through',
+	instructions: ['Keep requests answered while B is down.'],
 	length: 30,
 	events: [{ at: 5, stop: { name: 'B' } }] as unknown[],
 	fixed: [] as unknown[],
-	goals: {
-		g: {
+	goals: [
+		{
+			id: 'g',
 			title: 'Wired',
 			conditions: [{ edge: { from: { name: 'A' }, to: { name: 'B' } } }] as unknown[]
 		}
-	} as Record<string, { title: string; conditions: unknown[] }>,
+	],
 	startingCanvas: document()
 });
 
@@ -152,21 +155,20 @@ describe('sameRunScript', () => {
 
 describe('goalsJudgedAlike', () => {
 	it('keeps a goal through a rewording, and drops one whose judging moved', () => {
-		const goal = challengeDocument().goals.g;
+		const [goal] = challengeDocument().goals;
 		const reworded = changed({
-			goals: {
-				g: { ...goal, title: 'Wired up', hint: 'Drag the handle' },
-				scaled: { title: 'Scaled', conditions: [{ node: { ref: { type: 'test' } } }] }
-			}
+			goals: [
+				{ id: 'scaled', title: 'Scaled', conditions: [{ node: { type: 'test' } }] },
+				{ ...goal, title: 'Wired up', hint: 'Drag the handle' }
+			]
 		});
 		expect([...goalsJudgedAlike(shipped, reworded)]).toEqual(['g']);
 
-		const rescored = changed({
-			goals: { g: { ...goal, conditions: [{ node: { ref: { name: 'B' } } }] } }
-		});
+		const rescored = changed({ goals: [{ ...goal, conditions: [{ node: { name: 'B' } }] }] });
 		expect([...goalsJudgedAlike(shipped, rescored)]).toEqual([]);
-		// A renamed key is a goal gone as far as a run scored by the old one is concerned
-		expect([...goalsJudgedAlike(shipped, changed({ goals: { renamed: goal } }))]).toEqual([]);
+		// A changed id is a goal gone as far as a run scored by the old one is concerned
+		const renamed = changed({ goals: [{ ...goal, id: 'renamed' }] });
+		expect([...goalsJudgedAlike(shipped, renamed)]).toEqual([]);
 	});
 });
 
@@ -198,7 +200,7 @@ describe('parseDocument', () => {
 	// A goal whose only condition wires A to whatever is given
 	const wiredTo = (to: unknown) => {
 		const doc = challengeDocument();
-		doc.goals.g.conditions = [{ edge: { from: { name: 'A' }, to } }];
+		doc.goals[0].conditions = [{ edge: { from: { name: 'A' }, to } }];
 		return doc;
 	};
 
@@ -227,7 +229,7 @@ describe('parseDocument', () => {
 	it('rejects a goal comparing a setting the node could never satisfy', () => {
 		const compares = (config: Record<string, unknown>) => {
 			const doc = challengeDocument();
-			doc.goals.g.conditions = [{ node: { ref: { name: 'A' }, config } }];
+			doc.goals[0].conditions = [{ node: { name: 'A' }, config }];
 			return () => parseDocument(JSON.stringify(doc));
 		};
 		expect(compares({ count: { gte: 2 } })().format).toBe(CHALLENGE_FORMAT);
@@ -238,7 +240,7 @@ describe('parseDocument', () => {
 		expect(compares({ name: { gte: 2 } })).toThrow('with gte or lte, but it is not a number');
 		// A type's settings are the reader's
 		const byType = challengeDocument();
-		byType.goals.g.conditions = [{ node: { ref: { type: 'test' }, config: { nope: { gte: 2 } } } }];
+		byType.goals[0].conditions = [{ node: { type: 'test' }, config: { nope: { gte: 2 } } }];
 		expect(parseDocument(JSON.stringify(byType)).format).toBe(CHALLENGE_FORMAT);
 	});
 
@@ -258,7 +260,7 @@ describe('parseDocument', () => {
 	const withFixed = (entry: Record<string, unknown>, goalConfig?: Record<string, unknown>) => {
 		const doc = challengeDocument();
 		doc.fixed = [entry];
-		if (goalConfig) doc.goals.g.conditions = [{ node: { ref: { name: 'A' }, config: goalConfig } }];
+		if (goalConfig) doc.goals[0].conditions = [{ node: { name: 'A' }, config: goalConfig }];
 		return parseDocument(JSON.stringify(doc));
 	};
 	const onA = (rest: Record<string, unknown> = {}) => ({ node: { name: 'A' }, ...rest });
@@ -288,7 +290,7 @@ describe('parseDocument', () => {
 	});
 
 	it('rejects a challenge with no goals or no canvas', () => {
-		const noGoals = { ...challengeDocument(), goals: {} };
+		const noGoals = { ...challengeDocument(), goals: [] };
 		const { startingCanvas: _canvas, ...noCanvas } = challengeDocument();
 		expect(() => parseDocument(JSON.stringify(noGoals))).toThrow();
 		expect(() => parseDocument(JSON.stringify(noCanvas))).toThrow();

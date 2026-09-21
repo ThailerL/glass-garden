@@ -14,12 +14,24 @@ export type BuiltInChallenge = {
 
 // The folder's own file: the catalogue's order, and the words a document has no place for.
 // A challenge's description is its own, so the card reads the same one wherever it came from
-const indexSchema = z.array(
-	z.strictObject({
-		file: z.string().min(1),
-		stack: z.string().min(1)
-	})
-);
+const indexSchema = z
+	.array(
+		z.strictObject({
+			// What a reader's progress is stored against, so a renamed file keeps it
+			id: z.string().min(1),
+			file: z.string().min(1),
+			stack: z.string().min(1)
+		})
+	)
+	.superRefine((entries, ctx) => {
+		const seen = new Set<string>();
+		for (const { id } of entries) {
+			if (seen.has(id)) {
+				ctx.addIssue({ code: 'custom', message: `Two challenges share the id "${id}"` });
+			}
+			seen.add(id);
+		}
+	});
 
 export type UnreadChallenge = { file: string; problem: string };
 
@@ -40,14 +52,14 @@ const problemOf = (error: unknown) =>
 
 async function readChallenge(
 	fetch: typeof globalThis.fetch,
-	{ file, stack }: z.infer<typeof indexSchema>[number]
+	{ id, file, stack }: z.infer<typeof indexSchema>[number]
 ): Promise<BuiltInChallenge | UnreadChallenge> {
 	try {
 		const document = parseDocument(await readFile(fetch, file));
 		if (document.format !== CHALLENGE_FORMAT) {
 			throw new Error('That file holds a project rather than a challenge');
 		}
-		return { id: file.replace(/\.json$/, ''), stack, document };
+		return { id, stack, document };
 	} catch (error) {
 		return { file, problem: problemOf(error) };
 	}

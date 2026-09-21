@@ -20,7 +20,10 @@ const shipped = {
 	length: 10,
 	events: [],
 	fixed: [],
-	goals: { one: { title: 'One', conditions: [] }, two: { title: 'Two', conditions: [] } },
+	goals: [
+		{ id: 'one', title: 'One', conditions: [] },
+		{ id: 'two', title: 'Two', conditions: [] }
+	],
 	startingCanvas: { format: 'gg:project/1', nodes: [], edges: [], nodeFiles: {} }
 } as never;
 
@@ -122,10 +125,10 @@ describe('challengeCatalogue', () => {
 		// Met under a rule this version no longer judges by, so the record cannot keep it
 		started!.challenge = {
 			...(shipped as object),
-			goals: {
-				one: { title: 'One', conditions: [] },
-				two: { title: 'Two', conditions: ['harder'] }
-			}
+			goals: [
+				{ id: 'one', title: 'One', conditions: [] },
+				{ id: 'two', title: 'Two', conditions: ['harder'] }
+			]
 		} as never;
 
 		loadCatalogue();
