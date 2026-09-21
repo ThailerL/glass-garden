@@ -1,0 +1,136 @@
+{
+	"$schema": "./schema.json",
+	"format": "gg:challenge/1",
+	"title": "Signups grind to a halt",
+	"description": "The signup API hashes every password and stores it while the caller waits. Keep signups answering when the traffic climbs.",
+	"instructions": [
+		"Signup API hashes every signup and writes it to the table before it answers. Signup Balancer spreads the traffic over however many instances it is set to run.",
+		"Put a queue and a function behind it, so the API hands the signup over and answers while the function does the hashing and the write. Connect the table to the function rather than to the API."
+	],
+	"length": 45,
+	"events": [
+		{
+			"at": 5,
+			"text": "Signups climb to four a second",
+			"set": {
+				"node": { "name": "Signup Traffic" },
+				"config": { "requestsPerSecond": 4 }
+			}
+		}
+	],
+	"fixed": [
+		{ "node": { "name": "Signup Traffic" } },
+		{ "node": { "name": "Signup Balancer" } },
+		{ "node": { "name": "Accounts" } }
+	],
+	"goals": {
+		"queued": {
+			"title": "Put a queue and a function behind the API",
+			"conditions": [
+				{ "edge": { "from": { "name": "Signup API" }, "to": { "type": "sqsQueue" } } },
+				{ "edge": { "from": { "type": "sqsQueue" }, "to": { "type": "lambdaFunction" } } }
+			]
+		},
+		"stored": {
+			"title": "Store the hashed password from the function",
+			"conditions": [
+				{ "edge": { "from": { "type": "lambdaFunction" }, "to": { "type": "dynamodbTable" } } }
+			]
+		},
+		"served": {
+			"title": "At least 15 signups every 5 seconds",
+			"conditions": [
+				{
+					"metric": {
+						"node": { "name": "Signup Traffic" },
+						"name": "requests",
+						"statistic": "Sum",
+						"read": "every datapoint",
+						"period": 5,
+						"from": 10,
+						"gte": 15
+					}
+				}
+			]
+		},
+		"fast": {
+			"title": "Signups are answered in under 100 ms on average",
+			"hint": "More instances share the signups out between them, so the traffic keeps being answered. They do not make one signup any faster, which is what this goal asks for.",
+			"conditions": [
+				{
+					"metric": {
+						"node": { "name": "Signup Traffic" },
+						"name": "response time",
+						"statistic": "Average",
+						"from": 10,
+						"lte": 100
+					}
+				}
+			]
+		},
+		"drained": {
+			"title": "Leave the queue drained at the end",
+			"hint": "The queue's gauge is its backlog. If it climbs instead of staying flat, whatever is reading the queue is not keeping up or is failing part way, and that node's Logs tab says which.",
+			"conditions": [
+				{
+					"metric": {
+						"node": { "type": "sqsQueue" },
+						"name": "messages",
+						"statistic": "Average",
+						"from": 37,
+						"lte": 20
+					}
+				}
+			]
+		}
+	},
+	"startingCanvas": {
+		"format": "gg:project/1",
+		"nodes": [
+			{
+				"id": "gen",
+				"type": "requestGenerator",
+				"position": { "x": -420, "y": 0 },
+				"config": {
+					"name": "Signup Traffic",
+					"method": "POST",
+					"path": "/signup",
+					"body": "{\"email\":\"someone@example.com\",\"password\":\"hunter2\"}",
+					"requestsPerSecond": 1
+				},
+				"chart": "response time"
+			},
+			{
+				"id": "balancer",
+				"type": "httpLoadBalancer",
+				"position": { "x": -140, "y": 0 },
+				"config": { "name": "Signup Balancer" }
+			},
+			{
+				"id": "api",
+				"type": "instanceGroup",
+				"position": { "x": 140, "y": 0 },
+				"config": { "name": "Signup API", "instanceCount": 1 },
+				"chart": "signups"
+			},
+			{
+				"id": "accounts",
+				"type": "dynamodbTable",
+				"position": { "x": 420, "y": 0 },
+				"config": { "name": "Accounts", "tableName": "accounts", "partitionKey": "email" },
+				"chart": "items"
+			}
+		],
+		"edges": [
+			{ "source": "gen", "target": "balancer" },
+			{ "source": "balancer", "target": "api" },
+			{ "source": "api", "target": "accounts" }
+		],
+		"nodeFiles": {
+			"api": {
+				"package.json": "{\n  \"name\": \"instance-group\",\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^5.1.0\",\n    \"@aws-sdk/client-dynamodb\": \"^3.982.0\",\n    \"@aws-sdk/client-sqs\": \"^3.982.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}\n",
+				"server.js": "import express from 'express';\nimport { randomBytes, scryptSync } from 'node:crypto';\nimport { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';\n\n// Glass Garden gives every instance its own PORT, because they all share one machine here.\n// In a real deployment they would each be on their own machine, and could all listen on the same port.\nconst port = Number(process.env.PORT);\nif (!port) {\n  throw new Error('PORT is not set');\n}\n\n// Set by the table this node is connected to. The endpoint and the credentials the SDK\n// needs to reach the local AWS region arrive in the environment too, which is why the\n// client below takes no arguments at all. You can see every one of them in the Config tab\nconst tableName = process.env.DYNAMODB_TABLE;\nif (!tableName) {\n  throw new Error('DYNAMODB_TABLE is not set. Connect this instance group to one table node.');\n}\n\nconst dynamodb = new DynamoDBClient({});\n\n// A password hash is meant to be expensive to compute: that is the whole defence if this\n// table is ever stolen, because it is what makes guessing a password slow. p is the cost\n// knob, and scryptSync is synchronous, so this instance answers nobody while one of these\n// runs. The goals are scored against this cost, so try doubling it on a canvas of your own\n// and watch what it does to the response time on the generator's chart\nconst COST = { N: 16384, r: 8, p: 8 };\n\n// Embedded Metric Format: the shape CloudWatch extracts metrics from a log line, and how\n// anything running here puts a number on its own Metrics tab\nfunction putMetric(name, value, unit) {\n  console.log(\n    JSON.stringify({\n      _aws: {\n        Timestamp: Date.now(),\n        CloudWatchMetrics: [\n          { Namespace: 'glass-garden', Dimensions: [[]], Metrics: [{ Name: name, Unit: unit }] }\n        ]\n      },\n      [name]: value\n    })\n  );\n}\n\n// Once at startup, so the name is in the Metrics tab before anybody signs up\nputMetric('signups', 0, 'Count');\n\nconst app = express();\napp.use(express.json());\n\n// The load balancer asks for this before it sends any signups here, the way an ALB checks a\n// target group. An instance that stops answering it is taken out of the rotation\napp.get('/', (req, res) => {\n  res.type('text/plain').send('ok\\n');\n});\n\napp.post('/signup', async (req, res) => {\n  const { email = 'nobody@example.com', password = 'hunter2' } = req.body;\n\n  // The caller waits for every line of this. Ask what they are actually waiting for: the\n  // signup is decided the moment the request arrives, and nothing needs the stored hash\n  // until this person next logs in. Work nobody is waiting for does not belong here\n  const salt = randomBytes(16);\n  const hash = scryptSync(password, salt, 64, COST);\n  await dynamodb.send(\n    new PutItemCommand({\n      TableName: tableName,\n      Item: {\n        email: { S: email },\n        hash: { S: hash.toString('base64') },\n        salt: { S: salt.toString('base64') }\n      }\n    })\n  );\n\n  putMetric('signups', 1, 'Count');\n  res.status(201).json({ status: 'signed up' });\n});\n\napp.listen(port, () => {\n  console.log(`Server running on http://localhost:${port}`);\n});\n"
+			}
+		}
+	}
+}

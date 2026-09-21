@@ -2,5 +2,9 @@
 	{
 		"file": "first-challenge.json",
 		"stack": "Request generator, instance group"
+	},
+	{
+		"file": "slow-signups.json",
+		"stack": "Request generator, HTTP load balancer, instance group, Queue (SQS), Function (Lambda), Table (DynamoDB)"
 	}
 ]
