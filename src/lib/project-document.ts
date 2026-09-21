@@ -26,19 +26,21 @@ export const PROJECT_FORMAT = 'gg:project/1';
 const nodeFilesSchema = z.record(z.string(), z.string());
 export type NodeFiles = z.infer<typeof nodeFilesSchema>;
 
+const canvasNodeSchema = z.object({
+	id: z.string(),
+	type: resourceTypeSchema,
+	position: z.object({ x: z.number(), y: z.number() }),
+	config: z.record(z.string(), z.unknown()),
+	chart: z.string().optional(),
+	testEvent: z.string().optional()
+});
+
+export type CanvasDocumentNode = z.infer<typeof canvasNodeSchema>;
+
 const projectDocumentSchema = z.object({
 	format: z.literal(PROJECT_FORMAT),
 	name: z.string().min(1),
-	nodes: z.array(
-		z.object({
-			id: z.string(),
-			type: resourceTypeSchema,
-			position: z.object({ x: z.number(), y: z.number() }),
-			config: z.record(z.string(), z.unknown()),
-			chart: z.string().optional(),
-			testEvent: z.string().optional()
-		})
-	),
+	nodes: z.array(canvasNodeSchema),
 	edges: z.array(z.object({ source: z.string(), target: z.string() })),
 	nodeFiles: z.record(z.string(), nodeFilesSchema)
 });
@@ -203,6 +205,42 @@ function checkComparison(
 }
 
 export type ChallengeDocument = z.infer<typeof challengeDocumentSchema>;
+
+// A challenge's nodes are named, and a reader cannot rename one, so a name is the same node in
+// any version of the document. The name a node lands on, defaults and all, is the one that counts
+export function startingNodes(document: ChallengeDocument): Map<string, CanvasDocumentNode> {
+	return new Map(
+		document.startingCanvas.nodes.map((node) => {
+			const config = parseStoredConfig(resourceDefinitions[node.type], node.config);
+			return [config.name as string, { ...node, config }];
+		})
+	);
+}
+
+// How a run plays, as against what it is scored by: a goal met in a gentler script or a shorter
+// run is not the same achievement, so a change here costs the whole best run
+export function sameRunScript(before: ChallengeDocument, after: ChallengeDocument): boolean {
+	const script = ({ length, events }: ChallengeDocument) => JSON.stringify({ length, events });
+	return script(before) === script(after);
+}
+
+// Keyed rather than listed, so the order goals are written in is not a change at all
+function judgedGoals(document: ChallengeDocument): Map<string, string> {
+	return new Map(
+		Object.entries(document.goals).map(([id, { title, hint, ...judged }]) => [
+			id,
+			JSON.stringify(judged)
+		])
+	);
+}
+
+// The goals two versions score the same way, by the key a run is scored by rather than the title
+// a rewording moves. What a run met elsewhere is not what this version would call met
+export function goalsJudgedAlike(before: ChallengeDocument, after: ChallengeDocument): Set<string> {
+	const now = judgedGoals(after);
+	const kept = [...judgedGoals(before)].filter(([id, goal]) => now.get(id) === goal);
+	return new Set(kept.map(([id]) => id));
+}
 
 // Shipped beside the challenges so an editor checks one as it is written. Only the shape
 // survives the conversion; what the canvas references mean is still the parse's to say

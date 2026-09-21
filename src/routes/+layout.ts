@@ -1,3 +1,4 @@
+import { adoptOpenChallenge } from '$lib/challenge-catalogue.svelte';
 import { embedded, leaveForMainApp } from '$lib/embed';
 import {
 	ensureProject,
@@ -39,6 +40,8 @@ export const load: LayoutLoad = async ({ url }): Promise<Layout> => {
 
 	const projectId = fromNode ?? currentProjectId();
 	setLastProjectId(projectId);
+	// A challenge the shipped folder has moved on from catches up here, before its canvas is built
+	await adoptOpenChallenge(projectId);
 	return { state: 'ready', projectId };
 };
 

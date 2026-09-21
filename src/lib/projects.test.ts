@@ -60,17 +60,18 @@ describe('listProjects and listChallenges', () => {
 	});
 });
 
+const document = {
+	format: 'gg:challenge/1',
+	title: 'Keep up',
+	length: 10,
+	events: [],
+	fixed: [],
+	goals: { up: { title: 'Up', conditions: [{ node: { ref: { type: 'sqsQueue' } } }] } },
+	startingCanvas: { format: 'gg:project/1', nodes: [], edges: [], nodeFiles: {} }
+} as never;
+
 describe('resetChallenge', () => {
 	it('hands the fresh project everything that outlives the canvas', () => {
-		const document = {
-			format: 'gg:challenge/1',
-			title: 'Keep up',
-			length: 10,
-			events: [],
-			fixed: [],
-			goals: { up: { title: 'Up', conditions: [{ node: { ref: { type: 'sqsQueue' } } }] } },
-			startingCanvas: { format: 'gg:project/1', nodes: [], edges: [], nodeFiles: {} }
-		} as never;
 		const started = importProject(document, { builtIn: 'keep-up', embedHash: '#project=abc' });
 		started.bestRun = ['up'];
 

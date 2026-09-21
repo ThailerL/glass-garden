@@ -14,14 +14,18 @@ vi.mock('$lib/container', () => ({
 }));
 
 // The folder itself is read elsewhere; what matters here is how a read one meets the records
+const shipped = {
+	format: 'gg:challenge/1',
+	title: 'Keep up',
+	length: 10,
+	events: [],
+	fixed: [],
+	goals: { one: { title: 'One', conditions: [] }, two: { title: 'Two', conditions: [] } },
+	startingCanvas: { format: 'gg:project/1', nodes: [], edges: [], nodeFiles: {} }
+} as never;
+
 const folder: ChallengeFolder = {
-	challenges: [
-		{
-			id: 'spike',
-			stack: 'One node',
-			document: { title: 'Keep up', goals: { one: {}, two: {} } } as never
-		}
-	],
+	challenges: [{ id: 'spike', stack: 'One node', document: shipped }],
 	unread: [{ file: 'broken.json', problem: 'That file is not a Glass Garden project' }]
 };
 vi.mock('$lib/challenges', () => ({ loadChallengeFolder: vi.fn(async () => folder) }));
@@ -45,7 +49,7 @@ import { createProject } from '$lib/projects.svelte';
 
 const challenge = (name: string, fields: Record<string, unknown>) =>
 	createProject(name, () => {}, {
-		challenge: { title: name, goals: { one: {}, two: {} } } as never,
+		challenge: { ...(shipped as object), title: name } as never,
 		...fields
 	});
 
@@ -75,6 +79,58 @@ describe('challengeCatalogue', () => {
 
 		started!.bestRun = ['one', 'two'];
 		expect(challengeCatalogue().builtIn[0]).toMatchObject({ best: 2, complete: true });
+	});
+
+	it('counts a best run only against the goals this version still has', () => {
+		const started = challengeCatalogue().builtIn[0].started;
+		started!.bestRun = ['one', 'two', 'a-goal-since-dropped'];
+		expect(challengeCatalogue().builtIn[0]).toMatchObject({ goals: 2, best: 2, complete: true });
+	});
+
+	it('takes on a version that has dropped a node the record started with', async () => {
+		const started = challengeCatalogue().builtIn[0].started;
+		const startingCanvas = {
+			format: 'gg:project/1',
+			nodes: [{ id: 'q', type: 'sqsQueue', position: { x: 0, y: 0 }, config: {} }],
+			edges: [],
+			nodeFiles: {}
+		};
+		started!.challenge = { ...(shipped as object), startingCanvas } as never;
+
+		loadCatalogue();
+		await vi.waitFor(() => expect(started!.challenge).toEqual(shipped));
+	});
+
+	it('takes on a version that plays differently, and the best run goes with it', async () => {
+		const started = challengeCatalogue().builtIn[0].started;
+		started!.bestRun = ['one', 'two'];
+		started!.challenge = {
+			...(shipped as object),
+			title: 'What it used to be called',
+			length: 99
+		} as never;
+
+		loadCatalogue();
+		await vi.waitFor(() => expect(started!.challenge).toEqual(shipped));
+		expect(started!.name).toBe('Keep up');
+		expect(started!.bestRun).toBeUndefined();
+	});
+
+	it('keeps the goals a version still judges alike, where the run plays the same', async () => {
+		const started = challengeCatalogue().builtIn[0].started;
+		started!.bestRun = ['one', 'two'];
+		// Met under a rule this version no longer judges by, so the record cannot keep it
+		started!.challenge = {
+			...(shipped as object),
+			goals: {
+				one: { title: 'One', conditions: [] },
+				two: { title: 'Two', conditions: ['harder'] }
+			}
+		} as never;
+
+		loadCatalogue();
+		await vi.waitFor(() => expect(started!.challenge).toEqual(shipped));
+		expect(started!.bestRun).toEqual(['one']);
 	});
 
 	it('passes on what the folder could not read, so the page can name it', () => {

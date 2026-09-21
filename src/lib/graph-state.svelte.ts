@@ -82,6 +82,47 @@ export function loadNode(node: Node): Node | undefined {
 	return node;
 }
 
+// One key shape, wherever a graph is read or written: a project that is not open has no
+// GraphState, and building one for it would take the container's active project with it
+export function readNodesAt(prefix: string): Node[] {
+	return readByPrefix<Node>(`${prefix}node:`).flatMap((node) => loadNode(node) ?? []);
+}
+
+export function writeNodeAt(prefix: string, node: Node) {
+	localStorage.setItem(`${prefix}node:${node.id}`, JSON.stringify({ ...node, selected: false }));
+}
+
+export type NodeOptions = Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'authored'> & {
+	// config arrives unparsed, so it is not NodeData's own
+	config?: Record<string, unknown>;
+	deletable?: boolean;
+};
+
+// Anything not supplied falls back to the schema's default
+export function buildNode(
+	type: ResourceType,
+	position: { x: number; y: number },
+	{ files, config, chart, testEvent, authored, deletable = true }: NodeOptions = {}
+): Node {
+	const definition = getResourceDefinition(type);
+	const data: NodeData = {
+		config: definition.configSchema.parse(config ?? {}),
+		ports: [],
+		files,
+		chart,
+		testEvent,
+		authored
+	};
+	return {
+		id: nanoid(8),
+		type,
+		position,
+		data,
+		deletable,
+		origin: [0.5, 0.5]
+	};
+}
+
 export class GraphState {
 	nodes = $state.raw<Node[]>([]);
 	edges = $state.raw<Edge[]>([]);
@@ -98,7 +139,7 @@ export class GraphState {
 		this.projectId = projectId;
 		setActiveProject(projectId);
 		this.#prefix = graphKeyPrefix(projectId);
-		this.nodes = readByPrefix<Node>(`${this.#prefix}node:`).flatMap((node) => loadNode(node) ?? []);
+		this.nodes = readNodesAt(this.#prefix);
 		// An edge to a node that did not load would be drawn into empty space
 		this.edges = readByPrefix<Edge>(`${this.#prefix}edge:`).filter(
 			(edge) => this.#hasNode(edge.source) && this.#hasNode(edge.target)
@@ -113,42 +154,10 @@ export class GraphState {
 		return this.nodes.some((node) => node.id === id);
 	}
 
-	addNode(
-		type: ResourceType,
-		position: { x: number; y: number },
-		{
-			files,
-			config,
-			chart,
-			testEvent,
-			authored,
-			deletable = true
-			// config arrives unparsed, so it is not NodeData's own
-		}: Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'authored'> & {
-			config?: Record<string, unknown>;
-			deletable?: boolean;
-		} = {}
-	) {
-		const definition = getResourceDefinition(type);
+	addNode(type: ResourceType, position: { x: number; y: number }, options: NodeOptions = {}) {
 		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
-		if (definition.ownsStoredData) void requestPersistentStorage();
-		const data: NodeData = {
-			// Anything not supplied falls back to the schema's default
-			config: definition.configSchema.parse(config ?? {}),
-			ports: [],
-			files,
-			chart,
-			testEvent,
-			authored
-		};
-		const node: Node = {
-			id: nanoid(8),
-			type,
-			position,
-			data,
-			deletable,
-			origin: [0.5, 0.5]
-		};
+		if (getResourceDefinition(type).ownsStoredData) void requestPersistentStorage();
+		const node = buildNode(type, position, options);
 		this.nodes = [...this.nodes, node];
 		this.setNodeInStorage(node);
 		return node;
@@ -201,10 +210,7 @@ export class GraphState {
 	}
 
 	setNodeInStorage(node: Node) {
-		localStorage.setItem(
-			`${this.#prefix}node:${node.id}`,
-			JSON.stringify({ ...node, selected: false })
-		);
+		writeNodeAt(this.#prefix, node);
 	}
 
 	setEdgeInStorage(edge: Edge) {

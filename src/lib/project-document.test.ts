@@ -14,8 +14,11 @@ import {
 	buildProjectDocument,
 	documentName,
 	parseDocument,
+	goalsJudgedAlike,
 	readNodeFiles,
+	sameRunScript,
 	treeFiles,
+	type ChallengeDocument,
 	type ProjectDocument,
 	type ReadableFs
 } from '$lib/project-document';
@@ -127,6 +130,44 @@ const challengeDocument = () => ({
 		}
 	} as Record<string, { title: string; conditions: unknown[] }>,
 	startingCanvas: document()
+});
+
+const parseChallenge = (doc: object): ChallengeDocument => {
+	const parsed = parseDocument(JSON.stringify(doc));
+	if (parsed.format !== CHALLENGE_FORMAT) throw new Error('expected a challenge');
+	return parsed;
+};
+const shipped = parseChallenge(challengeDocument());
+const changed = (fields: object) => parseChallenge({ ...challengeDocument(), ...fields });
+
+describe('sameRunScript', () => {
+	it('holds for anything but how long a run lasts and what happens during it', () => {
+		expect(sameRunScript(shipped, changed({ title: 'Renamed' }))).toBe(true);
+		expect(sameRunScript(shipped, changed({ length: 45 }))).toBe(false);
+		expect(sameRunScript(shipped, changed({ events: [{ at: 7, stop: { name: 'B' } }] }))).toBe(
+			false
+		);
+	});
+});
+
+describe('goalsJudgedAlike', () => {
+	it('keeps a goal through a rewording, and drops one whose judging moved', () => {
+		const goal = challengeDocument().goals.g;
+		const reworded = changed({
+			goals: {
+				g: { ...goal, title: 'Wired up', hint: 'Drag the handle' },
+				scaled: { title: 'Scaled', conditions: [{ node: { ref: { type: 'test' } } }] }
+			}
+		});
+		expect([...goalsJudgedAlike(shipped, reworded)]).toEqual(['g']);
+
+		const rescored = changed({
+			goals: { g: { ...goal, conditions: [{ node: { ref: { name: 'B' } } }] } }
+		});
+		expect([...goalsJudgedAlike(shipped, rescored)]).toEqual([]);
+		// A renamed key is a goal gone as far as a run scored by the old one is concerned
+		expect([...goalsJudgedAlike(shipped, changed({ goals: { renamed: goal } }))]).toEqual([]);
+	});
 });
 
 // The tests that build a canvas want a project, which the parser does not promise

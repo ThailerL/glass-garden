@@ -15,12 +15,15 @@ import { keysWithPrefix, readByPrefix } from './storage';
 import { getResourceDefinition } from './resources';
 import { nodeFiles } from './files/node-files';
 import { storeImportedFiles } from './files/imported-files';
+import { mergeStartingCanvas } from './challenge-merge';
 import {
 	applyCanvasDocument,
 	buildProjectDocument,
 	CHALLENGE_FORMAT,
 	documentName,
+	goalsJudgedAlike,
 	readNodeFiles,
+	sameRunScript,
 	treeFiles,
 	type ChallengeDocument,
 	type GardenDocument,
@@ -209,6 +212,32 @@ export function resetChallenge(project: Project): Project {
 	writeProject(fresh);
 	deleteProject(project.id);
 	return fresh;
+}
+
+// A newer version lands on the record the reader already has, its canvas brought up to date
+// around their work. Every version can: a node the author dropped is handed to the reader
+export function adoptNewVersion(project: Project, challenge: ChallengeDocument): void {
+	const before = project.challenge;
+	if (!before) return;
+	const moved = mergeStartingCanvas(project.id, before, challenge);
+	project.bestRun = keptRun(project, before, challenge, moved);
+	project.challenge = challenge;
+	project.name = documentName(challenge);
+	writeProject(project);
+}
+
+// A run belongs to the conditions it was scored under. A canvas the merge moved, or a script or
+// length that plays differently, leaves nothing comparable; otherwise each goal stands or falls
+// on whether this version still judges it the same way
+function keptRun(
+	project: Project,
+	before: ChallengeDocument,
+	after: ChallengeDocument,
+	moved: boolean
+): string[] | undefined {
+	if (moved || !sameRunScript(before, after)) return undefined;
+	const alike = goalsJudgedAlike(before, after);
+	return project.bestRun?.filter((id) => alike.has(id));
 }
 
 // Catches project dirs whose delete was skipped because the container wasn't booted
