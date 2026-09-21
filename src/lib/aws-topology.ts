@@ -4,26 +4,15 @@ import { getResourceDefinition } from '$lib/resources';
 import type { Principal, Service, Topology } from '$lib/aws-region';
 import { emptyByService } from '../../resources/aws-region/lib.js';
 
-// One table maps every AWS node type to the service it serves and where its name lives in
-// config. The name the emulator enforces on is not always the value a consumer's code wants
-// - a queue is enforced by name but addressed by URL - so the environment side lives on each
-// resource definition instead
-const AWS_SERVICES: Partial<Record<string, { service: Service; resourceKey: string }>> = {
-	s3Bucket: { service: 's3', resourceKey: 'bucketName' },
-	sqsQueue: { service: 'sqs', resourceKey: 'queueName' },
-	dynamodbTable: { service: 'dynamodb', resourceKey: 'tableName' },
-	lambdaFunction: { service: 'lambda', resourceKey: 'functionName' }
-};
-
 export type AwsResource = { service: Service; resourceName: string };
 
 // What a node serves, or undefined when it is not an AWS resource at all
 export function awsResourceOf(node: Node): AwsResource | undefined {
-	const entry = AWS_SERVICES[node.type ?? ''];
-	if (!entry) return undefined;
-	const resourceName = nodeConfig<Record<string, unknown>>(node)[entry.resourceKey];
+	const { aws } = getResourceDefinition(node.type);
+	if (!aws) return undefined;
+	const resourceName = nodeConfig<Record<string, unknown>>(node)[aws.resourceKey];
 	if (typeof resourceName !== 'string' || !resourceName) return undefined;
-	return { ...entry, resourceName };
+	return { service: aws.service, resourceName };
 }
 
 // The access key a node's code signs with. The bridge maps it back to this node, so a

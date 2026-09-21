@@ -59,6 +59,7 @@ export const sqsQueue = {
 	hasPreview: false,
 	provides: ['aws'],
 	consumes: ['invoke'],
+	aws: { service: 'sqs', resourceKey: 'queueName' },
 	configComponent: QueueConfig,
 	configSchema,
 	namedOnCreate: {

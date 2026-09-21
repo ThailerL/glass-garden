@@ -17,4 +17,17 @@ describe('resourceDefinitions', () => {
 			}
 		}
 	});
+
+	// awsResourceOf reads `aws` to find a node's service and name; without it the region grants
+	// the resource to nobody, and a key naming no config field reads as an unnamed resource
+	it('lets the region identify everything served over AWS', () => {
+		for (const [type, definition] of definitions) {
+			if (!definition.provides.includes('aws')) continue;
+			expect(definition.aws, `${type} is served over AWS but names no service`).toBeDefined();
+			expect(
+				Object.keys(definition.configSchema.shape),
+				`${type}'s aws.resourceKey names no config field`
+			).toContain(definition.aws?.resourceKey);
+		}
+	});
 });

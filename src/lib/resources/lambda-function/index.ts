@@ -88,6 +88,7 @@ export const lambdaFunction = {
 	// Invoked through the region like any AWS resource, so a caller uses it under 'aws'
 	provides: ['http', 'invoke', 'aws'],
 	consumes: ['sql', 'aws'],
+	aws: { service: 'lambda', resourceKey: 'functionName' },
 	configComponent: FunctionConfig,
 	loadTestTab: () => import('./TestTab.svelte'),
 	configSchema,

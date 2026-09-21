@@ -55,6 +55,7 @@ export const s3Bucket = {
 	provides: ['aws'],
 	// A bucket can point at a function, which then receives an event per object
 	consumes: ['invoke'],
+	aws: { service: 's3', resourceKey: 'bucketName' },
 	configComponent: BucketConfig,
 	configSchema,
 	namedOnCreate: {

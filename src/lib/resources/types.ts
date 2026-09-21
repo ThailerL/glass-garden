@@ -5,6 +5,7 @@ import { type Node } from '@xyflow/svelte';
 import type { LucideIcon } from '@lucide/svelte';
 import type { ChartReading } from '$lib/metrics';
 import type { TextOutput } from '$lib/resource-log.svelte';
+import type { Service } from '$lib/aws-region';
 
 // What a resource offers and what it needs from what it points at. An edge is legal when
 // its source consumes something its target provides. 'invoke' runs against the traffic of
@@ -114,6 +115,10 @@ export type ResourceDefinition = {
 	// Acts on one of the things it points at rather than all of them, so a second edge out of
 	// it is refused rather than drawn and ignored
 	singleTarget?: boolean;
+	// Set by a resource the region serves: which service answers for it, and the config field
+	// holding the name the region enforces grants on. Not always the value a consumer's code
+	// wants - a queue is enforced by name but addressed by URL - so `supplies` stays separate
+	aws?: { service: Service; resourceKey: string };
 	configComponent: Component<{ form: never; nodeId: string }>;
 	// A tab of the resource's own, imported when it is first opened so whatever it depends on
 	// stays out of the bundle the canvas loads

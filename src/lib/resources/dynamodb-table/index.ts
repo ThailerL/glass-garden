@@ -76,6 +76,7 @@ export const dynamodbTable = {
 	hasPreview: false,
 	provides: ['aws'],
 	consumes: [],
+	aws: { service: 'dynamodb', resourceKey: 'tableName' },
 	configComponent: TableConfig,
 	configSchema,
 	namedOnCreate: {
