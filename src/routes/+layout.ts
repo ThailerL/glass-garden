@@ -26,9 +26,10 @@ export const load: LayoutLoad = async ({ url }): Promise<Layout> => {
 	if (embedded && !crossOriginIsolated) return { state: 'notIsolated' };
 	// First, so a tab that may not run neither creates a project nor boots the VM
 	if (!(await claimTabLock())) return { state: 'blocked' };
-	// Settled by the layout, once the import has put the files in the VM
-	if (embedded && hasSharedProject(url.hash)) {
-		return { state: 'embed', hash: url.hash, start: url.searchParams.has('start') };
+	// Settled by the layout, once the import has put the files in the VM. Read off location:
+	// Kit's dev server throws on url.hash inside a load, and the release build only on the server
+	if (embedded && hasSharedProject(location.hash)) {
+		return { state: 'embed', hash: location.hash, start: url.searchParams.has('start') };
 	}
 
 	const [, section, nodeId] = url.pathname.split('/');
