@@ -48,7 +48,7 @@ const metricOver = z.enum(['whole window', 'every datapoint', 'any datapoint']);
 const metricCondition = z
 	.strictObject({
 		node: nodeRef,
-		name: z.string().min(1),
+		metricName: z.string().min(1),
 		dimensions: z.record(z.string(), z.string()).optional(),
 		statistic: z.enum(METRIC_STATISTICS),
 		over: metricOver.default('whole window'),
@@ -486,7 +486,7 @@ function metricReadings(
 	from: number,
 	to: number
 ): number[] {
-	const series = seriesFor(run.metrics(nodeId), metric.name, metric.dimensions);
+	const series = seriesFor(run.metrics(nodeId), metric.metricName, metric.dimensions);
 	const period = metric.period ?? 1;
 	// Whole periods only, so one still filling cannot fail a goal before it is over
 	const read = period === 1 ? to : from + Math.floor((to - from) / period) * period;

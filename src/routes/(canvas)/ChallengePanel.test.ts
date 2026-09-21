@@ -16,7 +16,7 @@ vi.mock('$lib/projects.svelte', () => ({}));
 const errorRate = (lte: number, from: number, to?: number) => ({
 	metric: {
 		node: { name: 'Traffic' },
-		name: 'errors',
+		metricName: 'errors',
 		statistic: 'Average' as const,
 		lte,
 		from,

@@ -23,7 +23,7 @@ const challenge = challengeSchema.parse({
 				{
 					metric: {
 						node: { name: 'Traffic' },
-						name: 'errors',
+						metricName: 'errors',
 						statistic: 'Average',
 						from: 5,
 						lte: 0.1

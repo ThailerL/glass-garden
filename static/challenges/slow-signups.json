@@ -47,7 +47,7 @@
 				{
 					"metric": {
 						"node": { "name": "Signup Traffic" },
-						"name": "requests",
+						"metricName": "requests",
 						"statistic": "Sum",
 						"over": "every datapoint",
 						"period": 5,
@@ -65,7 +65,7 @@
 				{
 					"metric": {
 						"node": { "name": "Signup Traffic" },
-						"name": "response time",
+						"metricName": "response time",
 						"statistic": "Average",
 						"from": 10,
 						"lte": 100
@@ -81,7 +81,7 @@
 				{
 					"metric": {
 						"node": { "type": "sqsQueue" },
-						"name": "messages",
+						"metricName": "messages",
 						"statistic": "Average",
 						"from": 37,
 						"lte": 20

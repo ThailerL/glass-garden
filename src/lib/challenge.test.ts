@@ -102,7 +102,7 @@ function outcomes(total: number, failed: number, second = 40): MetricStore {
 // What a goal asking about a generator's failure rate says
 const errorRate = (lte: number, window: { from?: number; to?: number } = {}) => ({
 	node: { name: 'Traffic' },
-	name: 'errors',
+	metricName: 'errors',
 	statistic: 'Average' as const,
 	over: 'whole window' as const,
 	...window,
@@ -126,7 +126,7 @@ describe('challengeSchema', () => {
 						{
 							metric: {
 								node: { name: 'Jobs' },
-								name: 'messages',
+								metricName: 'messages',
 								statistic: 'Average',
 								from: 30,
 								lte: 2
@@ -135,7 +135,7 @@ describe('challengeSchema', () => {
 						{
 							metric: {
 								node: { name: 'Traffic' },
-								name: 'errors',
+								metricName: 'errors',
 								statistic: 'Average',
 								from: 20,
 								to: 40,
@@ -399,7 +399,7 @@ describe('judge', () => {
 		const low = challengeOf({
 			metric: {
 				node: { name: 'Jobs' },
-				name: 'messages',
+				metricName: 'messages',
 				statistic: 'Maximum',
 				over: 'every datapoint',
 				from: 10,
@@ -423,7 +423,7 @@ describe('judge', () => {
 		const rate = challengeOf({
 			metric: {
 				node: { name: 'Jobs' },
-				name: 'messages',
+				metricName: 'messages',
 				statistic: 'Sum',
 				over: 'every datapoint',
 				period: 5,
@@ -447,7 +447,7 @@ describe('judge', () => {
 			challengeOf({
 				metric: {
 					node: { name: 'Jobs' },
-					name: 'messages',
+					metricName: 'messages',
 					statistic: 'Sum',
 					over: 'every datapoint',
 					period: 4,
@@ -531,7 +531,7 @@ describe('judge', () => {
 		const busy = challengeOf({
 			metric: {
 				node: { name: 'Jobs' },
-				name: 'messages',
+				metricName: 'messages',
 				statistic: 'Maximum',
 				over: 'any datapoint',
 				from: 10,
@@ -550,7 +550,7 @@ describe('judge', () => {
 		const low = challengeOf({
 			metric: {
 				node: { type: 'sqsQueue' },
-				name: 'messages',
+				metricName: 'messages',
 				statistic: 'Maximum',
 				over: 'whole window',
 				lte: 2
@@ -575,7 +575,7 @@ describe('judge', () => {
 		const low = challengeOf({
 			metric: {
 				node: { name: 'Jobs' },
-				name: 'messages',
+				metricName: 'messages',
 				statistic: 'Maximum',
 				over: 'whole window',
 				lte: 2
@@ -590,7 +590,7 @@ describe('judge', () => {
 		const busy = challengeOf({
 			metric: {
 				node: { name: 'App' },
-				name: 'requests',
+				metricName: 'requests',
 				statistic: 'Sum',
 				over: 'whole window',
 				from: 10,
@@ -609,7 +609,7 @@ describe('judge', () => {
 		const broken = challengeOf({
 			metric: {
 				node: { name: 'Traffic' },
-				name: 'requests',
+				metricName: 'requests',
 				dimensions: { status: '500' },
 				statistic: 'Sum',
 				over: 'whole window',

@@ -420,7 +420,7 @@
 														}
 													]
 												},
-												"name": {
+												"metricName": {
 													"type": "string",
 													"minLength": 1
 												},
@@ -474,7 +474,7 @@
 											},
 											"required": [
 												"node",
-												"name",
+												"metricName",
 												"statistic"
 											],
 											"additionalProperties": false
