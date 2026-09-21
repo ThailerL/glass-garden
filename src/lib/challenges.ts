@@ -8,19 +8,17 @@ const INDEX = 'index.json';
 
 export type BuiltInChallenge = {
 	id: string;
-	stack: string;
 	document: ChallengeDocument;
 };
 
-// The folder's own file: the catalogue's order, and the words a document has no place for.
-// A challenge's description is its own, so the card reads the same one wherever it came from
+// The folder's own file: the catalogue's order, and each challenge's identity in this folder.
+// Every word on a card is the document's, so the card reads the same wherever it came from
 const indexSchema = z
 	.array(
 		z.strictObject({
 			// What a reader's progress is stored against, so a renamed file keeps it
 			id: z.string().min(1),
-			file: z.string().min(1),
-			stack: z.string().min(1)
+			file: z.string().min(1)
 		})
 	)
 	.superRefine((entries, ctx) => {
@@ -52,14 +50,14 @@ const problemOf = (error: unknown) =>
 
 async function readChallenge(
 	fetch: typeof globalThis.fetch,
-	{ id, file, stack }: z.infer<typeof indexSchema>[number]
+	{ id, file }: z.infer<typeof indexSchema>[number]
 ): Promise<BuiltInChallenge | UnreadChallenge> {
 	try {
 		const document = parseDocument(await readFile(fetch, file));
 		if (document.format !== CHALLENGE_FORMAT) {
 			throw new Error('That file holds a project rather than a challenge');
 		}
-		return { id, stack, document };
+		return { id, document };
 	} catch (error) {
 		return { file, problem: problemOf(error) };
 	}

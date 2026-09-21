@@ -3,6 +3,7 @@
 	"format": "gg:challenge/1",
 	"title": "Your first challenge",
 	"description": "Nothing is sending the app traffic, and its code fails on every request. Wire it up, fix one line, and watch a run score itself.",
+	"stack": "Request generator, instance group",
 	"instructions": [
 		"Every challenge works the same way: get the canvas ready, press Run, and the goals score what happens while a script drives the traffic. This one walks you through it.",
 		"Drag a connection from Traffic to Web App, then press Run. Every request will fail, and that is the bug you are here to fix.",

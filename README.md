@@ -84,6 +84,7 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 	"format": "gg:challenge/1",
 	"title": "Survive a lost app",
 	"description": "One of two apps goes down for 25 seconds. Keep answering.",
+	"stack": "Request generator, two instance groups, and a load balancer you add",
 	"instructions": [
 		"Put a load balancer in front of the two apps and connect the traffic to it.",
 		"Press Run. App A goes down partway through, and the run is scored on what the traffic sees while it is gone."
@@ -131,7 +132,7 @@ Each goal has an `id` of your choosing, which is the name a run is scored by and
 
 `length` is how long the run lasts, up to 900 seconds. A `hint` is offered once a scored run has failed its goal, and shown only when the reader asks for it.
 
-`description` is the card on the Challenges page, read by someone deciding whether to start. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there. A challenge needs both, since a goal's title never says what to do.
+`description` is the card on the Challenges page, read by someone deciding whether to start, and `stack` is the line under it naming the resources the challenge involves. Write that one yourself rather than expecting it to be read off the canvas, since a challenge may ask for a node the reader has to add. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there. A challenge needs all three, since a goal's title never says what to do.
 
 Every name a goal or event mentions is checked as the file is read, so a challenge nobody could win is refused rather than failing halfway through a run. The import button on the **Projects** group takes a challenge file as well as a project, and what it imports appears under **Imported** on the Challenges page. To ship your own with a self-hosted build, see [Your own built-in challenges](#your-own-built-in-challenges).
 
@@ -199,13 +200,12 @@ The folder holds one `.json` file per challenge and an `index.json` listing them
 [
 	{
 		"id": "first-challenge",
-		"file": "first-challenge.json",
-		"stack": "Request generator, instance group"
+		"file": "first-challenge.json"
 	}
 ]
 ```
 
-`stack` is the resources the challenge involves, which the card says before anyone has opened it. It sits here rather than in the document because a challenge may ask for a node the reader has to add. Everything else on the card comes out of the challenge itself. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
+Everything a card says comes out of the challenge itself, so it reads the same here as it does for someone who imported the file. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
 
 A challenge is known by its `id`, which is what a reader's progress is stored against, so a file can be renamed freely, while changing an `id` makes it a challenge nobody has started and leaves the old record behind. Editing one in place is how a challenge changes: a reader keeps the goals they had met, apart from any the edit judges differently.
 

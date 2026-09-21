@@ -54,7 +54,7 @@ describe('the challenges the app ships', () => {
 
 describe('readChallengeFolder', () => {
 	const index = (...files: string[]) =>
-		JSON.stringify(files.map((file, i) => ({ id: `c${i}`, file, stack: 'One node' })));
+		JSON.stringify(files.map((file, i) => ({ id: `c${i}`, file })));
 
 	it('keeps the challenges it could read and names the file it could not', async () => {
 		const good = await readFile(`${FOLDER}/first-challenge.json`, 'utf8');
@@ -85,9 +85,7 @@ describe('readChallengeFolder', () => {
 	});
 
 	it('refuses two entries sharing an id, which would share one reader’s progress', async () => {
-		const twice = JSON.stringify(
-			['a.json', 'b.json'].map((file) => ({ id: 'same', file, stack: 'One node' }))
-		);
+		const twice = JSON.stringify(['a.json', 'b.json'].map((file) => ({ id: 'same', file })));
 		const { unread } = await readChallengeFolder(serve({ 'index.json': twice }));
 		expect(unread[0].problem).toContain('Two challenges share the id "same"');
 	});

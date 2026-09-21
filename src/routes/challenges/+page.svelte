@@ -62,6 +62,7 @@
 						<ChallengeCard
 							title={project.challenge?.title ?? project.name}
 							description={project.challenge?.description}
+							stack={project.challenge?.stack}
 							goals={project.challenge ? goalIds(project.challenge).length : 0}
 							best={project.bestRun?.length ?? 0}
 							action="Continue"
@@ -81,7 +82,7 @@
 						{goals}
 						{best}
 						description={entry.document.description}
-						stack={entry.stack}
+						stack={entry.document.stack}
 						action={started ? 'Continue' : 'Start'}
 						onstart={async () => (started ? openProject(started.id) : start(entry))}
 					/>

@@ -121,6 +121,7 @@ const challengeDocument = () => ({
 	format: CHALLENGE_FORMAT,
 	title: 'Survive a lost app',
 	description: 'One of two apps stops partway through',
+	stack: 'Request generator, instance group',
 	instructions: ['Keep requests answered while B is down.'],
 	length: 30,
 	events: [{ at: 5, stop: { name: 'B' } }] as unknown[],

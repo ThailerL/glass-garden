@@ -638,6 +638,10 @@
 			"type": "string",
 			"minLength": 1
 		},
+		"stack": {
+			"type": "string",
+			"minLength": 1
+		},
 		"instructions": {
 			"minItems": 1,
 			"type": "array",
@@ -759,6 +763,7 @@
 		"format",
 		"title",
 		"description",
+		"stack",
 		"instructions",
 		"startingCanvas"
 	],

@@ -28,7 +28,7 @@ const shipped = {
 } as never;
 
 const folder: ChallengeFolder = {
-	challenges: [{ id: 'spike', stack: 'One node', document: shipped }],
+	challenges: [{ id: 'spike', document: shipped }],
 	unread: [{ file: 'broken.json', problem: 'That file is not a Glass Garden project' }]
 };
 vi.mock('$lib/challenges', () => ({ loadChallengeFolder: vi.fn(async () => folder) }));
