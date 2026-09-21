@@ -33,7 +33,9 @@ import {
 	ensureProject,
 	importProject,
 	listChallenges,
-	listProjects
+	listEmbedded,
+	listProjects,
+	resetChallenge
 } from '$lib/projects.svelte';
 import { readImportedFiles } from '$lib/files/imported-files';
 import { graphKeyPrefix } from '$lib/graph-state.svelte';
@@ -55,6 +57,32 @@ describe('listProjects and listChallenges', () => {
 		expect(made.challenge).toBeUndefined();
 		expect(listProjects().map((p) => p.id)).toEqual([made.id]);
 		expect(listChallenges().map((p) => p.id)).toEqual([challenge.id]);
+	});
+});
+
+describe('resetChallenge', () => {
+	it('hands the fresh project everything that outlives the canvas', () => {
+		const document = {
+			format: 'gg:challenge/1',
+			title: 'Keep up',
+			length: 10,
+			events: [],
+			fixed: [],
+			goals: { up: { title: 'Up', conditions: [{ node: { ref: { type: 'sqsQueue' } } }] } },
+			startingCanvas: { format: 'gg:project/1', nodes: [], edges: [], nodeFiles: {} }
+		} as never;
+		const started = importProject(document, { builtIn: 'keep-up', embedHash: '#project=abc' });
+		started.bestRun = ['up'];
+
+		const fresh = resetChallenge(started);
+		expect(fresh.id).not.toBe(started.id);
+		// The embed's link among them, so the frame finds the replacement without being told
+		expect(fresh).toMatchObject({
+			builtIn: 'keep-up',
+			embedHash: '#project=abc',
+			bestRun: ['up']
+		});
+		expect(listEmbedded().map((p) => p.id)).toEqual([fresh.id]);
 	});
 });
 

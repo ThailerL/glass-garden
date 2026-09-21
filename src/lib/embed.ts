@@ -1,14 +1,9 @@
 import { env } from '$env/dynamic/public';
 import { parseDocument } from './project-document';
-import { deleteProject, getProject, importProject, setLastProjectId } from './projects.svelte';
+import { deleteProject, importProject, listEmbedded, setLastProjectId } from './projects.svelte';
 import { decodeShareLink } from './share-link';
-import { readEntry } from './storage';
 
 export const embedded = window.self !== window.top;
-
-const EMBED_KEY = 'embed';
-
-type EmbeddedProject = { hash: string; projectId: string };
 
 export function mainAppUrl(hash: string): string {
 	return `${env.PUBLIC_ORIGIN || location.origin}/${hash}`;
@@ -42,14 +37,6 @@ export function tellHost(message: HostMessage) {
 	window.parent.postMessage({ format: EMBED_FORMAT, ...message }, origin);
 }
 
-// A reset replaces the project under the same link, which should keep opening the new one
-export function followProject(from: string, to: string) {
-	const entry = readEntry<EmbeddedProject>(EMBED_KEY);
-	if (entry?.projectId === from) {
-		localStorage.setItem(EMBED_KEY, JSON.stringify({ ...entry, projectId: to }));
-	}
-}
-
 // Once rather than on every scroll: a reader who stops the lesson and scrolls back keeps it stopped
 export function whenInView(callback: () => void) {
 	const observer = new IntersectionObserver(([entry]) => {
@@ -60,21 +47,23 @@ export function whenInView(callback: () => void) {
 	observer.observe(document.documentElement);
 }
 
-// The frame's src never changes, so a changed link is the only sign of a new project
+// The frame's src never changes, so a changed link is the only sign of a new project. The
+// reader's copy carries the link it came from, so a reset is found by the same search
 export async function openEmbeddedProject(hash: string): Promise<string> {
-	const previous = readEntry<EmbeddedProject>(EMBED_KEY);
-	let projectId = previous?.hash === hash ? previous.projectId : undefined;
+	const copies = listEmbedded();
+	let project = copies.find((copy) => copy.embedHash === hash);
 
-	if (!projectId || !getProject(projectId)) {
-		// Imported before the old one goes, so a failure leaves what was there
-		const project = importProject(parseDocument(await decodeShareLink(hash)));
-		if (previous) deleteProject(previous.projectId);
-		localStorage.setItem(EMBED_KEY, JSON.stringify({ hash, projectId: project.id }));
-		projectId = project.id;
+	if (!project) {
+		// Read before the import, which adds a copy of its own: every one here is of a link this
+		// frame no longer shows
+		const stale = copies.map((copy) => copy.id);
+		// Imported before the old ones go, so a failure leaves what was there
+		project = importProject(parseDocument(await decodeShareLink(hash)), { embedHash: hash });
+		for (const id of stale) deleteProject(id);
 	}
 
 	// Cleared on read, so nothing offers this link again
 	history.replaceState(null, '', location.pathname);
-	setLastProjectId(projectId);
-	return projectId;
+	setLastProjectId(project.id);
+	return project.id;
 }

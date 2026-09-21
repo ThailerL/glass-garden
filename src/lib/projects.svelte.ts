@@ -35,6 +35,9 @@ export type Project = {
 	challenge?: ChallengeDocument;
 	// Which catalogue entry it was started from, where it was not imported
 	builtIn?: string;
+	// The embed link this is the reader's copy of, so the same link finds it again. A reset
+	// carries it to the project it puts in place
+	embedHash?: string;
 	// The goals the best scored run met
 	bestRun?: string[];
 };
@@ -56,6 +59,11 @@ export function listProjects(): readonly Project[] {
 
 export function listChallenges(): readonly Project[] {
 	return projects.filter((project) => project.challenge);
+}
+
+// A frame holds one reader's copy, so anything else carrying a link is left over from another
+export function listEmbedded(): readonly Project[] {
+	return projects.filter((project) => project.embedHash);
 }
 
 export function getProject(id: string): Project | undefined {
@@ -101,7 +109,7 @@ export function recordRun(id: string, met: readonly string[]): boolean {
 export function createProject(
 	name: string,
 	build: (graph: GraphState) => void,
-	fields: { challenge?: ChallengeDocument; builtIn?: string } = {}
+	fields: ImportedAs & { challenge?: ChallengeDocument } = {}
 ): Project {
 	const project: Project = { id: nanoid(8), name, createdAt: Date.now(), ...fields };
 	writeProject(project);
@@ -159,7 +167,10 @@ export async function exportProject(project: Project): Promise<string> {
 
 // Like the create dialog, this leaves the ambient project pointed at the new one, so callers
 // reload. The code is stored rather than mounted, because that reload would lose the write
-export function importProject(doc: GardenDocument, builtIn?: string): Project {
+// Where the document came from, which the record keeps so the same source finds it again
+export type ImportedAs = { builtIn?: string; embedHash?: string };
+
+export function importProject(doc: GardenDocument, from: ImportedAs = {}): Project {
 	const challenge = doc.format === CHALLENGE_FORMAT ? doc : undefined;
 	const canvas = doc.format === CHALLENGE_FORMAT ? doc.startingCanvas : doc;
 	let ids!: Map<string, string>;
@@ -168,7 +179,7 @@ export function importProject(doc: GardenDocument, builtIn?: string): Project {
 		(graph) => {
 			ids = applyCanvasDocument(graph, canvas, challenge !== undefined);
 		},
-		{ challenge, builtIn }
+		{ challenge, ...from }
 	);
 	try {
 		for (const node of canvas.nodes) {
@@ -192,7 +203,8 @@ export function importProject(doc: GardenDocument, builtIn?: string): Project {
 export function resetChallenge(project: Project): Project {
 	if (!project.challenge) throw new Error(`${project.name} is not a challenge`);
 	// Imported before the old one goes, so a failure leaves what was there
-	const fresh = importProject(project.challenge, project.builtIn);
+	const { builtIn, embedHash } = project;
+	const fresh = importProject(project.challenge, { builtIn, embedHash });
 	fresh.bestRun = project.bestRun;
 	writeProject(fresh);
 	deleteProject(project.id);

@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-	followProject,
-	leaveForMainApp,
-	mainAppUrl,
-	openEmbeddedProject,
-	whenInView
-} from '$lib/embed';
+import { leaveForMainApp, mainAppUrl, openEmbeddedProject, whenInView } from '$lib/embed';
 import { encodeShareLink } from '$lib/share-link';
 
 const { publicEnv, projects, location } = vi.hoisted(() => {
@@ -27,9 +21,9 @@ const { publicEnv, projects, location } = vi.hoisted(() => {
 		location,
 		publicEnv: { PUBLIC_ORIGIN: undefined as string | undefined },
 		projects: {
-			getProject: vi.fn(),
 			importProject: vi.fn(),
 			deleteProject: vi.fn(),
+			listEmbedded: vi.fn(),
 			setLastProjectId: vi.fn()
 		}
 	};
@@ -57,6 +51,8 @@ const hashOf = async (name: string) =>
 	new URL(await encodeShareLink(JSON.stringify({ name }), 'https://x')).hash;
 
 let nextId = 0;
+// The store as the frame sees it: copies carrying a link, which is all openEmbeddedProject reads
+let copies: { id: string; embedHash?: string }[] = [];
 
 beforeEach(() => {
 	globalThis.localStorage = makeLocalStorage();
@@ -68,10 +64,18 @@ beforeEach(() => {
 	});
 	vi.clearAllMocks();
 	nextId = 0;
-	projects.importProject.mockImplementation((doc: { name: string }) => ({
-		id: `${doc.name}-${++nextId}`
-	}));
-	projects.getProject.mockReturnValue({});
+	copies = [];
+	projects.listEmbedded.mockImplementation(() => copies);
+	projects.importProject.mockImplementation(
+		(doc: { name: string }, from: { embedHash?: string }) => {
+			const project = { id: `${doc.name}-${++nextId}`, ...from };
+			copies.push(project);
+			return project;
+		}
+	);
+	projects.deleteProject.mockImplementation((id: string) => {
+		copies = copies.filter((copy) => copy.id !== id);
+	});
 });
 
 describe('mainAppUrl', () => {
@@ -134,28 +138,13 @@ describe('whenInView', () => {
 	});
 });
 
-describe('followProject', () => {
-	it('keeps the link opening the project a reset put in place of its own', async () => {
-		const hash = await hashOf('lesson');
-		const first = await openEmbeddedProject(hash);
-		followProject(first, 'fresh');
-		expect(await openEmbeddedProject(hash)).toBe('fresh');
-		expect(projects.importProject).toHaveBeenCalledTimes(1);
-	});
-
-	it('leaves the link alone when another project was reset', async () => {
-		const hash = await hashOf('lesson');
-		const first = await openEmbeddedProject(hash);
-		followProject('elsewhere', 'fresh');
-		expect(await openEmbeddedProject(hash)).toBe(first);
-	});
-});
-
 describe('openEmbeddedProject', () => {
 	it('imports the project on a first visit', async () => {
-		const id = await openEmbeddedProject(await hashOf('lesson'));
+		const hash = await hashOf('lesson');
+		const id = await openEmbeddedProject(hash);
 		expect(id).toBe('lesson-1');
-		expect(projects.importProject).toHaveBeenCalledWith({ name: 'lesson' });
+		// The copy carries the link, which is how the next visit finds it without a pointer
+		expect(projects.importProject).toHaveBeenCalledWith({ name: 'lesson' }, { embedHash: hash });
 		expect(projects.setLastProjectId).toHaveBeenCalledWith(id);
 		expect(projects.deleteProject).not.toHaveBeenCalled();
 	});
@@ -169,9 +158,19 @@ describe('openEmbeddedProject', () => {
 
 	it('imports again when the resumed project has been deleted', async () => {
 		const hash = await hashOf('lesson');
+		const first = await openEmbeddedProject(hash);
+		projects.deleteProject(first);
 		await openEmbeddedProject(hash);
-		projects.getProject.mockReturnValue(undefined);
-		await openEmbeddedProject(hash);
+		expect(projects.importProject).toHaveBeenCalledTimes(2);
+	});
+
+	it('opens the project a reset put in place, since it carries the same link', async () => {
+		const hash = await hashOf('lesson');
+		const first = await openEmbeddedProject(hash);
+		// What resetChallenge does: a fresh copy of the same link, and the old one deleted
+		const fresh = projects.importProject({ name: 'lesson' }, { embedHash: hash });
+		projects.deleteProject(first);
+		expect(await openEmbeddedProject(hash)).toBe(fresh.id);
 		expect(projects.importProject).toHaveBeenCalledTimes(2);
 	});
 

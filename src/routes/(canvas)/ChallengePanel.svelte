@@ -106,7 +106,6 @@
 	import { toast } from 'svelte-sonner';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { messageOf } from '$lib/errors';
-	import { followProject } from '$lib/embed';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getProject, openProject, resetChallenge } from '$lib/projects.svelte';
@@ -159,10 +158,8 @@
 			onConfirm: async () => {
 				try {
 					if (!project) throw new Error('this project is no longer in the list');
-					const fresh = resetChallenge(project);
-					followProject(project.id, fresh.id);
 					// Everything of the old canvas belongs to the page, so the reset lands on a reload
-					openProject(fresh.id);
+					openProject(resetChallenge(project).id);
 				} catch (error) {
 					toast.error(`Could not reset the challenge: ${messageOf(error)}`);
 				}

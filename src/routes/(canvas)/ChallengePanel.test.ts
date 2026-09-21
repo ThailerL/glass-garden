@@ -9,10 +9,9 @@ import {
 	timelineRows
 } from './ChallengePanel.svelte';
 
-// The functions under test need neither the project store nor the embed module, both of which
-// read the browser as they load
+// The panel's instance script reaches the project store, which reads storage as it loads; the
+// functions under test need none of it
 vi.mock('$lib/projects.svelte', () => ({}));
-vi.mock('$lib/embed', () => ({}));
 
 const errorRate = (lte: number, from: number, to?: number) => ({
 	metric: {

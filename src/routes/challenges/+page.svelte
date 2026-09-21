@@ -16,7 +16,7 @@
 
 	function start(entry: BuiltInChallenge) {
 		try {
-			openProject(importProject(entry.document, entry.id).id);
+			openProject(importProject(entry.document, { builtIn: entry.id }).id);
 		} catch (error) {
 			toast.error(`Could not start the challenge: ${messageOf(error)}`);
 		}
