@@ -279,6 +279,20 @@ describe('metrics', () => {
     expect(g.stderr).toEqual([expect.stringMatching(new RegExp(`^:${port} unreachable: `))]);
   });
 
+  it('reports a zero for each second that dropped nothing, so the absence is readable', async () => {
+    const app = target();
+    const g = await generator({ target: app.port });
+    // Past `of`, which drops zeros: the zeros are the point here
+    const readings = (name) => g.metrics.filter((metric) => metric.name === name);
+    await waitUntil(
+      () => ['skipped requests', 'connection errors'].every((name) => readings(name).length >= 3),
+      () => `Only reported when non-zero; saw ${JSON.stringify(g.metrics)}`
+    );
+    for (const name of ['skipped requests', 'connection errors']) {
+      expect(readings(name).every(({ value }) => value === 0)).toBe(true);
+    }
+  });
+
   it('skips requests at the in-flight cap and counts them', async () => {
     const app = target(() => undefined);
     const g = await generator({ maxInFlight: 3, target: app.port });

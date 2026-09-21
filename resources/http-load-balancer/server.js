@@ -208,6 +208,8 @@ const server = http.createServer(async (req, res) => {
   // zeros out and expects you to divide by its request count instead; S3 records them the way
   // this does. Try it: put two targets behind the balancer, break one, and compare their lines
   putMetric('target errors', upstream.statusCode >= 500 ? 1 : 0, 'Count', { target: dimension });
+  // The same zero for the same reason: a target that answered is a target that was reachable
+  putMetric('target connection errors', 0, 'Count', { target: dimension });
 
   res.writeHead(upstream.statusCode, upstream.headers);
   // The headers are already out, so a target dying mid-body can only be logged

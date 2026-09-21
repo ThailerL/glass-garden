@@ -159,9 +159,11 @@ function publish() {
     putMetric('requests', times.map(() => 1), 'Count', status);
     putMetric('response time', times, 'Milliseconds', status);
   }
-  // Still its own count: `errors` says how often a request failed, this says why
-  if (connectionErrors > 0) putMetric('connection errors', connectionErrors, 'Count');
-  if (skipped > 0) putMetric('skipped requests', skipped, 'Count');
+  // Still its own count: `errors` says how often a request failed, this says why. Both are
+  // reported every second, zeros and all, so "nothing was dropped" is a reading to point at
+  // rather than an absence of readings, which says the same thing as a generator that stopped
+  putMetric('connection errors', connectionErrors, 'Count');
+  putMetric('skipped requests', skipped, 'Count');
   complainAboutTarget(lastError);
   complainAboutCap(
     skipped > 0
