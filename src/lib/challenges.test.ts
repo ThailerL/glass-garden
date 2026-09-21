@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
-import { readChallengeFolder } from '$lib/challenges';
+import { INDEX_FORMAT, readChallengeFolder } from '$lib/challenges';
 
 const FOLDER = 'static/challenges';
 
@@ -44,7 +44,8 @@ describe('the challenges the app ships', () => {
 	// A challenge nobody listed is one nobody can start, which is not something to discover in
 	// the catalogue
 	it('lists every challenge in the folder', async () => {
-		const listed: { file: string }[] = JSON.parse(await readFile(`${FOLDER}/index.json`, 'utf8'));
+		const index = JSON.parse(await readFile(`${FOLDER}/index.json`, 'utf8'));
+		const listed: { file: string }[] = index.challenges;
 		const files = (await readdir(FOLDER)).filter(
 			(file) => file.endsWith('.json') && file !== 'index.json' && file !== 'schema.json'
 		);
@@ -53,8 +54,9 @@ describe('the challenges the app ships', () => {
 });
 
 describe('readChallengeFolder', () => {
-	const index = (...files: string[]) =>
-		JSON.stringify(files.map((file, i) => ({ id: `c${i}`, file })));
+	const indexOf = (challenges: { id: string; file: string }[]) =>
+		JSON.stringify({ format: INDEX_FORMAT, challenges });
+	const index = (...files: string[]) => indexOf(files.map((file, i) => ({ id: `c${i}`, file })));
 
 	it('keeps the challenges it could read and names the file it could not', async () => {
 		const good = await readFile(`${FOLDER}/first-challenge.json`, 'utf8');
@@ -78,14 +80,22 @@ describe('readChallengeFolder', () => {
 	});
 
 	it('blames the index itself when that is what cannot be read', async () => {
-		const { challenges, unread } = await readChallengeFolder(serve({ 'index.json': '[{}]' }));
+		const broken = JSON.stringify({ format: INDEX_FORMAT, challenges: [{}] });
+		const { challenges, unread } = await readChallengeFolder(serve({ 'index.json': broken }));
 		expect(challenges).toEqual([]);
 		expect(unread[0].file).toBe('index.json');
 		expect(unread[0].problem).toContain('file');
 	});
 
+	it('refuses a bare list, which carries no format to read it by', async () => {
+		const bare = JSON.stringify([{ id: 'a', file: 'a.json' }]);
+		const { challenges, unread } = await readChallengeFolder(serve({ 'index.json': bare }));
+		expect(challenges).toEqual([]);
+		expect(unread[0].file).toBe('index.json');
+	});
+
 	it('refuses two entries sharing an id, which would share one reader’s progress', async () => {
-		const twice = JSON.stringify(['a.json', 'b.json'].map((file) => ({ id: 'same', file })));
+		const twice = indexOf(['a.json', 'b.json'].map((file) => ({ id: 'same', file })));
 		const { unread } = await readChallengeFolder(serve({ 'index.json': twice }));
 		expect(unread[0].problem).toContain('Two challenges share the id "same"');
 	});

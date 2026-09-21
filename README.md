@@ -197,12 +197,15 @@ services:
 The folder holds one `.json` file per challenge and an `index.json` listing them in the order the catalogue shows them:
 
 ```json
-[
-	{
-		"id": "first-challenge",
-		"file": "first-challenge.json"
-	}
-]
+{
+	"format": "gg:challenges/1",
+	"challenges": [
+		{
+			"id": "first-challenge",
+			"file": "first-challenge.json"
+		}
+	]
+}
 ```
 
 Everything a card says comes out of the challenge itself, so it reads the same here as it does for someone who imported the file. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.

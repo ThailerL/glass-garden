@@ -13,15 +13,18 @@ export type BuiltInChallenge = {
 
 // The folder's own file: the catalogue's order, and each challenge's identity in this folder.
 // Every word on a card is the document's, so the card reads the same wherever it came from
-const indexSchema = z
-	.array(
-		z.strictObject({
-			// What a reader's progress is stored against, so a renamed file keeps it
-			id: z.string().min(1),
-			file: z.string().min(1)
-		})
-	)
-	.superRefine((entries, ctx) => {
+const indexEntry = z.strictObject({
+	// What a reader's progress is stored against, so a renamed file keeps it
+	id: z.string().min(1),
+	file: z.string().min(1)
+});
+type IndexEntry = z.infer<typeof indexEntry>;
+
+export const INDEX_FORMAT = 'gg:challenges/1';
+
+const indexSchema = z.strictObject({
+	format: z.literal(INDEX_FORMAT),
+	challenges: z.array(indexEntry).superRefine((entries, ctx) => {
 		const seen = new Set<string>();
 		for (const { id } of entries) {
 			if (seen.has(id)) {
@@ -29,7 +32,8 @@ const indexSchema = z
 			}
 			seen.add(id);
 		}
-	});
+	})
+});
 
 export type UnreadChallenge = { file: string; problem: string };
 
@@ -50,7 +54,7 @@ const problemOf = (error: unknown) =>
 
 async function readChallenge(
 	fetch: typeof globalThis.fetch,
-	{ id, file }: z.infer<typeof indexSchema>[number]
+	{ id, file }: IndexEntry
 ): Promise<BuiltInChallenge | UnreadChallenge> {
 	try {
 		const document = parseDocument(await readFile(fetch, file));
@@ -66,9 +70,9 @@ async function readChallenge(
 export async function readChallengeFolder(
 	fetch: typeof globalThis.fetch = globalThis.fetch
 ): Promise<ChallengeFolder> {
-	let listed: z.infer<typeof indexSchema>;
+	let listed: IndexEntry[];
 	try {
-		listed = indexSchema.parse(JSON.parse(await readFile(fetch, INDEX)));
+		listed = indexSchema.parse(JSON.parse(await readFile(fetch, INDEX))).challenges;
 	} catch (error) {
 		// Nothing is listed, so there is no challenge to name but the list itself
 		return { challenges: [], unread: [{ file: INDEX, problem: problemOf(error) }] };

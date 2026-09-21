@@ -1,10 +1,13 @@
-[
-	{
-		"id": "first-challenge",
-		"file": "first-challenge.json"
-	},
-	{
-		"id": "slow-signups",
-		"file": "slow-signups.json"
-	}
-]
+{
+	"format": "gg:challenges/1",
+	"challenges": [
+		{
+			"id": "first-challenge",
+			"file": "first-challenge.json"
+		},
+		{
+			"id": "slow-signups",
+			"file": "slow-signups.json"
+		}
+	]
+}
