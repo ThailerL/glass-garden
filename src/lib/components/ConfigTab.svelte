@@ -20,7 +20,13 @@
 	import { toast } from 'svelte-sonner';
 	import { getResourceDefinition } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
-	import { getGraphState, nodeAuthored, nodeConfig, nodeName } from '$lib/graph-state.svelte';
+	import {
+		getGraphState,
+		nameTakenByChallenge,
+		nodeAuthored,
+		nodeConfig,
+		nodeName
+	} from '$lib/graph-state.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getEditingLock, LOCKED_UNTIL_RUN_ENDS } from '$lib/challenge-run.svelte';
 	import { launchPlan } from '$lib/resource-controller.svelte';
@@ -103,6 +109,10 @@
 
 		if (!result.valid) {
 			errors.update((v) => ({ ...v, ...result.errors }));
+			return;
+		}
+		if (nameTakenByChallenge(graphState.nodes, node, $formData.name)) {
+			errors.update((v) => ({ ...v, name: ['Another node of the challenge already uses that.'] }));
 			return;
 		}
 

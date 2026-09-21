@@ -262,7 +262,7 @@ describe('fixesSetting', () => {
 	const fixesOn = (challenge: Challenge, name: string) =>
 		fixesSetting(challenge, { name, authored: true });
 
-	it('always holds the name of one of its own nodes, listed or not', () => {
+	it('holds the name of a node it names, listed or not', () => {
 		expect(fixesOn(withFixed([]), 'App')('name')).toBe(true);
 		expect(
 			fixesOn(withFixed([{ node: { name: 'App' }, include: ['command'] }]), 'App')('name')
@@ -271,7 +271,13 @@ describe('fixesSetting', () => {
 		expect(fixesSetting(withFixed([]), { name: 'App' })('name')).toBe(false);
 	});
 
-	it('fixes nothing on a node the challenge did not name', () => {
+	it('holds nothing of its own node that it never names, the name included', () => {
+		const fixes = fixesOn(withFixed([]), 'Spare');
+		expect(fixes('name')).toBe(false);
+		expect(fixes('instanceCount')).toBe(false);
+	});
+
+	it('fixes nothing beyond the name on a node it does not list', () => {
 		const fixes = fixesOn(withFixed([{ node: { name: 'Traffic' } }]), 'App');
 		expect(fixes('instanceCount')).toBe(false);
 	});

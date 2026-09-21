@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GraphState, nodeChart, nodeTestEvent } from '$lib/graph-state.svelte';
+import {
+	GraphState,
+	nameTakenByChallenge,
+	nodeChart,
+	nodeTestEvent
+} from '$lib/graph-state.svelte';
 import type { ResourceType } from '$lib/resources';
 
 vi.mock('$lib/container', () => ({
@@ -91,5 +96,33 @@ describe('node test event', () => {
 		const graph = new GraphState('p1');
 		const node = graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { testEvent: '{}' });
 		expect(nodeTestEvent(node)).toBe('{}');
+	});
+});
+
+describe('nameTakenByChallenge', () => {
+	const canvas = () => {
+		const graph = new GraphState('p1');
+		const add = (name: string, authored?: boolean) =>
+			graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { config: { name }, authored });
+		const app = add('App', true);
+		const spare = add('Spare', true);
+		const mine = add('Mine');
+		return { nodes: graph.nodes, app, spare, mine };
+	};
+
+	it('refuses a name another of the challenge\u2019s nodes answers to', () => {
+		const { nodes, spare } = canvas();
+		expect(nameTakenByChallenge(nodes, spare, 'App')).toBe(true);
+	});
+
+	it('leaves a node its own name, and every name no challenge node holds', () => {
+		const { nodes, app, spare } = canvas();
+		expect(nameTakenByChallenge(nodes, app, 'App')).toBe(false);
+		expect(nameTakenByChallenge(nodes, spare, 'Mine')).toBe(false);
+	});
+
+	it('holds nothing against the reader, whose nodes no goal can name', () => {
+		const { nodes, mine } = canvas();
+		expect(nameTakenByChallenge(nodes, mine, 'App')).toBe(false);
 	});
 });

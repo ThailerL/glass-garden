@@ -50,6 +50,18 @@ export function nodeName(node: { data: Node['data'] }): string {
 	return nodeConfig<{ name: string }>(node).name;
 }
 
+// Two authored nodes of one name would leave a challenge's reference answering for both
+export function nameTakenByChallenge(
+	nodes: readonly Node[],
+	renamed: Node,
+	name: unknown
+): boolean {
+	if (!nodeAuthored(renamed)) return false;
+	return nodes.some(
+		(node) => node.id !== renamed.id && nodeAuthored(node) && nodeName(node) === name
+	);
+}
+
 // One key space per project, so a graph's entries can be found and cleared as a set
 export const GRAPH_PREFIX = 'graph:';
 
