@@ -1,4 +1,4 @@
-const PARAM = 'project';
+const PARAM = 'garden';
 // Chat and email clients start truncating well before browsers do
 const MAX_LINK_LENGTH = 32_000;
 
@@ -25,7 +25,7 @@ export async function encodeShareLink(document: string, origin: string): Promise
 	);
 	const link = `${origin}/#${PARAM}=${toBase64Url(deflated)}`;
 	if (link.length > MAX_LINK_LENGTH) {
-		throw new Error('This project is too large to share as a link. Export it instead.');
+		throw new Error('This is too large to share as a link. Export it instead.');
 	}
 	return link;
 }
@@ -44,6 +44,6 @@ export async function decodeShareLink(hash: string): Promise<string> {
 		const inflated = await pipe(fromBase64Url(blob), new DecompressionStream('deflate-raw'));
 		return new TextDecoder('utf-8', { fatal: true }).decode(inflated);
 	} catch {
-		throw new Error('That link is not a Glass Garden project');
+		throw new Error('That link does not hold a Glass Garden project or challenge');
 	}
 }

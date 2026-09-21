@@ -72,7 +72,7 @@ const document = {
 
 describe('resetChallenge', () => {
 	it('hands the fresh project everything that outlives the canvas', () => {
-		const started = importProject(document, { builtIn: 'keep-up', embedHash: '#project=abc' });
+		const started = importProject(document, { builtIn: 'keep-up', embedHash: '#garden=abc' });
 		started.bestRun = ['up'];
 
 		const fresh = resetChallenge(started);
@@ -80,7 +80,7 @@ describe('resetChallenge', () => {
 		// The embed's link among them, so the frame finds the replacement without being told
 		expect(fresh).toMatchObject({
 			builtIn: 'keep-up',
-			embedHash: '#project=abc',
+			embedHash: '#garden=abc',
 			bestRun: ['up']
 		});
 		expect(listEmbedded().map((p) => p.id)).toEqual([fresh.id]);

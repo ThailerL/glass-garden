@@ -81,7 +81,7 @@ beforeEach(() => {
 describe('mainAppUrl', () => {
 	it('prefers PUBLIC_ORIGIN and keeps the link', () => {
 		publicEnv.PUBLIC_ORIGIN = 'https://glass.garden';
-		expect(mainAppUrl('#project=abc')).toBe('https://glass.garden/#project=abc');
+		expect(mainAppUrl('#garden=abc')).toBe('https://glass.garden/#garden=abc');
 	});
 
 	it('falls back to the origin serving the embed', () => {
@@ -92,9 +92,9 @@ describe('mainAppUrl', () => {
 describe('leaveForMainApp', () => {
 	it('sends a reader on an embed address to the deployment, link and all', () => {
 		publicEnv.PUBLIC_ORIGIN = 'https://glass.garden';
-		location.hash = '#project=abc';
+		location.hash = '#garden=abc';
 		expect(leaveForMainApp()).toBe(true);
-		expect(location.replace).toHaveBeenCalledWith('https://glass.garden/#project=abc');
+		expect(location.replace).toHaveBeenCalledWith('https://glass.garden/#garden=abc');
 	});
 
 	it('stays put where the deployment has no address of its own', () => {

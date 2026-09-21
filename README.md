@@ -41,7 +41,7 @@ A project can run inside a page on another site, such as a blog post or a course
 
 ```html
 <iframe
-	src="https://intro.embed.glass.garden/#project=…"
+	src="https://intro.embed.glass.garden/#garden=…"
 	allow="cross-origin-isolated"
 	loading="lazy"
 	width="100%"
@@ -61,14 +61,14 @@ Without them the frame shows an **Open in Glass Garden** link instead.
 To have everything on the canvas start by itself the first time a reader scrolls to it, add `?start` before the `#`:
 
 ```html
-<iframe src="https://intro.embed.glass.garden/?start#project=…" …></iframe>
+<iframe src="https://intro.embed.glass.garden/?start#garden=…" …></iframe>
 ```
 
 Leave it off when pressing start is part of the lesson.
 
 These headers apply to the whole page, so other frames on it, such as YouTube videos, are blocked unless their site sends headers allowing it, and sign-in or payment popups from other sites can't report back to it. Sending them only on the pages that show a project leaves the rest of your site as it is.
 
-The embed shows the project without the project list. What a reader does in it is kept by their browser for that subdomain on your site, so every page of yours with the same link picks the project up where the reader left off, and a different link on the same subdomain replaces it. Give every project its own subdomain, such as `intro.embed.glass.garden` and `scaling.embed.glass.garden`, so that moving between your pages never wipes one project with another. Any name works and nothing is registered. Browsers treat this as data they can clear to free up space, so it suits following along with a lesson rather than keeping work.
+The embed shows the project without the project list. What a reader does in it is kept by their browser for that subdomain on your site, so every page of yours with the same link picks the project up where the reader left off, and a different link on the same subdomain replaces it. Give every project or challenge its own subdomain, such as `intro.embed.glass.garden` and `scaling.embed.glass.garden`, so that moving between your pages never wipes one with another. Any name works and nothing is registered. Browsers treat this as data they can clear to free up space, so it suits following along with a lesson rather than keeping work.
 
 ## Writing challenges
 

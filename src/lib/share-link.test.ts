@@ -11,7 +11,7 @@ describe('share links', () => {
 			files: 'ünïcode'
 		});
 		const link = await encodeShareLink(document, origin);
-		expect(link.startsWith(`${origin}/#project=`)).toBe(true);
+		expect(link.startsWith(`${origin}/#garden=`)).toBe(true);
 		expect(link.split('=')[1]).toMatch(/^[A-Za-z0-9_-]+$/);
 		expect(await decodeShareLink(new URL(link).hash)).toBe(document);
 	});
@@ -34,8 +34,8 @@ describe('share links', () => {
 	});
 
 	it('rejects a fragment that does not inflate', async () => {
-		await expect(decodeShareLink('#project=not-deflated')).rejects.toThrow(
-			'not a Glass Garden project'
+		await expect(decodeShareLink('#garden=not-deflated')).rejects.toThrow(
+			'does not hold a Glass Garden project or challenge'
 		);
 	});
 });
