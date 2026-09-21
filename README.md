@@ -70,6 +70,59 @@ These headers apply to the whole page, so other frames on it, such as YouTube vi
 
 The embed shows the project without the project list. What a reader does in it is kept by their browser for that subdomain on your site, so every page of yours with the same link picks the project up where the reader left off, and a different link on the same subdomain replaces it. Give every project its own subdomain, such as `intro.embed.glass.garden` and `scaling.embed.glass.garden`, so that moving between your pages never wipes one project with another. Any name works and nothing is registered. Browsers treat this as data they can clear to free up space, so it suits following along with a lesson rather than keeping work.
 
+## Writing challenges
+
+A challenge gives the reader goals to meet. They get the canvas ready and press **Run**, and a script starts everything and then acts on it while the clock runs, stopping an app or raising the traffic. The goals are judged on what the system does while it plays, and saving is held until the run ends, so every run is scored on one canvas.
+
+A challenge is a single JSON file that carries the canvas it starts from, so a share link hands out the challenge as written and never a reader's progress through it. Build that canvas as an ordinary project, export it, and paste what Export wrote under `startingCanvas`:
+
+```json
+{
+	"$schema": "./schema.json",
+	"format": "gg:challenge/1",
+	"title": "Survive a lost app",
+	"description": "One of two apps goes down for 25 seconds. Keep answering.",
+	"length": 55,
+	"events": [
+		{ "at": 10, "stop": { "name": "App A" } },
+		{ "at": 35, "text": "App A comes back", "start": { "name": "App A" } }
+	],
+	"fixed": [{ "node": { "name": "Traffic" } }],
+	"goals": [
+		{
+			"id": "outage",
+			"title": "Fewer than 1 in 20 requests fail while App A is down",
+			"hint": "The balancer needs somewhere else to send requests.",
+			"conditions": [
+				{
+					"metric": {
+						"node": { "name": "Traffic" },
+						"name": "errors",
+						"statistic": "Average",
+						"lte": 0.05,
+						"from": 22,
+						"to": 35
+					}
+				}
+			]
+		}
+	],
+	"startingCanvas": { "format": "gg:project/1", "nodes": […], "edges": […], "nodeFiles": {} }
+}
+```
+
+Goals and events refer to a node by its name, which matches exactly one. Writing `{ "type": "dynamodbTable" }` instead matches every node of that type, which is how a goal asks the reader to add one, and each kind of condition says below how many of them have to satisfy it. A node the challenge names can't be deleted or renamed.
+
+An event starts a node, stops it, or sets its settings, `at` so many seconds after everything reports running. Give it `text` and the timeline shows your sentence rather than a setting's name. `fixed` is the settings the challenge owns rather than the reader. Naming a node holds all of them, and `include` or `exclude` holds or releases only the ones you list. A setting some goal compares stays the reader's either way, since comparing it is how a challenge asks for it to be changed.
+
+A goal is met when all of its conditions hold. A `node` condition wants one matching node to exist, and takes `config` comparisons such as `{ "maxConcurrency": { "gte": 2 } }`, each reading `eq`, `gte`, `lte`, or a mix. An `edge` condition wants one edge between a matching pair, `from` one node `to` another.
+
+A `metric` condition holds any metric a node records within `lte`, `gte`, or both, read by `Average`, `SampleCount`, `Sum`, `Minimum`, or `Maximum`, the same statistics the metrics tab offers, and it has to hold at every matching node that recorded anything rather than at one of them. Open that tab to see what a node records, whether that is a queue's messages, a function's concurrent executions, or whatever your own code reports. `dimensions` picks one series out of several published under the same name. `from` and `to` are the seconds of the run it is judged over, defaulting to the start and the end. `read` is `"whole window"` unless you say otherwise, which folds the window into one number. `"every datapoint"` needs the bound to hold at every second in the window and fails at the one that breaks it, and `"any datapoint"` is met as soon as one second satisfies it. A second the node recorded nothing in is skipped rather than counted as zero.
+
+`length` is how long the run lasts, up to 900 seconds. A `hint` is offered once a scored run has failed its goal, and shown only when the reader asks for it.
+
+Every name a goal or event mentions is checked as the file is read, so a challenge nobody could win is refused rather than failing halfway through a run. The import button on the **Projects** group takes a challenge file as well as a project, and what it imports appears under **Imported** on the Challenges page. To ship your own with a self-hosted build, see [Your own built-in challenges](#your-own-built-in-challenges).
+
 ## Self-hosting
 
 To self-host with Docker, use this `compose.yaml`
@@ -96,7 +149,7 @@ Then visit `http://localhost:3000`. If you are not accessing the website from `l
 
 To embed your instance of Glass Garden, point the wildcard `*.embed.garden.example.com` at the same container.
 
-### Your own challenges
+### Your own built-in challenges
 
 The challenges in the catalogue are files the container serves from `/app/build/client/challenges`. Mount your own folder over it to replace them:
 
