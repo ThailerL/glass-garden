@@ -1,0 +1,63 @@
+import { describe, expect, it } from 'vitest';
+import { headTags, robots, sitemap } from './page-metadata';
+
+describe('headTags', () => {
+	it('describes an indexable page even when the deployment has no address', () => {
+		const tags = headTags(undefined, '/');
+		expect(tags).toContain('<meta name="description"');
+		expect(tags).not.toContain('canonical');
+		expect(tags).not.toContain('ld+json');
+	});
+
+	it('points the canonical at the public origin, whatever host served the page', () => {
+		expect(headTags('https://glass.garden/', '/')).toContain(
+			'<link rel="canonical" href="https://glass.garden/" />'
+		);
+	});
+
+	it('puts the structured data on the home page', () => {
+		const home = headTags('https://glass.garden', '/');
+		const json = home.match(/<script type="application\/ld\+json">(.*)<\/script>/)?.[1];
+		expect(JSON.parse(json ?? '')).toMatchObject({
+			'@type': 'SoftwareApplication',
+			url: 'https://glass.garden/'
+		});
+	});
+
+	it('keeps the catalogue out of search, since arriving there cold boots the VM for a list', () => {
+		expect(headTags('https://glass.garden', '/challenges')).toBe(
+			'<meta name="robots" content="noindex" />'
+		);
+	});
+
+	it('keeps a page that is a view onto local projects out of search', () => {
+		expect(headTags('https://glass.garden', '/edit/abc123')).toBe(
+			'<meta name="robots" content="noindex" />'
+		);
+	});
+});
+
+describe('sitemap', () => {
+	it('lists the indexable pages under the public origin, and nothing else', () => {
+		const xml = sitemap('https://glass.garden/');
+		expect(xml).toContain('<loc>https://glass.garden/</loc>');
+		expect(xml).not.toContain('/challenges');
+	});
+
+	it('does not exist without an address to put in it', () => {
+		expect(sitemap(undefined)).toBeUndefined();
+		expect(sitemap('')).toBeUndefined();
+	});
+});
+
+describe('robots', () => {
+	it('allows everything and names the sitemap', () => {
+		expect(robots('https://glass.garden')).toBe(
+			'# allow crawling everything by default\nUser-agent: *\nDisallow:\nSitemap: https://glass.garden/sitemap.xml\n'
+		);
+	});
+
+	it('leaves the sitemap out when the deployment has no address', () => {
+		expect(robots(undefined)).not.toContain('Sitemap');
+	});
+});
