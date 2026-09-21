@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { createProject, openProject } from '$lib/projects.svelte';
 	import { challengeCatalogue, loadCatalogue } from '$lib/challenge-catalogue.svelte';
 	import { buildTourCanvas } from '$lib/tour.svelte';
@@ -13,14 +14,15 @@
 	loadCatalogue();
 	const { builtIn, ready } = $derived(challengeCatalogue());
 	const complete = $derived(builtIn.filter((challenge) => challenge.complete).length);
+	const challengesPath = resolve('/challenges');
 </script>
 
 <Sidebar.Group class="py-0">
 	<Sidebar.Menu>
 		<Sidebar.MenuItem>
-			<Sidebar.MenuButton class="text-sm">
+			<Sidebar.MenuButton class="text-sm" isActive={page.url.pathname === challengesPath}>
 				{#snippet child({ props })}
-					<a href={resolve('/challenges')} {...props}>
+					<a href={challengesPath} {...props}>
 						Challenges
 						<span class="ml-auto text-xs text-muted-foreground">
 							<!-- Until the folder lands there is no count to give, and "0 of 0" is not it -->

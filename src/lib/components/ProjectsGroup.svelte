@@ -22,6 +22,9 @@
 	import CreateProjectDialog from './CreateProjectDialog.svelte';
 	import ProjectMenuItem from './ProjectMenuItem.svelte';
 
+	// The project on screen, if the canvas is what's showing: the catalogue highlights no row
+	const { active }: { active?: string } = $props();
+
 	const graphState = getGraphState();
 	const projects = $derived(listProjects());
 
@@ -117,8 +120,8 @@
 					{#each projects as project (project.id)}
 						<ProjectMenuItem
 							{project}
-							active={project.id === graphState.projectId}
-							onOpen={() => project.id !== graphState.projectId && openProject(project.id)}
+							active={project.id === active}
+							onOpen={() => project.id !== active && openProject(project.id)}
 							onExport={() => download(project)}
 							onShare={() => share(project)}
 							onDelete={() => confirmDeleteProject(project)}
