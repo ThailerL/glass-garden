@@ -2,7 +2,7 @@ import { nodeAuthored, nodeConfig, type GraphState } from './graph-state.svelte'
 import type { Orchestrator } from './orchestrator.svelte';
 import type { RunServices } from './challenge-run.svelte';
 import { goalIds, type Challenge } from './challenge';
-import { getResourceDefinition } from './resources';
+import { getResourceDefinition, readOf } from './resources';
 import { recordRun } from './projects.svelte';
 import { tellHost } from './embed';
 
@@ -45,6 +45,13 @@ export function runServices(
 		},
 		stopAll: () => orchestrator.stopAll(),
 		clearStoredData: () => orchestrator.clearStoredData(),
+		read: async (nodeId, read, args) => {
+			const node = graph.getNode(nodeId);
+			const offered = node && readOf(node.type, read);
+			// The document already refused this, so it means the canvas changed under the run
+			if (!offered) throw new Error(`${read} is not a read this node offers`);
+			return offered.read(node, offered.args.parse(args));
+		},
 		finished: ({ met, failed }) => {
 			tellHost({ event: 'run', scored: true, met, failed });
 			if (recordRun(projectId, met)) tellHost({ event: 'best', met, all: allGoals });

@@ -44,9 +44,11 @@
 		}));
 		const goalRows: Row[] = goalsInOrder(challenge).map(([id, goal]) => {
 			const { atStart, judged } = windowsOf(goal, length);
-			const spans = judged.map(([from, to]) =>
-				to >= length ? `${from} s–end` : `${from}–${to} s`
-			);
+			const spans = judged.map(([from, to]) => {
+				// A read is taken at a moment, where the two ends of its window meet
+				if (from === to) return to >= length ? 'At the end' : `At ${from} s`;
+				return to >= length ? `${from} s–end` : `${from}–${to} s`;
+			});
 			return {
 				at: startOf(goal, length),
 				// Not "0 s", which on an event row means something that happens then
@@ -61,9 +63,12 @@
 		return rows.map((row, i) => (row.time === rows[i - 1]?.time ? { ...row, time: '' } : row));
 	}
 
-	// Every stretch any goal is judged over, once each, shaded on the bar
+	// Every stretch any goal is judged over, once each, shaded on the bar. A moment shades
+	// nothing, since a zero-width band would be a line the bar already has for events
 	export function shadedSpans({ goals, length }: Challenge): [number, number][] {
-		const spans = Object.values(goals).flatMap((goal) => windowsOf(goal, length).judged);
+		const spans = Object.values(goals)
+			.flatMap((goal) => windowsOf(goal, length).judged)
+			.filter(([from, to]) => from !== to);
 		return [...new Map(spans.map((span) => [`${span[0]}-${span[1]}`, span])).values()];
 	}
 

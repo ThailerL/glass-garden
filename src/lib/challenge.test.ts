@@ -9,6 +9,8 @@ import {
 	type CanvasView,
 	type Challenge,
 	type Condition,
+	type ConditionInput,
+	type DataCondition,
 	type RunRecord
 } from '$lib/challenge';
 import { dimensionKey, newSeries, record, type Dimensions } from '$lib/metrics';
@@ -25,7 +27,13 @@ const canvas: CanvasView = {
 		},
 		{ id: 'lb', type: 'httpLoadBalancer', config: { name: 'LB' }, authored },
 		{ id: 'app', type: 'instanceGroup', config: { name: 'App', instanceCount: 2 }, authored },
-		{ id: 'queue', type: 'sqsQueue', config: { name: 'Jobs' }, authored }
+		{ id: 'queue', type: 'sqsQueue', config: { name: 'Jobs' }, authored },
+		{
+			id: 'table',
+			type: 'dynamodbTable',
+			config: { name: 'Accounts', tableName: 'accounts', partitionKey: 'email' },
+			authored
+		}
 	],
 	edges: [
 		{ source: 'gen', target: 'lb' },
@@ -33,11 +41,18 @@ const canvas: CanvasView = {
 	]
 };
 
-function challengeOf(...conditions: Condition[]): Challenge {
+function challengeOf(...conditions: ConditionInput[]): Challenge {
 	return challengeSchema.parse({ length: 60, goals: { g: { title: 'Goal', conditions } } });
 }
 
 const STARTED_AT = 1_700_000_000_000;
+
+// The one data condition of a challenge written with exactly one
+function readOf(challenge: Challenge): DataCondition {
+	const [condition] = challenge.goals.g.conditions;
+	if (!('data' in condition)) throw new Error('not a data condition');
+	return condition.data;
+}
 
 function run(overrides: Partial<RunRecord> = {}): RunRecord {
 	return {
@@ -45,6 +60,7 @@ function run(overrides: Partial<RunRecord> = {}): RunRecord {
 		canvas,
 		startedAt: STARTED_AT,
 		metrics: () => ({}),
+		readings: () => undefined,
 		...overrides
 	};
 }
@@ -437,6 +453,74 @@ describe('judge', () => {
 				}
 			})
 		).toThrow(/periods of 4 s/);
+	});
+
+	it('judges what a resource holds once the read it names has answered', () => {
+		const stored = challengeOf({
+			data: {
+				node: { name: 'Accounts' },
+				read: 'item',
+				args: { key: '10@example.com' },
+				at: 30,
+				where: { hash: { eq: 'abc' } }
+			}
+		});
+		const answered = (found?: Record<string, string>) =>
+			run({
+				readings: (id, c) => (id === 'table' && c === readOf(stored) ? { found } : undefined)
+			});
+
+		// Nothing is asked of a read before its moment, and nothing is known until it answers
+		expect(stateAt(stored, answered({ hash: 'abc' }), 20)).toBe('waiting');
+		expect(stateAt(stored, run(), 30)).toBe('judging');
+		expect(stateAt(stored, answered({ hash: 'abc' }), 30)).toBe('met');
+		// Something else was stored, which reads differently from nothing having been
+		expect(stateAt(stored, answered({ hash: 'nope' }), 30)).toBe('failed');
+		expect(stateAt(stored, answered(undefined), 30)).toBe('failed');
+	});
+
+	it('asks only that there is something there when the goal compares nothing', () => {
+		const exists = challengeOf({
+			data: { node: { name: 'Accounts' }, read: 'item', args: { key: '1@example.com' } }
+		});
+		const answered = (found?: Record<string, string>) =>
+			run({
+				readings: (id, c) => (id === 'table' && c === readOf(exists) ? { found } : undefined)
+			});
+		// No `at`, so it is read at the run's end
+		expect(stateAt(exists, answered({ email: '1@example.com' }), 59)).toBe('waiting');
+		expect(stateAt(exists, answered({ email: '1@example.com' }), 60)).toBe('met');
+		expect(stateAt(exists, answered(undefined), 60)).toBe('failed');
+	});
+
+	it('fails a read of a type the reader never supplied, since there is nothing to read', () => {
+		const supplied = challengeOf({
+			data: { node: { type: 'dynamodbTable' }, read: 'item', args: { key: 'k' } }
+		});
+		expect(stateAt(supplied, run({ canvas: { nodes: [], edges: [] } }), 60)).toBe('failed');
+	});
+
+	it('refuses a read taken after the run is over, which nothing would ever take', () => {
+		const at = (second: number) =>
+			challengeOf({
+				data: { node: { name: 'Accounts' }, read: 'item', args: { key: 'k' }, at: second }
+			});
+		expect(at(60).goals.g.conditions).toHaveLength(1);
+		expect(() => at(61)).toThrow(/judged from 61 s to 61 s/);
+	});
+
+	it('refuses a read a resource does not offer, or arguments it cannot use', () => {
+		expect(() =>
+			challengeOf({ data: { node: { type: 's3Bucket' }, read: 'item', args: { key: 'k' } } })
+		).toThrow(/not a read a s3Bucket offers/);
+		expect(() => challengeOf({ data: { node: { type: 'dynamodbTable' }, read: 'item' } })).toThrow(
+			/cannot use those arguments/
+		);
+		expect(() =>
+			challengeOf({
+				data: { node: { type: 'dynamodbTable' }, read: 'item', args: { keys: 'k' } }
+			})
+		).toThrow(/cannot use those arguments/);
 	});
 
 	it('meets a goal asking for any datapoint the moment one arrives', () => {

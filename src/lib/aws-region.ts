@@ -169,7 +169,9 @@ export async function deprovisionResource(service: Service, name: string) {
 export type Invocation = { status: number; functionError?: string; payload: string };
 
 // SigV4's shape without a signature, which is all the region enforces on
-const ADMIN_AUTHORIZATION = `AWS4-HMAC-SHA256 Credential=${ADMIN_ACCESS_KEY}/20260101/us-east-1/lambda/aws4_request, SignedHeaders=host, Signature=glass-garden`;
+function adminAuthorization(service: Service) {
+	return `AWS4-HMAC-SHA256 Credential=${ADMIN_ACCESS_KEY}/20260101/us-east-1/${service}/aws4_request, SignedHeaders=host, Signature=glass-garden`;
+}
 
 // The path an SDK caller takes, so a test reaches the log and metrics like any invocation
 export async function invokeFunction(functionName: string, payload: string): Promise<Invocation> {
@@ -181,7 +183,7 @@ export async function invokeFunction(functionName: string, payload: string): Pro
 		{
 			method: 'POST',
 			headers: {
-				authorization: ADMIN_AUTHORIZATION,
+				authorization: adminAuthorization('lambda'),
 				'content-type': 'application/json'
 			},
 			body: payload
@@ -192,6 +194,29 @@ export async function invokeFunction(functionName: string, payload: string): Pro
 		functionError: response.headers.get('x-amz-function-error') ?? undefined,
 		payload: await response.text()
 	};
+}
+
+// The AWS JSON protocol the SDK speaks. x-gg-observe keeps the read off the node's charts;
+// user code is never given the token, so an app cannot hide its own traffic this way
+export async function callAws(service: Service, target: string, body: unknown) {
+	await ensureRegion();
+	const current = region;
+	if (!current) throw new Error('The region is not running');
+	const response = await fetch(withTrailingSlash(current.previewUrl), {
+		method: 'POST',
+		headers: {
+			authorization: adminAuthorization(service),
+			'content-type': 'application/x-amz-json-1.0',
+			'x-amz-target': target,
+			'x-gg-observe': current.token
+		},
+		body: JSON.stringify(body),
+		// A read that never answers would leave its goal judging for the rest of the run
+		signal: AbortSignal.timeout(CONTROL_TIMEOUT_MS)
+	});
+	const text = await response.text();
+	if (!response.ok) throw new Error(`${target} answered ${response.status}: ${text}`);
+	return JSON.parse(text) as Record<string, unknown>;
 }
 
 function boot(): Region {

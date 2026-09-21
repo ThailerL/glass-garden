@@ -482,6 +482,141 @@
 										"metric"
 									],
 									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "object",
+											"properties": {
+												"node": {
+													"anyOf": [
+														{
+															"type": "object",
+															"properties": {
+																"name": {
+																	"type": "string",
+																	"minLength": 1
+																}
+															},
+															"required": [
+																"name"
+															],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"enum": [
+																		"instanceGroup",
+																		"lambdaFunction",
+																		"httpLoadBalancer",
+																		"requestGenerator",
+																		"postgres",
+																		"s3Bucket",
+																		"sqsQueue",
+																		"dynamodbTable"
+																	]
+																}
+															},
+															"required": [
+																"type"
+															],
+															"additionalProperties": false
+														}
+													]
+												},
+												"read": {
+													"type": "string",
+													"minLength": 1,
+													"enum": [
+														"item"
+													]
+												},
+												"args": {
+													"default": {},
+													"type": "object",
+													"propertyNames": {
+														"type": "string"
+													},
+													"additionalProperties": {}
+												},
+												"at": {
+													"type": "number",
+													"minimum": 0
+												},
+												"where": {
+													"default": {},
+													"type": "object",
+													"propertyNames": {
+														"type": "string"
+													},
+													"additionalProperties": {
+														"type": "object",
+														"properties": {
+															"eq": {
+																"anyOf": [
+																	{
+																		"type": "string"
+																	},
+																	{
+																		"type": "number"
+																	},
+																	{
+																		"type": "boolean"
+																	}
+																]
+															},
+															"gte": {
+																"type": "number"
+															},
+															"lte": {
+																"type": "number"
+															}
+														},
+														"additionalProperties": false
+													}
+												}
+											},
+											"required": [
+												"node",
+												"read"
+											],
+											"additionalProperties": false,
+											"anyOf": [
+												{
+													"properties": {
+														"read": {
+															"const": "item"
+														},
+														"args": {
+															"type": "object",
+															"properties": {
+																"key": {
+																	"type": "string",
+																	"minLength": 1
+																}
+															},
+															"required": [
+																"key"
+															],
+															"additionalProperties": false
+														}
+													},
+													"required": [
+														"read",
+														"args"
+													]
+												}
+											]
+										}
+									},
+									"required": [
+										"data"
+									],
+									"additionalProperties": false
 								}
 							]
 						}

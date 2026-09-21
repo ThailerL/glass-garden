@@ -11,6 +11,16 @@ import type { TextOutput } from '$lib/resource-log.svelte';
 // the others: a resource that consumes it points at the code it triggers
 export type Capability = 'http' | 'sql' | 'aws' | 'invoke';
 
+// A challenge's comparison is built from this, so the two cannot drift apart
+export const scalar = z.union([z.string(), z.number(), z.boolean()]);
+export type Scalar = z.infer<typeof scalar>;
+
+// undefined back is "nothing there", which a condition treats as false, not as an error
+export type ResourceRead = {
+	args: z.ZodType<Record<string, string>>;
+	read: (node: Node, args: Record<string, string>) => Promise<Record<string, Scalar> | undefined>;
+};
+
 // Returned by a definition's start so the orchestrator can manage an instance's
 // lifecycle without touching whatever the definition actually launched
 export type InstanceHandle = {
@@ -169,6 +179,7 @@ export type ResourceDefinition = {
 	remove?: (node: Node, container: Vivari) => Promise<void>;
 	// Called as a challenge run starts, so it is judged on what it wrote. The node may be stopping
 	clear?: (node: Node, container: Vivari) => Promise<void>;
+	reads?: Record<string, ResourceRead>;
 	// Called after the editor saves one of the node's files. For a resource whose running
 	// code is deployed from its directory rather than read from it
 	afterSave?: (node: Node, neighbours: readonly ConnectedNode[]) => Promise<void>;

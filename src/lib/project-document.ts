@@ -1,12 +1,19 @@
 import type { Edge, Node } from '@xyflow/svelte';
 import type { DirEnt, FileSystemTree } from '@vivari/core';
 import { z } from 'zod';
-import { resourceDefinitions, resourceTypeSchema, type ResourceType } from './resources';
+import {
+	declaredReads,
+	resourceDefinitions,
+	resourceTypeSchema,
+	type ResourceType
+} from './resources';
 import {
 	challengeRefs,
 	challengeSchema,
 	comparedSettings,
+	dataCondition,
 	neededNodes,
+	readProblem,
 	type Challenge,
 	type Comparison,
 	type FixedNode,
@@ -74,7 +81,7 @@ const challengeDocumentSchema = challengeSchema
 	.superRefine((challenge, ctx) => {
 		const problem = (message: string) => ctx.addIssue({ code: 'custom', message });
 		const canvas = canvasByName(challenge.startingCanvas, problem);
-		for (const { where, ref, config } of challengeRefs(challenge)) {
+		for (const { where, ref, config, data } of challengeRefs(challenge)) {
 			// A type is the node the reader supplies, so neither it nor its settings are ours to check
 			if (!('name' in ref)) continue;
 			const target = canvas.get(ref.name);
@@ -83,6 +90,10 @@ const challengeDocumentSchema = challengeSchema
 					`${where} names a node called "${ref.name}", which the challenge's canvas does not have`
 				);
 				continue;
+			}
+			const unreadable = data && readProblem(target.type, data);
+			if (unreadable) {
+				problem(`${where} asks "${ref.name}" for a read it cannot answer: ${unreadable}`);
 			}
 			for (const [key, comparison] of Object.entries(config ?? {})) {
 				checkComparison({ where, key, comparison }, ref.name, target, problem);
@@ -242,10 +253,35 @@ export function goalsJudgedAlike(before: ChallengeDocument, after: ChallengeDocu
 	return new Set(kept.map(([id]) => id));
 }
 
+// A read is named by a string, and its arguments are whatever that read takes, so neither is
+// anything an editor could offer. One arm per read the resources declare says both
+function describeReads({
+	zodSchema,
+	jsonSchema
+}: {
+	zodSchema: unknown;
+	jsonSchema: z.core.JSONSchema.BaseSchema;
+}): void {
+	if (zodSchema !== dataCondition) return;
+	const reads = declaredReads();
+	const named = jsonSchema.properties?.read;
+	if (typeof named === 'object') named.enum = [...new Set(reads.map(({ name }) => name))];
+	jsonSchema.anyOf = reads.map(({ name, read }) => {
+		const args = z.toJSONSchema(read.args, { io: 'input' });
+		// The arms are not documents of their own
+		delete args.$schema;
+		return {
+			properties: { read: { const: name }, args },
+			// A read that needs an argument cannot be asked without them
+			required: args.required ? ['read', 'args'] : ['read']
+		};
+	});
+}
+
 // Shipped beside the challenges so an editor checks one as it is written. Only the shape
 // survives the conversion; what the canvas references mean is still the parse's to say
 export function challengeJsonSchema(): unknown {
-	return z.toJSONSchema(challengeDocumentSchema, { io: 'input' });
+	return z.toJSONSchema(challengeDocumentSchema, { io: 'input', override: describeReads });
 }
 
 // What a file, a share link or an embed can carry

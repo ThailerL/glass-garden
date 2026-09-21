@@ -1,6 +1,6 @@
 import type { Edge } from '@xyflow/svelte';
 import { z } from 'zod';
-import type { Capability, ResourceDefinition, ConnectedNode } from './types';
+import type { Capability, ResourceDefinition, ResourceRead, ConnectedNode } from './types';
 import { instanceGroup } from './instance-group';
 import { httpLoadBalancer } from './http-load-balancer';
 import { requestGenerator } from './request-generator';
@@ -36,6 +36,23 @@ export function getResourceDefinition(type: string | undefined): ResourceDefinit
 		throw new Error(`Unknown resource type: ${type}`);
 	}
 	return definition;
+}
+
+// Read lazily: a module-scope schema would walk every definition before they have all loaded
+export function readsOf(type: string | undefined): string[] {
+	return Object.keys(getResourceDefinition(type).reads ?? {});
+}
+
+export function readOf(type: string | undefined, name: string): ResourceRead | undefined {
+	return getResourceDefinition(type).reads?.[name];
+}
+
+// Every read any resource offers, for the schema an editor checks a hand-written challenge
+// against. Two resources may offer the same name, and each entry carries its own arguments
+export function declaredReads(): { name: string; read: ResourceRead }[] {
+	return Object.keys(resourceDefinitions).flatMap((type) =>
+		Object.entries(getResourceDefinition(type).reads ?? {}).map(([name, read]) => ({ name, read }))
+	);
 }
 
 // Knowing how to empty a resource is the same thing as it holding data worth keeping, so the

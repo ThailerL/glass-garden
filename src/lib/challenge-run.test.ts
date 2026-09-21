@@ -68,6 +68,10 @@ function fakeCanvas(clearFails = false) {
 			calls.push('clearStoredData');
 			return clearFails ? { nodeId: 'app', nodeName: 'App' } : undefined;
 		},
+		read: async (id, read) => {
+			calls.push(`read ${read} ${id}`);
+			return undefined;
+		},
 		finished: vi.fn(),
 		unscored: vi.fn()
 	};

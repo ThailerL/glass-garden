@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { resourceTypeSchema } from './resources';
+import { readOf, readsOf, resourceTypeSchema } from './resources';
+import { scalar, type Scalar } from './resources/types';
 import {
 	breakDown,
 	MAX_DATAPOINTS,
@@ -24,7 +25,7 @@ export type NodeRef = z.infer<typeof nodeRef>;
 const comparison = z
 	.strictObject({
 		// Every kind a setting holds; an object or a list could never equal one
-		eq: z.union([z.string(), z.number(), z.boolean()]).optional(),
+		eq: scalar.optional(),
 		gte: z.number().optional(),
 		lte: z.number().optional()
 	})
@@ -68,6 +69,41 @@ const metricCondition = z
 	});
 export type MetricCondition = z.infer<typeof metricCondition>;
 
+// What a resource holds, through a read its own definition declares. Exported so the conversion
+// to JSON Schema can find this condition and enumerate the reads a string cannot name
+export const dataCondition = z
+	.strictObject({
+		node: nodeRef,
+		read: z.string().min(1),
+		// Checked by the read's own schema, not here
+		args: z.record(z.string(), z.unknown()).default({}),
+		// The second of the run it is read at; the run's end if omitted
+		at: z.number().min(0).optional(),
+		// Empty asks only that there is something there
+		where: z.record(z.string(), comparison).default({})
+	})
+	// A named node is checked by the document instead, which has the canvas
+	.superRefine((c, ctx) => {
+		if (!('type' in c.node)) return;
+		const message = readProblem(c.node.type, c);
+		if (message) ctx.addIssue({ code: 'custom', message });
+	});
+export type DataCondition = z.infer<typeof dataCondition>;
+
+// Shared so a named node and a supplied one are held to one rule
+export function readProblem(type: string, c: DataCondition): string | undefined {
+	const read = readOf(type, c.read);
+	if (!read) {
+		const offered = readsOf(type).map((one) => `"${one}"`);
+		const names = offered.length === 0 ? 'none' : offered.join(', ');
+		return `"${c.read}" is not a read a ${type} offers, which has ${names}`;
+	}
+	const parsed = read.args.safeParse(c.args);
+	if (!parsed.success) {
+		return `"${c.read}" cannot use those arguments: ${z.prettifyError(parsed.error)}`;
+	}
+}
+
 // Declarative only: a challenge arrives in a share link, which is anyone's text. Every object
 // is strict, since hand-editing is the only way to author one and a key the schema ignored
 // would leave a goal quietly meaning something other than what it says
@@ -79,9 +115,11 @@ const condition = z.union([
 		})
 	}),
 	z.strictObject({ edge: z.strictObject({ from: nodeRef, to: nodeRef }) }),
-	z.strictObject({ metric: metricCondition })
+	z.strictObject({ metric: metricCondition }),
+	z.strictObject({ data: dataCondition })
 ]);
 export type Condition = z.infer<typeof condition>;
+export type ConditionInput = z.input<typeof condition>;
 
 // Every condition has to hold for the goal to be met
 const goal = z.strictObject({
@@ -156,8 +194,10 @@ export const challengeSchema = z
 				const window = conditionWindow(condition, length);
 				if (!window) continue;
 				const [open, close] = window;
-				// A window that never closes, or closes before it opens, is a goal no run can meet
-				if (!(open < close && close <= length)) {
+				// A stretch has to close after it opens, where a moment is its two ends meeting,
+				// and either way nothing can be judged past the run's own end
+				const wellFormed = 'data' in condition || open < close;
+				if (!(wellFormed && close <= length)) {
 					problem(
 						`The goal "${goal.title}" is judged from ${open} s to ${close} s, which must end after it starts and by the challenge's length of ${length} s`
 					);
@@ -188,6 +228,7 @@ export type ChallengeRef = {
 	config?: Record<string, Comparison>;
 	// From the fixed list, which describes a node rather than depending on it
 	fixed?: boolean;
+	data?: DataCondition;
 };
 
 export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
@@ -196,6 +237,7 @@ export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
 		for (const c of goal.conditions) {
 			if ('node' in c) yield { where, ref: c.node.ref, config: c.node.config };
 			else if ('edge' in c) yield* [c.edge.from, c.edge.to].map((ref) => ({ where, ref }));
+			else if ('data' in c) yield { where, ref: c.data.node, data: c.data };
 			else yield { where, ref: c.metric.node };
 		}
 	}
@@ -280,12 +322,22 @@ export type CanvasView = {
 
 // What a run is judged against: the canvas as it began, and each node's metrics, which the
 // nodes themselves keep recording. Seconds of the run are turned into clock times by startedAt
+// found undefined is a read that found nothing; no Reading at all is one that has not run
+export type Reading = { found?: Record<string, Scalar> };
+
 export type RunRecord = {
 	length: number;
 	canvas: CanvasView;
 	startedAt: number;
 	metrics: (nodeId: string) => MetricStore;
+	readings: (nodeId: string, c: DataCondition) => Reading | undefined;
 };
+
+export function dataConditions(challenge: Challenge): DataCondition[] {
+	return Object.values(challenge.goals).flatMap((goal) =>
+		goal.conditions.flatMap((c) => ('data' in c ? [c.data] : []))
+	);
+}
 
 export type GoalState = 'waiting' | 'judging' | 'met' | 'failed';
 
@@ -314,10 +366,19 @@ function windowOf(c: { from?: number; to?: number }, length: number): [number, n
 	return [c.from ?? 0, c.to ?? length];
 }
 
-// The stretch a condition is judged over, or nothing for one checked as the run starts. One
-// rule, so the judge, the document's checks and the panel's timeline cannot come to disagree
+// The stretch a condition is judged over, a moment where the two ends meet, or nothing for one
+// checked as the run starts. One rule, so the judge, the document's checks and the panel's
+// timeline cannot come to disagree
 export function conditionWindow(c: Condition, length: number): [number, number] | undefined {
-	return 'metric' in c ? windowOf(c.metric, length) : undefined;
+	if ('metric' in c) return windowOf(c.metric, length);
+	if (!('data' in c)) return undefined;
+	const at = momentOf(c.data, length);
+	return [at, at];
+}
+
+// The second a read is taken, read by the judge, the runner and the panel alike
+export function momentOf(c: DataCondition, length: number): number {
+	return c.at ?? length;
 }
 
 // When each of a goal's conditions is judged
@@ -343,7 +404,24 @@ function judgeCondition(c: Condition, run: RunRecord, t: number): GoalState {
 		const ok = canvas.edges.some((e) => from.includes(e.source) && to.includes(e.target));
 		return ok ? 'met' : 'failed';
 	}
+	if ('data' in c) return judgeData(c.data, run, t);
 	return judgeMetric(c.metric, run, t);
+}
+
+function judgeData(c: DataCondition, run: RunRecord, t: number): GoalState {
+	if (t < momentOf(c, run.length)) return 'waiting';
+	const nodes = matches(run.canvas, c.node);
+	// Nothing to read, which no comparison can be true of
+	if (nodes.length === 0) return 'failed';
+	const wanted = Object.entries(c.where);
+	let state: GoalState = 'met';
+	for (const node of nodes) {
+		const reading = run.readings(node.id, c);
+		if (!reading) return 'judging';
+		const { found } = reading;
+		if (!found || !wanted.every(([key, want]) => compare(found[key], want))) state = 'failed';
+	}
+	return state;
 }
 
 function judgeMetric(metric: MetricCondition, run: RunRecord, t: number): GoalState {

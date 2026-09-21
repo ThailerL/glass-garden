@@ -3,10 +3,11 @@ import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import TableIcon from '@lucide/svelte/icons/table-2';
 import TableConfig from './TableConfig.svelte';
-import type { ResourceDefinition } from '../types';
+import type { ResourceDefinition, Scalar } from '../types';
 import { slugify } from '../shared';
 import { nodeConfig } from '$lib/graph-state.svelte';
 import {
+	callAws,
 	deprovisionResource,
 	ensureRegion,
 	provisionResource,
@@ -48,6 +49,17 @@ function launchConfig(node: Node) {
 }
 
 type LaunchConfig = ReturnType<typeof launchConfig>;
+
+// A list, map or binary attribute has no scalar to offer, so it is left out
+function flatten(item: Record<string, Record<string, unknown>>): Record<string, Scalar> {
+	const flat: Record<string, Scalar> = {};
+	for (const [name, value] of Object.entries(item)) {
+		if (typeof value.S === 'string') flat[name] = value.S;
+		else if (typeof value.N === 'string') flat[name] = Number(value.N);
+		else if (typeof value.BOOL === 'boolean') flat[name] = value.BOOL;
+	}
+	return flat;
+}
 
 function provision({ tableName, partitionKey }: LaunchConfig) {
 	return provisionResource('dynamodb', tableName, {
@@ -117,6 +129,23 @@ export const dynamodbTable = {
 	remove: async (node: Node) => {
 		await ensureRegion();
 		await deprovisionResource('dynamodb', tableNameOf(node));
+	},
+	reads: {
+		item: {
+			// The key attribute is provisioned as a string, so a number never matches
+			args: z.strictObject({ key: z.string().min(1) }),
+			read: async (node: Node, { key }: Record<string, string>) => {
+				const { tableName, partitionKey } = launchConfig(node);
+				const answer = await callAws('dynamodb', 'DynamoDB_20120810.GetItem', {
+					TableName: tableName,
+					Key: { [partitionKey]: { S: key } }
+				});
+				// A missing item is a 200 with no Item, not an error
+				return answer.Item === undefined
+					? undefined
+					: flatten(answer.Item as Record<string, Record<string, unknown>>);
+			}
+		}
 	},
 	// Recreated rather than truncated: the region has no truncate, and start cannot do it because
 	// an always-on node is already running by the time a run begins

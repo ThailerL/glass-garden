@@ -139,7 +139,6 @@
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<form method="POST" onsubmit={handleSubmit} onkeydown={handleKeydown} class="space-y-4 py-1">
 		<ConfigComponent {form} {nodeId} />
-		<!-- Offered by the resource holding the data rather than by each config component -->
 		{#if definition.clear}
 			<ClearDataButton {nodeId} />
 		{/if}

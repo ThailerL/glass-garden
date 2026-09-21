@@ -1,16 +1,21 @@
 import {
+	dataConditions,
 	eventTarget,
 	goalIds,
 	judge,
 	matches,
+	momentOf,
 	type CanvasView,
 	type Challenge,
+	type DataCondition,
 	type GoalState,
+	type Reading,
 	type RunRecord,
 	type ScriptEvent
 } from './challenge';
 import type { MetricStore } from './resource-log.svelte';
 import type { ResourceStatus } from './resources';
+import type { Scalar } from './resources/types';
 import { createContext } from './context';
 
 export const TICK_MS = 250;
@@ -25,6 +30,11 @@ export type RunServices = {
 	setConfig: (nodeId: string, patch: Record<string, unknown>) => void;
 	stopAll: () => void;
 	clearStoredData: () => Promise<{ nodeId: string; nodeName: string } | undefined>;
+	read: (
+		nodeId: string,
+		read: string,
+		args: Record<string, unknown>
+	) => Promise<Record<string, Scalar> | undefined>;
 	finished: (result: { met: string[]; failed: string[] }) => void;
 	// Every way a run ends without a score, so a new one is reported without being wired up
 	unscored: (end: RunEnd) => void;
@@ -46,6 +56,11 @@ const NOT_STARTING: readonly ResourceStatus[] = ['crashed', 'unresponsive'];
 const sameStates = (a: Record<string, GoalState>, b: Record<string, GoalState>) =>
 	Object.keys(b).every((id) => a[id] === b[id]);
 
+// One read of one node. Private to the runner: the judge asks in the terms it already holds
+function readKey(nodeId: string, c: DataCondition): string {
+	return JSON.stringify([nodeId, c.read, c.args, c.at]);
+}
+
 // Starts everything, waits for it all to run, then plays the script and judges the goals.
 // The clock only starts once every node is up, so a slow boot never eats into the run
 export class ChallengeRun {
@@ -60,16 +75,22 @@ export class ChallengeRun {
 	readonly challenge: Challenge;
 	#services: RunServices;
 	#events: Challenge['events'];
+	#reads: DataCondition[];
 	#timer: ReturnType<typeof setInterval> | undefined;
 	#startedAt = 0;
 	// The canvas the run is judged against, as it stood when the clock started
 	#record: RunRecord | undefined;
 	#nextEvent = 0;
+	// Asked once each: a key present but undefined is a read still in flight. Not reactive,
+	// since judging reads them on the tick that follows
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	#readings = new Map<string, Reading | undefined>();
 
 	constructor(challenge: Challenge, services: RunServices) {
 		this.challenge = challenge;
 		this.#services = services;
 		this.#events = [...challenge.events].sort((a, b) => a.at - b.at);
+		this.#reads = dataConditions(challenge);
 		this.goals = this.#allWaiting();
 	}
 
@@ -128,11 +149,13 @@ export class ChallengeRun {
 
 		this.#startedAt = Date.now();
 		this.#nextEvent = 0;
+		this.#readings.clear();
 		this.#record = {
 			length: this.challenge.length,
 			canvas,
 			startedAt: this.#startedAt,
-			metrics: this.#services.metrics
+			metrics: this.#services.metrics,
+			readings: (nodeId, c) => this.#readings.get(readKey(nodeId, c))
 		};
 		this.phase = 'running';
 		this.#play();
@@ -146,6 +169,7 @@ export class ChallengeRun {
 		}
 		const { length } = this.challenge;
 		this.elapsed = Math.min(t, length);
+		this.#readDue(record, this.elapsed);
 		const goals = judge(this.challenge, record, this.elapsed);
 		if (!sameStates(this.goals, goals)) {
 			for (const [id, state] of Object.entries(goals)) {
@@ -163,6 +187,23 @@ export class ChallengeRun {
 			met: ids.filter((id) => goals[id] === 'met'),
 			failed: ids.filter((id) => goals[id] !== 'met')
 		});
+	}
+
+	// The answer lands whenever it arrives, so the goal reads 'judging' until then
+	#readDue(record: RunRecord, t: number) {
+		for (const condition of this.#reads) {
+			if (t < momentOf(condition, this.challenge.length)) continue;
+			for (const node of matches(record.canvas, condition.node)) {
+				const key = readKey(node.id, condition);
+				if (this.#readings.has(key)) continue;
+				this.#readings.set(key, undefined);
+				void this.#services
+					.read(node.id, condition.read, condition.args)
+					.then((found) => this.#readings.set(key, { found }))
+					// Left in flight rather than asked again, which would be a read every tick
+					.catch(() => {});
+			}
+		}
 	}
 
 	#apply(event: ScriptEvent) {

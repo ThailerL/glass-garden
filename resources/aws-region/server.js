@@ -360,6 +360,8 @@ async function handleAws(request, url) {
   const caller = topology.principals[credential.accessKeyId]?.nodeId;
   const answer = await region.dispatch(request);
   const { status } = answer;
+  // An observation, not the system's own traffic: left off the node's charts
+  if (request.headers['x-gg-observe'] === TOKEN) return answer;
   const owner = topology.owners[service]?.[resourceName];
   // A function's numbers come from watching it run, not from its front door, which would
   // count an invoke twice; what the door alone can see is who called
