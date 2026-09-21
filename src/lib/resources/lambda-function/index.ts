@@ -85,7 +85,6 @@ export const lambdaFunction = {
 	files: resourceFiles.lambdaFunction,
 	hasEditableFiles: true,
 	hasPreview: true,
-	ownsStoredData: false,
 	// Invoked through the region like any AWS resource, so a caller uses it under 'aws'
 	provides: ['http', 'invoke', 'aws'],
 	consumes: ['sql', 'aws'],

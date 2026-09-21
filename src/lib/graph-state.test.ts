@@ -14,10 +14,13 @@ vi.mock('$lib/container', () => ({
 vi.mock('$lib/resources', async () => {
 	const { z } = await import('zod');
 	const definition = {
-		ownsStoredData: false,
 		configSchema: z.object({ name: z.string().default('Test resource') })
 	};
-	return { resourceDefinitions: { test: definition }, getResourceDefinition: () => definition };
+	return {
+		resourceDefinitions: { test: definition },
+		getResourceDefinition: () => definition,
+		ownsStoredData: () => false
+	};
 });
 
 function makeLocalStorage(): Storage {

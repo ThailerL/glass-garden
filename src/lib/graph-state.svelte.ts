@@ -2,6 +2,7 @@ import { type Edge, type Node, type Viewport } from '@xyflow/svelte';
 import { nanoid } from 'nanoid';
 import {
 	getResourceDefinition,
+	ownsStoredData,
 	resourceDefinitions,
 	type ResourceDefinition,
 	type ResourceType
@@ -158,8 +159,7 @@ export class GraphState {
 		);
 		// Also asked for on load, since a template's nodes are added just before the reload that
 		// opens the project, and that navigation would dismiss Firefox's prompt
-		if (this.nodes.some((node) => getResourceDefinition(node.type as ResourceType).ownsStoredData))
-			void requestPersistentStorage();
+		if (this.nodes.some((node) => ownsStoredData(node.type))) void requestPersistentStorage();
 	}
 
 	#hasNode(id: string) {
@@ -168,7 +168,7 @@ export class GraphState {
 
 	addNode(type: ResourceType, position: { x: number; y: number }, options: NodeOptions = {}) {
 		// Not awaited: on Firefox this prompts, and adding a node shouldn't wait on an answer
-		if (getResourceDefinition(type).ownsStoredData) void requestPersistentStorage();
+		if (ownsStoredData(type)) void requestPersistentStorage();
 		const node = buildNode(type, position, options);
 		this.nodes = [...this.nodes, node];
 		this.setNodeInStorage(node);

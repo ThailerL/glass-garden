@@ -44,11 +44,15 @@ export function runServices(
 			orchestrator.refresh(nodeId);
 		},
 		stopAll: () => orchestrator.stopAll(),
+		clearStoredData: () => orchestrator.clearStoredData(),
 		finished: ({ met, failed }) => {
 			tellHost({ event: 'run', scored: true, met, failed });
 			if (recordRun(projectId, met)) tellHost({ event: 'best', met, all: allGoals });
 		},
-		failedToStart: (nodeName) =>
-			tellHost({ event: 'run', scored: false, reason: 'did-not-start', nodeName })
+		unscored: (end) => {
+			// The reader stopping their own run is their business, not the page's
+			if (end.reason === 'stopped') return;
+			tellHost({ event: 'run', scored: false, reason: end.reason, nodeName: end.nodeName });
+		}
 	};
 }

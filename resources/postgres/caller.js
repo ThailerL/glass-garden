@@ -10,6 +10,10 @@ const QUERY_TYPES = [...'QB'].map((type) => type.charCodeAt(0));
 
 export const callerUser = (nodeId) => CALLER_PREFIX + nodeId;
 
+// Left in the node's directory by the canvas, read by server.js as it starts. Shared from here
+// because a typo in either copy would turn the reset into a silent no-op
+export const RESET_MARKER = 'reset-on-start';
+
 // Who opened a connection, from the startup packet's key\0value\0 pairs: values sit at the
 // odd indices, each after its key
 export function nodeInStartup(payload) {

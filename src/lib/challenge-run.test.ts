@@ -32,7 +32,7 @@ const challenge = challengeSchema.parse({
 	}
 });
 
-function fakeCanvas() {
+function fakeCanvas(clearFails = false) {
 	let canvas: CanvasView = {
 		nodes: [
 			{
@@ -64,8 +64,12 @@ function fakeCanvas() {
 			};
 		},
 		stopAll: () => calls.push('stopAll'),
+		clearStoredData: async () => {
+			calls.push('clearStoredData');
+			return clearFails ? { nodeId: 'app', nodeName: 'App' } : undefined;
+		},
 		finished: vi.fn(),
-		failedToStart: vi.fn()
+		unscored: vi.fn()
 	};
 	return {
 		services,
@@ -80,10 +84,10 @@ function fakeCanvas() {
 const advance = (seconds: number) => vi.advanceTimersByTime(seconds * 1000);
 
 // A run started with every node up, one tick in, so its clock has just begun
-function running() {
+async function running() {
 	const fake = fakeCanvas();
 	const run = new ChallengeRun(challenge, fake.services);
-	run.start();
+	await run.start();
 	fake.setStatuses({ gen: 'running', app: 'running' });
 	advance(TICK_MS / 1000);
 	return { fake, run };
@@ -93,11 +97,11 @@ describe('ChallengeRun', () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 
-	it('starts everything and holds the clock until every node is running', () => {
+	it('starts everything and holds the clock until every node is running', async () => {
 		const fake = fakeCanvas();
 		const run = new ChallengeRun(challenge, fake.services);
-		run.start();
-		expect(fake.calls).toEqual(['startAll']);
+		await run.start();
+		expect(fake.calls).toEqual(['stopAll', 'clearStoredData', 'startAll']);
 		// Locked from the press, not from the clock: a boot is part of the run
 		expect(run.active).toBe(true);
 		advance(30);
@@ -111,8 +115,8 @@ describe('ChallengeRun', () => {
 		run.dispose();
 	});
 
-	it('plays the script in time order and scores the run at its end', () => {
-		const { fake, run } = running();
+	it('plays the script in time order and scores the run at its end', async () => {
+		const { fake, run } = await running();
 
 		advance(4);
 		expect(fake.calls.at(-1)).toBe('stop app');
@@ -131,13 +135,13 @@ describe('ChallengeRun', () => {
 		expect(fake.services.finished).toHaveBeenCalledWith({ met: ['wired'], failed: ['calm'] });
 		expect(fake.calls).toContain('stopAll');
 
-		run.start();
+		await run.start();
 		expect(run.failedAt).toEqual({});
 		run.dispose();
 	});
 
-	it('judges the canvas the clock started on, and the settings its own events change', () => {
-		const { fake, run } = running();
+	it('judges the canvas the clock started on, and the settings its own events change', async () => {
+		const { fake, run } = await running();
 		advance(1);
 		// The reader's edit does not reach the goals: the run began before it
 		fake.edit({ ...fake.canvas(), edges: [] });
@@ -147,23 +151,37 @@ describe('ChallengeRun', () => {
 		expect(fake.calls).toContain('set gen {"requestsPerSecond":5}');
 	});
 
-	it('gives up when a node fails to start, naming it', () => {
+	it('gives up before the clock when a resource cannot be cleared, naming it', async () => {
+		const fake = fakeCanvas(true);
+		const run = new ChallengeRun(challenge, fake.services);
+		await run.start();
+		expect(run.phase).toBe('ended');
+		expect(run.ended).toEqual({ reason: 'not-cleared', nodeId: 'app', nodeName: 'App' });
+		// Nothing came up, so there is no half-started canvas judging itself
+		expect(fake.calls).toEqual(['stopAll', 'clearStoredData']);
+		advance(30);
+		expect(run.phase).toBe('ended');
+		expect(fake.services.finished).not.toHaveBeenCalled();
+	});
+
+	it('gives up when a node fails to start, naming it', async () => {
 		const fake = fakeCanvas();
 		const run = new ChallengeRun(challenge, fake.services);
-		run.start();
+		await run.start();
 		fake.setStatuses({ gen: 'running', app: 'crashed' });
 		advance(TICK_MS / 1000);
 		expect(run.phase).toBe('ended');
 		// A reason, not a sentence: the id navigates to the node and the name is what is shown
 		expect(run.ended).toEqual({ reason: 'did-not-start', nodeId: 'app', nodeName: 'App' });
-		expect(fake.services.failedToStart).toHaveBeenCalledWith('App');
+		expect(fake.services.unscored).toHaveBeenCalledWith(run.ended);
 		expect(fake.services.finished).not.toHaveBeenCalled();
-		// Nothing is cleared away: the node that crashed is the thing the reader has to look at
-		expect(fake.calls).not.toContain('stopAll');
+		// Nothing is cleared away: the node that crashed is the thing the reader has to look at,
+		// so the only stop is the one that prepared the run
+		expect(fake.calls.filter((call) => call === 'stopAll')).toHaveLength(1);
 	});
 
-	it('stops on request by undoing Run, and a new start begins from nothing', () => {
-		const { fake, run } = running();
+	it('stops on request by undoing Run, and a new start begins from nothing', async () => {
+		const { fake, run } = await running();
 		advance(5);
 		run.stop();
 		expect(fake.calls.at(-1)).toBe('stopAll');
@@ -173,7 +191,7 @@ describe('ChallengeRun', () => {
 		advance(20);
 		expect(run.elapsed).toBe(stoppedAt);
 
-		run.start();
+		await run.start();
 		expect(run.phase).toBe('starting');
 		expect(run.elapsed).toBe(0);
 		expect(run.goals).toEqual({ wired: 'waiting', calm: 'waiting' });

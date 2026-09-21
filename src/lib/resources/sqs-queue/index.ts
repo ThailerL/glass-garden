@@ -44,13 +44,19 @@ function launchConfig(node: Node) {
 
 type LaunchConfig = ReturnType<typeof launchConfig>;
 
+// Shared by the start that creates the queue and the clear that recreates it
+function provision({ queueName, visibilityTimeout }: LaunchConfig) {
+	return provisionResource('sqs', queueName, {
+		attributes: { VisibilityTimeout: visibilityTimeout }
+	});
+}
+
 export const sqsQueue = {
 	name: 'Queue (SQS)',
 	icon: QueueIcon,
 	files: {},
 	hasEditableFiles: false,
 	hasPreview: false,
-	ownsStoredData: true,
 	provides: ['aws'],
 	consumes: ['invoke'],
 	configComponent: QueueConfig,
@@ -94,16 +100,20 @@ export const sqsQueue = {
 	// server to wait for and the region reports what the queue holds on the node's behalf
 	readyOnStart: true,
 	start: async (_node: Node, _container: Vivari, _port: number, _targets, config: unknown) => {
-		const { queueName, visibilityTimeout } = config as LaunchConfig;
 		await ensureRegion();
-		await provisionResource('sqs', queueName, {
-			attributes: { VisibilityTimeout: visibilityTimeout }
-		});
+		await provision(config as LaunchConfig);
 		// The region is what this node is really running on, so its death is the node's
 		return regionLifetime();
 	},
 	remove: async (node: Node) => {
 		await ensureRegion();
 		await deprovisionResource('sqs', queueNameOf(node));
+	},
+	// Recreated rather than drained: the region has no drain, and start cannot do it because
+	// an always-on node is already running by the time a run begins
+	clear: async (node: Node) => {
+		await ensureRegion();
+		await deprovisionResource('sqs', queueNameOf(node));
+		await provision(launchConfig(node));
 	}
 } satisfies ResourceDefinition;

@@ -24,8 +24,10 @@ export type RunServices = {
 	stop: (nodeId: string) => void;
 	setConfig: (nodeId: string, patch: Record<string, unknown>) => void;
 	stopAll: () => void;
+	clearStoredData: () => Promise<{ nodeId: string; nodeName: string } | undefined>;
 	finished: (result: { met: string[]; failed: string[] }) => void;
-	failedToStart: (nodeName: string) => void;
+	// Every way a run ends without a score, so a new one is reported without being wired up
+	unscored: (end: RunEnd) => void;
 };
 
 // 'ended' is a run that stopped before its length and was not scored
@@ -35,7 +37,9 @@ export type RunPhase = 'idle' | 'starting' | 'running' | 'done' | 'ended';
 // is sent the code. The id navigates to the node and the name is what a reader is shown, so the
 // one place that knows both hands both on
 export type RunEnd =
-	{ reason: 'stopped' } | { reason: 'did-not-start'; nodeId: string; nodeName: string };
+	| { reason: 'stopped' }
+	| { reason: 'did-not-start'; nodeId: string; nodeName: string }
+	| { reason: 'not-cleared'; nodeId: string; nodeName: string };
 
 const NOT_STARTING: readonly ResourceStatus[] = ['crashed', 'unresponsive'];
 
@@ -73,13 +77,19 @@ export class ChallengeRun {
 		return this.phase === 'starting' || this.phase === 'running';
 	}
 
-	start() {
+	// Stopped and cleared before the clock, so the same canvas runs the same way twice
+	async start() {
 		if (this.active) return;
 		this.phase = 'starting';
 		this.elapsed = 0;
 		this.ended = undefined;
 		this.goals = this.#allWaiting();
 		this.failedAt = {};
+		this.#services.stopAll();
+		const uncleared = await this.#services.clearStoredData();
+		if (uncleared) return this.#end('ended', { reason: 'not-cleared', ...uncleared });
+		// Stop run, pressed while that was in flight, has already ended this one
+		if (this.phase !== 'starting') return;
 		this.#services.startAll();
 		this.#timer = setInterval(() => this.#tick(), TICK_MS);
 	}
@@ -112,7 +122,6 @@ export class ChallengeRun {
 			// Left as it is: the node that crashed is the thing the reader has to look at
 			const nodeName = broken.config.name as string;
 			this.#end('ended', { reason: 'did-not-start', nodeId: broken.id, nodeName });
-			this.#services.failedToStart(nodeName);
 			return;
 		}
 		if (!canvas.nodes.every((node) => statuses[node.id] === 'running')) return;
@@ -174,6 +183,7 @@ export class ChallengeRun {
 		clearInterval(this.#timer);
 		this.#timer = undefined;
 		this.phase = phase;
+		if (end) this.#services.unscored(end);
 	}
 }
 

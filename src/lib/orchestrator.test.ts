@@ -30,7 +30,6 @@ vi.mock('$lib/resources', async () => {
 	const { z } = await import('zod');
 	const definition = {
 		name: 'Test resource',
-		ownsStoredData: false,
 		// buildTopology asks every node whether it can call AWS
 		provides: [],
 		consumes: [],
@@ -55,7 +54,8 @@ vi.mock('$lib/resources', async () => {
 	};
 	return {
 		resourceDefinitions: { test: definition },
-		getResourceDefinition: () => definition
+		getResourceDefinition: () => definition,
+		ownsStoredData: () => false
 	};
 });
 

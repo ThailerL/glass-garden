@@ -52,7 +52,6 @@ export const s3Bucket = {
 	files: {},
 	hasEditableFiles: false,
 	hasPreview: false,
-	ownsStoredData: true,
 	provides: ['aws'],
 	// A bucket can point at a function, which then receives an event per object
 	consumes: ['invoke'],
@@ -115,5 +114,12 @@ export const s3Bucket = {
 	remove: async (node: Node) => {
 		await ensureRegion();
 		await deprovisionResource('s3', bucketNameOf(node));
+	},
+	// Recreated rather than emptied out, since start cannot do it: an always-on node is already
+	// running by the time a run begins. The notifications come back with the next update
+	clear: async (node: Node) => {
+		await ensureRegion();
+		await deprovisionResource('s3', bucketNameOf(node));
+		await provisionResource('s3', bucketNameOf(node));
 	}
 } satisfies ResourceDefinition;

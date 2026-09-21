@@ -74,6 +74,8 @@ The embed shows the project without the project list. What a reader does in it i
 
 A challenge gives the reader goals to meet. They get the canvas ready and press **Run**, and a script starts everything and then acts on it while the clock runs, stopping an app or raising the traffic. The goals are judged on what the system does while it plays, and saving is held until the run ends, so every run is scored on one canvas.
 
+A run starts from the same state every time: every node is restarted, and every resource that stores something is cleared before the clock starts. So a goal is answered by what this run did rather than by what an earlier one left behind, and starting a run with the canvas already up costs nothing but the time it takes to come back. Starting and stopping nodes by hand is held until the run ends, the way saving is.
+
 A challenge is a single JSON file that carries the canvas it starts from, so a share link hands out the challenge as written and never a reader's progress through it. Build that canvas as an ordinary project, export it, and paste what Export wrote under `startingCanvas`:
 
 ```json
@@ -141,6 +143,7 @@ window.addEventListener('message', (event) => {
 	// { event: 'best', met: [...], all: [...] } is the goals the reader's best run met and every goal the challenge has, sent on load and whenever the best improves
 	// { event: 'run', scored: true, met: [...], failed: [...] } is every scored run
 	// { event: 'run', scored: false, reason: 'did-not-start', nodeName: 'App A' } is a node that never started
+	// { event: 'run', scored: false, reason: 'not-cleared', nodeName: 'Accounts' } is a resource the run could not clear before it began
 });
 ```
 

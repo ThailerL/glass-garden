@@ -285,6 +285,32 @@ export class Orchestrator {
 		for (const node of this.#graphState.nodes) this.stop(node.id);
 	}
 
+	// Whatever one node has stored. The reason a clear failed is the region's rather than
+	// anything the reader can act on, so it is said here rather than returned to every caller
+	async clearNodeData(nodeId: string): Promise<boolean> {
+		const node = this.#graphState.getNode(nodeId);
+		const clear = node && getResourceDefinition(node.type).clear;
+		if (!node || !clear) return true;
+		try {
+			await clear(node, await this.#getContainer());
+			return true;
+		} catch (error) {
+			toast.error(`Could not clear ${nodeName(node)}: ${messageOf(error)}`);
+			return false;
+		}
+	}
+
+	// Answers with the first node in graph order it could not clear
+	async clearStoredData(): Promise<{ nodeId: string; nodeName: string } | undefined> {
+		const holding = this.#graphState.nodes.filter((node) => getResourceDefinition(node.type).clear);
+		// Together rather than in turn: the region serialises per resource name, and these name
+		// different ones
+		const cleared = await Promise.all(holding.map((node) => this.clearNodeData(node.id)));
+		const failed = cleared.indexOf(false);
+		if (failed === -1) return;
+		return { nodeId: holding[failed].id, nodeName: nodeName(holding[failed]) };
+	}
+
 	// Called once a node is gone from the graph. The controller winds down off its own state
 	// and removes the files when it unregisters; a node that never ran has none to wait for
 	remove(node: Node) {

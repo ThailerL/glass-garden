@@ -25,7 +25,6 @@ vi.mock('$lib/resources', async () => {
 	const { z } = await import('zod');
 	const definition = {
 		name: 'Test resource',
-		ownsStoredData: false,
 		hasEditableFiles: false,
 		configSchema: z.object({
 			name: z.string().default('Test resource'),
@@ -35,7 +34,8 @@ vi.mock('$lib/resources', async () => {
 	return {
 		resourceDefinitions: { test: definition },
 		resourceTypeSchema: z.enum(['test']),
-		getResourceDefinition: () => definition
+		getResourceDefinition: () => definition,
+		ownsStoredData: () => false
 	};
 });
 

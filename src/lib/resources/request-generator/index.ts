@@ -58,7 +58,6 @@ export const requestGenerator = {
 	files: resourceFiles.requestGenerator,
 	hasEditableFiles: false,
 	hasPreview: false,
-	ownsStoredData: false,
 	provides: [],
 	consumes: ['http'],
 	singleTarget: true,

@@ -81,7 +81,8 @@
 	export function endSentence(end: RunEnd | undefined) {
 		if (!end) return '';
 		if (end.reason === 'stopped') return 'Stopped before the end, so it was not scored';
-		return `${end.nodeName} did not start, so the run was not scored`;
+		const what = end.reason === 'not-cleared' ? 'could not be cleared' : 'did not start';
+		return `${end.nodeName} ${what}, so the run was not scored`;
 	}
 
 	const MARK: Record<GoalState, string> = { waiting: '', judging: '•', met: '✓', failed: '✕' };
@@ -182,6 +183,14 @@
 	{/if}
 {/snippet}
 
+{#snippet startsFresh()}
+	{#if !run.active}
+		<p class="text-xs text-muted-foreground">
+			Each run restarts every node and clears what they have stored.
+		</p>
+	{/if}
+{/snippet}
+
 {#snippet bar()}
 	<div class="relative h-2 rounded bg-muted">
 		{#each shaded as [from, to] (`${from}-${to}`)}
@@ -243,7 +252,7 @@
 	{#if run.active}
 		<Button variant="outline" size="sm" onclick={() => run.stop()}>Stop run</Button>
 	{:else}
-		<Button size="sm" onclick={() => run.start()}>Run</Button>
+		<Button size="sm" onclick={() => void run.start()}>Run</Button>
 	{/if}
 {/snippet}
 
@@ -312,6 +321,7 @@
 		</div>
 		{@render bar()}
 		{@render marks()}
+		{@render startsFresh()}
 		<!-- The canvas is what a phone has least of, so the words fold away rather than go missing -->
 		{#if instructions}
 			<Collapsible.Root class="group/instructions">
@@ -362,6 +372,7 @@
 				</span>
 			</div>
 			{@render bar()}
+			{@render startsFresh()}
 			<!-- The line above already names the node, so the button does not repeat it -->
 			{#if run.ended?.reason === 'did-not-start'}
 				{@const nodeId = run.ended.nodeId}

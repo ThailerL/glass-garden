@@ -97,8 +97,6 @@ export type ResourceDefinition = {
 	files: FileSystemTree;
 	hasEditableFiles: boolean;
 	hasPreview: boolean;
-	// Whether the node's directory holds data the user would miss
-	ownsStoredData: boolean;
 	// Also what the node's handles are drawn from, one per direction rather than one per
 	// capability: a non-empty provides earns the target handle, a non-empty consumes the source
 	provides: Capability[];
@@ -169,6 +167,8 @@ export type ResourceDefinition = {
 	) => Promise<void>;
 	// Called when the node is deleted. For data that lives outside the node's directory
 	remove?: (node: Node, container: Vivari) => Promise<void>;
+	// Called as a challenge run starts, so it is judged on what it wrote. The node may be stopping
+	clear?: (node: Node, container: Vivari) => Promise<void>;
 	// Called after the editor saves one of the node's files. For a resource whose running
 	// code is deployed from its directory rather than read from it
 	afterSave?: (node: Node, neighbours: readonly ConnectedNode[]) => Promise<void>;

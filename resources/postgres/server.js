@@ -1,6 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
-import { connectionTap } from './caller.js';
+import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { connectionTap, RESET_MARKER } from './caller.js';
 
 const port = Number(process.env.PORT);
 if (!port) {
@@ -13,6 +15,13 @@ if (!maxConnections) {
 }
 
 const db = await PGlite.create('./pgdata');
+
+// Dropping the schema rather than ./pgdata keeps a fresh cluster's 1001 files off the next boot
+if (existsSync(RESET_MARKER)) {
+  await db.exec('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+  await rm(RESET_MARKER);
+  console.log('Cleared the database for a run');
+}
 
 // Speaks the Postgres wire protocol, so clients connect with a real driver. Connections
 // past the limit are refused, standing in for Postgres's own max_connections

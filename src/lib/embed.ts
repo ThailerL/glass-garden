@@ -28,7 +28,8 @@ export type HostMessage =
 	// 'best' carries every goal as well, so a page can show progress without knowing the challenge
 	| { event: 'best'; met: readonly string[]; all: readonly string[] }
 	| { event: 'run'; scored: true; met: readonly string[]; failed: readonly string[] }
-	| { event: 'run'; scored: false; reason: 'did-not-start'; nodeName: string };
+	// The node is named because every way a run fails to get going is one node's doing
+	| { event: 'run'; scored: false; reason: 'did-not-start' | 'not-cleared'; nodeName: string };
 
 // Nothing in a message is private, so a host that sent no referrer still hears it
 export function tellHost(message: HostMessage) {

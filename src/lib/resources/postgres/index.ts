@@ -5,6 +5,7 @@ import DatabaseIcon from '@lucide/svelte/icons/database';
 import * as resourceFiles from 'virtual:resource-files';
 import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
+import { RESET_MARKER } from '../../../../resources/postgres/caller.js';
 import type { Capture, ResourceDefinition, ConnectedNode } from '../types';
 import { npmInstall, processHandle } from '../shared';
 import { nodeDirectory } from '$lib/container';
@@ -29,7 +30,6 @@ export const postgres = {
 	files: resourceFiles.postgres,
 	hasEditableFiles: false,
 	hasPreview: false,
-	ownsStoredData: true,
 	provides: ['sql'],
 	consumes: [],
 	configComponent: PostgresConfig,
@@ -47,6 +47,13 @@ export const postgres = {
 	launchConfig,
 	prepare: async (node: Node, container: Vivari, capture: Capture) => {
 		await npmInstall(node, container, capture);
+	},
+	// A marker rather than a delete, because the process holds the directory open until it stops
+	clear: async (node: Node, container: Vivari) => {
+		const directory = nodeDirectory(node.id);
+		// A node that has never started has no directory yet
+		await container.fs.mkdir(directory, { recursive: true });
+		await container.fs.writeFile(`${directory}/${RESET_MARKER}`, '');
 	},
 	start: async (
 		node: Node,

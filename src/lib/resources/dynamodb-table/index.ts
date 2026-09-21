@@ -49,13 +49,19 @@ function launchConfig(node: Node) {
 
 type LaunchConfig = ReturnType<typeof launchConfig>;
 
+function provision({ tableName, partitionKey }: LaunchConfig) {
+	return provisionResource('dynamodb', tableName, {
+		keySchema: [{ AttributeName: partitionKey, KeyType: 'HASH' }],
+		attributeDefinitions: [{ AttributeName: partitionKey, AttributeType: 'S' }]
+	});
+}
+
 export const dynamodbTable = {
 	name: 'Table (DynamoDB)',
 	icon: TableIcon,
 	files: {},
 	hasEditableFiles: false,
 	hasPreview: false,
-	ownsStoredData: true,
 	provides: ['aws'],
 	consumes: [],
 	configComponent: TableConfig,
@@ -103,17 +109,20 @@ export const dynamodbTable = {
 	// server to wait for and the region reports what the table holds on the node's behalf
 	readyOnStart: true,
 	start: async (_node: Node, _container: Vivari, _port: number, _targets, config: unknown) => {
-		const { tableName, partitionKey } = config as LaunchConfig;
 		await ensureRegion();
-		await provisionResource('dynamodb', tableName, {
-			keySchema: [{ AttributeName: partitionKey, KeyType: 'HASH' }],
-			attributeDefinitions: [{ AttributeName: partitionKey, AttributeType: 'S' }]
-		});
+		await provision(config as LaunchConfig);
 		// The region is what this node is really running on, so its death is the node's
 		return regionLifetime();
 	},
 	remove: async (node: Node) => {
 		await ensureRegion();
 		await deprovisionResource('dynamodb', tableNameOf(node));
+	},
+	// Recreated rather than truncated: the region has no truncate, and start cannot do it because
+	// an always-on node is already running by the time a run begins
+	clear: async (node: Node) => {
+		await ensureRegion();
+		await deprovisionResource('dynamodb', tableNameOf(node));
+		await provision(launchConfig(node));
 	}
 } satisfies ResourceDefinition;

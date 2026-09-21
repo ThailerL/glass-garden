@@ -20,6 +20,7 @@
 	import {
 		canAddEdge,
 		getResourceDefinition,
+		ownsStoredData,
 		resourceDefinitions,
 		type ResourceType
 	} from '$lib/resources';
@@ -78,10 +79,9 @@
 	// arrives here: it carries deletable: false, which the flow filters out before it asks
 	const onBeforeDelete: OnBeforeDelete = ({ nodes }) => {
 		if (run?.active) return Promise.resolve(false);
-		const withContents = nodes.filter((node) => {
-			const { ownsStoredData, hasEditableFiles } = getResourceDefinition(node.type);
-			return ownsStoredData || hasEditableFiles;
-		});
+		const withContents = nodes.filter(
+			(node) => ownsStoredData(node.type) || getResourceDefinition(node.type).hasEditableFiles
+		);
 		if (withContents.length === 0) return Promise.resolve(true);
 
 		const names = withContents.map(nodeName);

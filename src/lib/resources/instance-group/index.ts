@@ -33,7 +33,6 @@ export const instanceGroup = {
 	files: resourceFiles.instanceGroup,
 	hasEditableFiles: true,
 	hasPreview: true,
-	ownsStoredData: false,
 	provides: ['http'],
 	consumes: ['sql', 'aws'],
 	configComponent: InstanceGroupConfig,

@@ -38,6 +38,12 @@ export function getResourceDefinition(type: string | undefined): ResourceDefinit
 	return definition;
 }
 
+// Knowing how to empty a resource is the same thing as it holding data worth keeping, so the
+// hook is the one declaration of both
+export function ownsStoredData(type: string | undefined): boolean {
+	return getResourceDefinition(type).clear !== undefined;
+}
+
 // Only the identity and type matter, so xyflow's internal nodes are judged as readily as ours
 export type ConnectableNode = { id: string; type?: string };
 
