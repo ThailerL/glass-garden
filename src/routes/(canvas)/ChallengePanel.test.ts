@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { challengeSchema, windowsOf } from '$lib/challenge';
 import {
+	endSentence,
 	eventSentence,
 	offersHint,
 	shadedSpans,
@@ -125,6 +126,16 @@ describe('offersHint', () => {
 
 	it('offers nothing for a goal written without one', () => {
 		expect(offersHint(goal('outage'), 'failed', 'done')).toBe(false);
+	});
+});
+
+describe('endSentence', () => {
+	it('words each reason the run gives, and says nothing for a run that has not ended', () => {
+		expect(endSentence({ reason: 'stopped' })).toBe('Stopped before the end, so it was not scored');
+		expect(endSentence({ reason: 'did-not-start', nodeId: 'a', nodeName: 'App A' })).toBe(
+			'App A did not start, so the run was not scored'
+		);
+		expect(endSentence(undefined)).toBe('');
 	});
 });
 

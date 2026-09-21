@@ -154,11 +154,10 @@ describe('ChallengeRun', () => {
 		fake.setStatuses({ gen: 'running', app: 'crashed' });
 		advance(TICK_MS / 1000);
 		expect(run.phase).toBe('ended');
-		expect(run.endedBecause).toBe('App did not start, so the run was not scored');
-		// The host hears the name, not the panel's wording
+		// A reason, not a sentence: the id navigates to the node and the name is what is shown
+		expect(run.ended).toEqual({ reason: 'did-not-start', nodeId: 'app', nodeName: 'App' });
 		expect(fake.services.failedToStart).toHaveBeenCalledWith('App');
 		expect(fake.services.finished).not.toHaveBeenCalled();
-		expect(run.didNotStart).toBe('app');
 		// Nothing is cleared away: the node that crashed is the thing the reader has to look at
 		expect(fake.calls).not.toContain('stopAll');
 	});
@@ -168,7 +167,7 @@ describe('ChallengeRun', () => {
 		advance(5);
 		run.stop();
 		expect(fake.calls.at(-1)).toBe('stopAll');
-		expect(run.endedBecause).toBe('Stopped before the end, so it was not scored');
+		expect(run.ended).toEqual({ reason: 'stopped' });
 		const stoppedAt = run.elapsed;
 		expect(run.phase).toBe('ended');
 		advance(20);

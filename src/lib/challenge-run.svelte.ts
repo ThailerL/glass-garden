@@ -31,6 +31,12 @@ export type RunServices = {
 // 'ended' is a run that stopped before its length and was not scored
 export type RunPhase = 'idle' | 'starting' | 'running' | 'done' | 'ended';
 
+// Why a run ended unscored, as a reason rather than a sentence: the panel words it and the host
+// is sent the code. The id navigates to the node and the name is what a reader is shown, so the
+// one place that knows both hands both on
+export type RunEnd =
+	{ reason: 'stopped' } | { reason: 'did-not-start'; nodeId: string; nodeName: string };
+
 const NOT_STARTING: readonly ResourceStatus[] = ['crashed', 'unresponsive'];
 
 const sameStates = (a: Record<string, GoalState>, b: Record<string, GoalState>) =>
@@ -44,9 +50,7 @@ export class ChallengeRun {
 	goals = $state.raw<Record<string, GoalState>>({});
 	// The whole second each goal failed at in this run, which its state alone does not keep
 	failedAt = $state.raw<Record<string, number>>({});
-	endedBecause = $state<string | undefined>();
-	// The node whose failure to start ended the run, so the panel can offer its logs
-	didNotStart = $state<string | undefined>();
+	ended = $state.raw<RunEnd | undefined>();
 
 	// As this canvas runs it, so the panel reads the same copy the judge does
 	readonly challenge: Challenge;
@@ -73,8 +77,7 @@ export class ChallengeRun {
 		if (this.active) return;
 		this.phase = 'starting';
 		this.elapsed = 0;
-		this.endedBecause = undefined;
-		this.didNotStart = undefined;
+		this.ended = undefined;
 		this.goals = this.#allWaiting();
 		this.failedAt = {};
 		this.#services.startAll();
@@ -85,7 +88,7 @@ export class ChallengeRun {
 	stop() {
 		if (!this.active) return;
 		this.#services.stopAll();
-		this.#end('ended', 'Stopped before the end, so it was not scored');
+		this.#end('ended', { reason: 'stopped' });
 	}
 
 	dispose() {
@@ -107,10 +110,9 @@ export class ChallengeRun {
 		const broken = canvas.nodes.find((node) => NOT_STARTING.includes(statuses[node.id]));
 		if (broken) {
 			// Left as it is: the node that crashed is the thing the reader has to look at
-			const name = broken.config.name as string;
-			this.didNotStart = broken.id;
-			this.#end('ended', `${name} did not start, so the run was not scored`);
-			this.#services.failedToStart(name);
+			const nodeName = broken.config.name as string;
+			this.#end('ended', { reason: 'did-not-start', nodeId: broken.id, nodeName });
+			this.#services.failedToStart(nodeName);
 			return;
 		}
 		if (!canvas.nodes.every((node) => statuses[node.id] === 'running')) return;
@@ -167,8 +169,8 @@ export class ChallengeRun {
 		}
 	}
 
-	#end(phase: 'done' | 'ended', reason?: string) {
-		this.endedBecause = reason;
+	#end(phase: 'done' | 'ended', end?: RunEnd) {
+		this.ended = end;
 		clearInterval(this.#timer);
 		this.#timer = undefined;
 		this.phase = phase;

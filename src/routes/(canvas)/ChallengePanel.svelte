@@ -7,7 +7,7 @@
 		type GoalState,
 		type ScriptEvent
 	} from '$lib/challenge';
-	import type { RunPhase } from '$lib/challenge-run.svelte';
+	import type { RunEnd, RunPhase } from '$lib/challenge-run.svelte';
 
 	// The author's sentence where there is one: a setting's name is code vocabulary
 	export function eventSentence(event: ScriptEvent) {
@@ -75,6 +75,13 @@
 	// Only after a scored run failed the goal: before then a hint would give away the answer
 	export function offersHint(goal: Goal, state: GoalState, phase: RunPhase) {
 		return !!goal.hint && phase === 'done' && state === 'failed';
+	}
+
+	// The run holds a reason, so the reader's sentence is worded here with the rest of the copy
+	export function endSentence(end: RunEnd | undefined) {
+		if (!end) return '';
+		if (end.reason === 'stopped') return 'Stopped before the end, so it was not scored';
+		return `${end.nodeName} did not start, so the run was not scored`;
 	}
 
 	const MARK: Record<GoalState, string> = { waiting: '', judging: '•', met: '✓', failed: '✕' };
@@ -172,7 +179,7 @@
 	{:else if run.phase === 'done'}
 		Last run: {metCount} of {ordered.length} goals met
 	{:else if run.phase === 'ended'}
-		{run.endedBecause}
+		{endSentence(run.ended)}
 	{:else}
 		Get ready, then press Run
 	{/if}
@@ -359,8 +366,8 @@
 			</div>
 			{@render bar()}
 			<!-- The line above already names the node, so the button does not repeat it -->
-			{#if run.didNotStart}
-				{@const nodeId = run.didNotStart}
+			{#if run.ended?.reason === 'did-not-start'}
+				{@const nodeId = run.ended.nodeId}
 				<Button variant="outline" size="sm" class="self-start" onclick={() => openLogs(nodeId)}>
 					Open logs
 				</Button>
