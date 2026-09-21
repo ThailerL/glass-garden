@@ -66,7 +66,8 @@ function fakeCanvas() {
 			};
 		},
 		stopAll: () => calls.push('stopAll'),
-		finished: vi.fn()
+		finished: vi.fn(),
+		failedToStart: vi.fn()
 	};
 	return {
 		services,
@@ -129,7 +130,7 @@ describe('ChallengeRun', () => {
 		expect(run.goals).toEqual({ wired: 'met', calm: 'failed' });
 		// The state alone no longer says when, and the panel reports the second it broke
 		expect(run.failedAt).toEqual({ calm: 10 });
-		expect(fake.services.finished).toHaveBeenCalledWith(['wired']);
+		expect(fake.services.finished).toHaveBeenCalledWith({ met: ['wired'], failed: ['calm'] });
 		expect(fake.calls).toContain('stopAll');
 
 		run.start();
@@ -156,6 +157,9 @@ describe('ChallengeRun', () => {
 		advance(TICK_MS / 1000);
 		expect(run.phase).toBe('ended');
 		expect(run.endedBecause).toBe('App did not start, so the run was not scored');
+		// The host hears the name, not the panel's wording
+		expect(fake.services.failedToStart).toHaveBeenCalledWith('App');
+		expect(fake.services.finished).not.toHaveBeenCalled();
 		expect(run.didNotStart).toBe('app');
 		// Nothing is cleared away: the node that crashed is the thing the reader has to look at
 		expect(fake.calls).not.toContain('stopAll');

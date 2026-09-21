@@ -23,7 +23,8 @@ export type RunServices = {
 	stop: (nodeId: string) => void;
 	setConfig: (nodeId: string, patch: Record<string, unknown>) => void;
 	stopAll: () => void;
-	finished: (met: string[]) => void;
+	finished: (result: { met: string[]; failed: string[] }) => void;
+	failedToStart: (nodeName: string) => void;
 };
 
 // 'ended' is a run that stopped before its length and was not scored
@@ -105,8 +106,11 @@ export class ChallengeRun {
 		const broken = canvas.nodes.find((node) => NOT_STARTING.includes(statuses[node.id]));
 		if (broken) {
 			// Left as it is: the node that crashed is the thing the reader has to look at
+			const name = broken.config.name as string;
 			this.didNotStart = broken.id;
-			return this.#end('ended', `${broken.config.name} did not start, so the run was not scored`);
+			this.#end('ended', `${name} did not start, so the run was not scored`);
+			this.#services.failedToStart(name);
+			return;
 		}
 		if (!canvas.nodes.every((node) => statuses[node.id] === 'running')) return;
 
@@ -141,7 +145,12 @@ export class ChallengeRun {
 		if (t < length) return;
 		this.#end('done');
 		this.#services.stopAll();
-		this.#services.finished(Object.keys(goals).filter((id) => goals[id] === 'met'));
+		// Every window has closed by the end, so a goal not met has failed
+		const ids = Object.keys(goals);
+		this.#services.finished({
+			met: ids.filter((id) => goals[id] === 'met'),
+			failed: ids.filter((id) => goals[id] !== 'met')
+		});
 	}
 
 	#apply(event: ScriptEvent) {

@@ -4,12 +4,13 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import ResourceNameDialog from '$lib/components/ResourceNameDialog.svelte';
 	import { setGraphState } from '$lib/graph-state.svelte';
-	import { embedded, whenInView } from '$lib/embed';
+	import { embedded, tellHost, whenInView } from '$lib/embed';
 	import { anyDraftsDirty } from '$lib/files';
 	import { offerSharedProject } from '$lib/share-link-offer';
 	import { tour } from '$lib/tour.svelte';
 	import { setOrchestrator } from '$lib/orchestrator.svelte';
 	import { getProject } from '$lib/projects.svelte';
+	import { goalIds } from '$lib/challenge';
 	import { ChallengeRun, setChallengeRun } from '$lib/challenge-run.svelte';
 	import { runServices } from '$lib/challenge-services';
 	import { onContainerBoot } from '$lib/container';
@@ -36,12 +37,19 @@
 	// The tour's last card points at the Projects sidebar, which an embed hides
 	if (embedded) tour.hold();
 	// A challenge names its nodes, so it runs this canvas as it stands
-	const challenge = getProject(id)?.challenge;
+	const project = getProject(id);
+	const challenge = project?.challenge;
 	const run = setChallengeRun(
-		challenge ? new ChallengeRun(challenge, runServices(id, graphState, orchestrator)) : undefined
+		challenge
+			? new ChallengeRun(challenge, runServices(id, challenge, graphState, orchestrator))
+			: undefined
 	);
 	orchestrator.whileRunning(() => run?.active ?? false);
 	onDestroy(() => run?.dispose());
+	// Sent on load as well as after a run, so an embedding page keeps no score of its own
+	if (challenge) {
+		tellHost({ event: 'best', met: project?.bestRun ?? [], all: goalIds(challenge) });
+	}
 
 	// Drafts outlive the editor, so this is asked here rather than there: unsaved work in a
 	// node the user has since navigated away from is still unsaved. The browser writes the

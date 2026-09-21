@@ -89,12 +89,13 @@ export function renameProject(id: string, name: string) {
 	writeProject(project);
 }
 
-// A run that met more goals than any before it becomes the best
-export function recordRun(id: string, met: readonly string[]) {
+// A run that met more goals than any before it becomes the best, and says so
+export function recordRun(id: string, met: readonly string[]): boolean {
 	const project = getProject(id);
-	if (!project || met.length <= (project.bestRun?.length ?? 0)) return;
+	if (!project || met.length <= (project.bestRun?.length ?? 0)) return false;
 	project.bestRun = [...met];
 	writeProject(project);
+	return true;
 }
 
 export function createProject(

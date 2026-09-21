@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { leaveForMainApp, mainAppUrl, openEmbeddedProject, whenInView } from '$lib/embed';
+import {
+	followProject,
+	leaveForMainApp,
+	mainAppUrl,
+	openEmbeddedProject,
+	whenInView
+} from '$lib/embed';
 import { encodeShareLink } from '$lib/share-link';
 
 const { publicEnv, projects, location } = vi.hoisted(() => {
@@ -61,6 +67,7 @@ beforeEach(() => {
 		hash: ''
 	});
 	vi.clearAllMocks();
+	nextId = 0;
 	projects.importProject.mockImplementation((doc: { name: string }) => ({
 		id: `${doc.name}-${++nextId}`
 	}));
@@ -124,6 +131,23 @@ describe('whenInView', () => {
 		report([{ isIntersecting: true }]);
 		expect(callback).toHaveBeenCalledTimes(1);
 		expect(disconnect).toHaveBeenCalled();
+	});
+});
+
+describe('followProject', () => {
+	it('keeps the link opening the project a reset put in place of its own', async () => {
+		const hash = await hashOf('lesson');
+		const first = await openEmbeddedProject(hash);
+		followProject(first, 'fresh');
+		expect(await openEmbeddedProject(hash)).toBe('fresh');
+		expect(projects.importProject).toHaveBeenCalledTimes(1);
+	});
+
+	it('leaves the link alone when another project was reset', async () => {
+		const hash = await hashOf('lesson');
+		const first = await openEmbeddedProject(hash);
+		followProject('elsewhere', 'fresh');
+		expect(await openEmbeddedProject(hash)).toBe(first);
 	});
 });
 

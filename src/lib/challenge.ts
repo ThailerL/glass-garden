@@ -229,6 +229,11 @@ export function comparedSettings(challenge: Challenge): Map<string, Set<string>>
 	return compared;
 }
 
+// One owner for the denominator an embedding page is told, in the order the challenge lists them
+export function goalIds(challenge: Challenge): string[] {
+	return challenge.goals.map((goal) => goal.id);
+}
+
 // The one node an event acts on, whichever kind it is
 export function eventTarget(event: ScriptEvent): NamedRef {
 	if ('start' in event) return event.start;

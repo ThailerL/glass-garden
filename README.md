@@ -123,6 +123,22 @@ A `metric` condition holds any metric a node records within `lte`, `gte`, or bot
 
 Every name a goal or event mentions is checked as the file is read, so a challenge nobody could win is refused rather than failing halfway through a run. The import button on the **Projects** group takes a challenge file as well as a project, and what it imports appears under **Imported** on the Challenges page. To ship your own with a self-hosted build, see [Your own built-in challenges](#your-own-built-in-challenges).
 
+A challenge running in an embed tells your page how the reader is doing, so a lesson can react to a run without keeping score itself.
+
+```js
+window.addEventListener('message', (event) => {
+	if (event.source !== frame.contentWindow || event.origin !== 'https://intro.embed.glass.garden')
+		return;
+	const message = event.data;
+	if (message.format !== 'gg:embed/1') return;
+	// { event: 'best', met: [...], all: [...] } is the goals the reader's best run met and every goal the challenge has, sent on load and whenever the best improves
+	// { event: 'run', scored: true, met: [...], failed: [...] } is every scored run
+	// { event: 'run', scored: false, reason: 'did-not-start', nodeName: 'App A' } is a node that never started
+});
+```
+
+Every goal is named by the `id` it carries in the challenge file, and `all` lists them in the order the file gives, so a page can draw the whole checklist from the first message without repeating the challenge in its own code. `reason` is a code rather than the wording the reader sees, so your page can say something of its own. Anyone can send these from their browser's console, so use them to show progress and offer help, never to award anything.
+
 ## Self-hosting
 
 To self-host with Docker, use this `compose.yaml`

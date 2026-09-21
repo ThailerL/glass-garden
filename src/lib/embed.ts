@@ -26,6 +26,30 @@ export function leaveForMainApp(): boolean {
 	return true;
 }
 
+// Versioned and documented in the README, since a host page's own code reads these
+export const EMBED_FORMAT = 'gg:embed/1';
+
+export type HostMessage =
+	// 'best' carries every goal as well, so a page can show progress without knowing the challenge
+	| { event: 'best'; met: readonly string[]; all: readonly string[] }
+	| { event: 'run'; scored: true; met: readonly string[]; failed: readonly string[] }
+	| { event: 'run'; scored: false; reason: 'did-not-start'; nodeName: string };
+
+// Nothing in a message is private, so a host that sent no referrer still hears it
+export function tellHost(message: HostMessage) {
+	if (!embedded) return;
+	const origin = URL.parse(document.referrer)?.origin ?? '*';
+	window.parent.postMessage({ format: EMBED_FORMAT, ...message }, origin);
+}
+
+// A reset replaces the project under the same link, which should keep opening the new one
+export function followProject(from: string, to: string) {
+	const entry = readEntry<EmbeddedProject>(EMBED_KEY);
+	if (entry?.projectId === from) {
+		localStorage.setItem(EMBED_KEY, JSON.stringify({ ...entry, projectId: to }));
+	}
+}
+
 // Once rather than on every scroll: a reader who stops the lesson and scrolls back keeps it stopped
 export function whenInView(callback: () => void) {
 	const observer = new IntersectionObserver(([entry]) => {
