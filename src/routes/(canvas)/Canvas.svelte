@@ -74,8 +74,8 @@
 	const edgeTypes = { default: TrafficEdge };
 
 	// A node's directory goes with it, so the resources holding anything worth keeping ask
-	// before the graph has parted with them. A challenge's own nodes never arrive here: they
-	// carry deletable: false, which the flow filters out before it asks
+	// before the graph has parted with them. A node a challenge's goals or script name never
+	// arrives here: it carries deletable: false, which the flow filters out before it asks
 	const onBeforeDelete: OnBeforeDelete = ({ nodes }) => {
 		if (run?.active) return Promise.resolve(false);
 		const withContents = nodes.filter((node) => {

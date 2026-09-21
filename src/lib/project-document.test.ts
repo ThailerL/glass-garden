@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Node } from '@xyflow/svelte';
-import { GraphState, nodeConfig, nodeTestEvent } from '$lib/graph-state.svelte';
+import {
+	GraphState,
+	nodeAuthored,
+	nodeConfig,
+	nodeName,
+	nodeTestEvent
+} from '$lib/graph-state.svelte';
 import {
 	CHALLENGE_FORMAT,
 	PROJECT_FORMAT,
@@ -288,6 +294,23 @@ describe('applyCanvasDocument', () => {
 		]);
 		expect(nodeConfig(graph.nodes[0])).toEqual({ name: 'A', count: 5 });
 		expect(nodeTestEvent(graph.nodes[0])).toBe('{"hello":"world"}');
+	});
+
+	it('keeps the nodes a challenge names, and leaves the rest for the reader to delete', () => {
+		const doc = challengeDocument();
+		// The goal's edge names A and B; only the fixed list names the node pushed here
+		doc.startingCanvas.nodes.push({ id: 'c', type: 'test', position: { x: 2, y: 2 }, config: {} });
+		doc.fixed = [{ node: { name: 'Test resource' } }];
+		const parsed = parseDocument(JSON.stringify(doc));
+		if (parsed.format !== CHALLENGE_FORMAT) throw new Error('expected a challenge');
+
+		const graph = new GraphState('p1');
+		applyCanvasDocument(graph, parsed.startingCanvas, parsed);
+		const deletable = Object.fromEntries(
+			graph.nodes.map((node) => [nodeName(node), node.deletable])
+		);
+		expect(deletable).toEqual({ A: false, B: false, 'Test resource': true });
+		expect(graph.nodes.every(nodeAuthored)).toBe(true);
 	});
 
 	it('falls back to defaults for a config the schema rejects', () => {

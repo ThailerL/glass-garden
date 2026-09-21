@@ -61,14 +61,20 @@ describe('node chart', () => {
 });
 
 describe('deletable', () => {
-	it("is false on a challenge's own node, and survives a reload", () => {
+	it('is asked for rather than read off the node, and survives a reload', () => {
 		const graph = new GraphState('p1');
 		const mine = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
-		const theirs = graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { authored: true });
+		const scenery = graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { authored: true });
+		const needed = graph.addNode(
+			'test' as ResourceType,
+			{ x: 0, y: 0 },
+			{ authored: true, deletable: false }
+		);
 		expect(mine.deletable).toBe(true);
-		expect(theirs.deletable).toBe(false);
+		expect(scenery.deletable).toBe(true);
+		expect(needed.deletable).toBe(false);
 		// The flow reads it off the node, so it has to come back with one
-		expect(new GraphState('p1').getNode(theirs.id)!.deletable).toBe(false);
+		expect(new GraphState('p1').getNode(needed.id)!.deletable).toBe(false);
 	});
 });
 

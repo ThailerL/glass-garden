@@ -121,10 +121,12 @@ export class GraphState {
 			config,
 			chart,
 			testEvent,
-			authored
+			authored,
+			deletable = true
 			// config arrives unparsed, so it is not NodeData's own
 		}: Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'authored'> & {
 			config?: Record<string, unknown>;
+			deletable?: boolean;
 		} = {}
 	) {
 		const definition = getResourceDefinition(type);
@@ -144,8 +146,7 @@ export class GraphState {
 			type,
 			position,
 			data,
-			// A challenge's own nodes are named by its goals, events and fixed entries
-			deletable: !authored,
+			deletable,
 			origin: [0.5, 0.5]
 		};
 		this.nodes = [...this.nodes, node];

@@ -173,6 +173,8 @@ export type ChallengeRef = {
 	where: string;
 	ref: NodeRef;
 	config?: Record<string, Comparison>;
+	// From the fixed list, which describes a node rather than depending on it
+	fixed?: boolean;
 };
 
 export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
@@ -188,8 +190,17 @@ export function* challengeRefs(challenge: Challenge): Generator<ChallengeRef> {
 		yield { where: `The event at ${event.at} s`, ref: eventTarget(event) };
 	}
 	for (const { node } of challenge.fixed) {
-		yield { where: `The settings fixed on "${node.name}"`, ref: node };
+		yield { where: `The settings fixed on "${node.name}"`, ref: node, fixed: true };
 	}
+}
+
+// The nodes a run cannot do without, by name
+export function neededNodes(challenge: Challenge): Set<string> {
+	const names = new Set<string>();
+	for (const { fixed, ref } of challengeRefs(challenge)) {
+		if (!fixed && 'name' in ref) names.add(ref.name);
+	}
+	return names;
 }
 
 // Whether the challenge owns a setting on one of its nodes. A goal that compares a setting is

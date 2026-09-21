@@ -6,6 +6,8 @@ import {
 	challengeRefs,
 	challengeSchema,
 	comparedSettings,
+	neededNodes,
+	type Challenge,
 	type Comparison,
 	type FixedNode,
 	type ScriptEvent
@@ -296,15 +298,18 @@ export function parseDocument(text: string): GardenDocument {
 
 // Ids are minted fresh so a project can be imported beside its own export; returns old → new.
 // A challenge's canvas is marked as authored, which is what lets its goals name these nodes
-export function applyCanvasDocument(graph: GraphState, doc: CanvasDocument, authored = false) {
+export function applyCanvasDocument(graph: GraphState, doc: CanvasDocument, challenge?: Challenge) {
+	const needed = challenge && neededNodes(challenge);
 	const ids = new Map<string, string>();
 	for (const node of doc.nodes) {
+		const config = parseStoredConfig(resourceDefinitions[node.type], node.config);
 		const added = graph.addNode(node.type, node.position, {
-			config: parseStoredConfig(resourceDefinitions[node.type], node.config),
+			config,
 			chart: node.chart,
 			testEvent: node.testEvent,
 			// Kept off an ordinary project's nodes rather than stored as false on every one
-			authored: authored || undefined
+			authored: challenge ? true : undefined,
+			deletable: !needed?.has(config.name as string)
 		});
 		ids.set(node.id, added.id);
 	}

@@ -177,7 +177,7 @@ export function importProject(doc: GardenDocument, from: ImportedAs = {}): Proje
 	const project = createProject(
 		documentName(doc),
 		(graph) => {
-			ids = applyCanvasDocument(graph, canvas, challenge !== undefined);
+			ids = applyCanvasDocument(graph, canvas, challenge);
 		},
 		{ challenge, ...from }
 	);
