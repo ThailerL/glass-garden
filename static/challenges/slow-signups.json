@@ -3,7 +3,7 @@
 	"format": "gg:challenge/1",
 	"title": "Signups grind to a halt",
 	"description": "The signup API hashes every password and stores it while the caller waits. Keep signups answering when the traffic climbs.",
-	"stack": "Request generator, HTTP load balancer, instance group, Table (DynamoDB), and a queue and function if you take the usual route",
+	"suggests": ["sqsQueue", "lambdaFunction"],
 	"instructions": [
 		"Signup API hashes every signup and writes it to the table before it answers. Signup Balancer spreads the traffic over however many instances it is set to run.",
 		"The usual answer is a queue with a function behind it: the API hands the signup over and answers, and the function does the hashing and the write. Anything that answers as quickly and stores the same thing will do.",

@@ -84,7 +84,7 @@ A challenge is a single JSON file that carries the canvas it starts from, so a s
 	"format": "gg:challenge/1",
 	"title": "Survive a lost app",
 	"description": "One of two apps goes down for 25 seconds. Keep answering.",
-	"stack": "Request generator, two instance groups, and a load balancer you add",
+	"suggests": ["httpLoadBalancer"],
 	"instructions": [
 		"Put a load balancer in front of the two apps and connect the traffic to it.",
 		"Press Run. App A goes down partway through, and the run is scored on what the traffic sees while it is gone."
@@ -132,7 +132,7 @@ Each goal has an `id` of your choosing, which is the name a run is scored by and
 
 `length` is how long the run lasts, up to 900 seconds. A `hint` is offered once a scored run has failed its goal, and shown only when the reader asks for it.
 
-`description` is the card on the Challenges page, read by someone deciding whether to start, and `stack` is the line under it naming the resources the challenge involves. Write that one yourself rather than expecting it to be read off the canvas, since a challenge may ask for a node the reader has to add. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there. A challenge needs all three, since a goal's title never says what to do.
+`description` is the card on the Challenges page, read by someone deciding whether to start. The resources named and drawn beside it are read off `startingCanvas` rather than written out, minus the request generator, which is the traffic rather than part of the system and which every challenge has. `suggests` names the ones a reader is likely to reach for that the canvas does not start with, such as the queue and function behind an API that answers too slowly, and listing them describes the usual route without demanding it, since no goal asks for them by name. `instructions` stand in the challenge's own panel above the timeline, one paragraph per string, so what the reader has to do belongs there. A challenge needs a description and instructions, since a goal's title never says what to do.
 
 Every name a goal or event mentions is checked as the file is read, so a challenge nobody could win is refused rather than failing halfway through a run. The import button on the **Projects** group takes a challenge file as well as a project, and what it imports appears under **Imported** on the Challenges page. To ship your own with a self-hosted build, see [Your own built-in challenges](#your-own-built-in-challenges).
 

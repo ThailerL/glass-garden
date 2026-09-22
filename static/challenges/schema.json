@@ -650,9 +650,22 @@
 			"type": "string",
 			"minLength": 1
 		},
-		"stack": {
-			"type": "string",
-			"minLength": 1
+		"suggests": {
+			"default": [],
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": [
+					"instanceGroup",
+					"lambdaFunction",
+					"httpLoadBalancer",
+					"requestGenerator",
+					"postgres",
+					"s3Bucket",
+					"sqsQueue",
+					"dynamodbTable"
+				]
+			}
 		},
 		"instructions": {
 			"minItems": 1,
@@ -775,7 +788,6 @@
 		"format",
 		"title",
 		"description",
-		"stack",
 		"instructions",
 		"startingCanvas"
 	],

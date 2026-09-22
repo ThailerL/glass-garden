@@ -73,8 +73,11 @@ const challengeDocumentSchema = challengeSchema
 		// What the card says to someone who has not opened it; instructions stand in the panel
 		// of the open challenge, where the reader is doing the work
 		description: z.string().min(1),
-		// Authored, since it names what the reader has to add, which the canvas cannot show
-		stack: z.string().min(1),
+		// The resources a reader is likely to reach for that the canvas does not start with. Not
+		// required by any goal: the queue and function behind an API are the usual answer rather
+		// than the only one, which is why this suggests rather than demands. What the challenge
+		// does start with is read off `startingCanvas`, so nothing here restates it
+		suggests: z.array(resourceTypeSchema).default([]),
 		instructions: z.array(z.string().min(1)).min(1),
 		startingCanvas: canvasDocumentSchema
 	})

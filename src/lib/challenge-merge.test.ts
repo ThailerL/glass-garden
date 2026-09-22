@@ -68,7 +68,6 @@ const challenge = (fields: object = {}): ChallengeDocument => {
 		format: CHALLENGE_FORMAT,
 		title: 'Keep up',
 		description: 'Two nodes and a goal',
-		stack: 'Two nodes',
 		instructions: ['Keep up.'],
 		length: 30,
 		events: [],

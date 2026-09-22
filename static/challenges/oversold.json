@@ -3,7 +3,7 @@
   "format": "gg:challenge/1",
   "title": "The concert that oversold",
   "description": "Box Office counts the tickets it has left. Keep the concert from selling more than it has when Box Office scales out.",
-  "stack": "Request generator, HTTP load balancer, instance group, Table (DynamoDB)",
+  "suggests": [],
   "instructions": [
     "Box Office sells the concert's 500 tickets. Five seconds in, it scales out to three instances to keep up with the buyers.",
     "Sell every ticket exactly once, however many instances are running. Tickets is a table every instance can reach."
