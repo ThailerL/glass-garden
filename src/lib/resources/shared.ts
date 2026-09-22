@@ -29,10 +29,30 @@ export function envSlug(node: Node) {
 	return slugify(nodeName(node), { separator: '_', case: 'upper' }) || 'RESOURCE';
 }
 
+// An install with nothing to install still costs seconds, and npm refuses outright without a
+// manifest, so the manifest decides whether it runs at all
+async function hasDependencies(container: Vivari, directory: string): Promise<boolean> {
+	const manifest = await container.fs
+		.readFile(`${directory}/package.json`, 'utf-8')
+		.catch(() => '');
+	if (!manifest) return false;
+	let parsed: Record<string, unknown>;
+	try {
+		parsed = JSON.parse(manifest);
+	} catch {
+		// npm is the one that should report a manifest it cannot read
+		return true;
+	}
+	return ['dependencies', 'devDependencies', 'optionalDependencies'].some(
+		(group) => Object.keys((parsed[group] as object | undefined) ?? {}).length > 0
+	);
+}
+
 export async function npmInstall(node: Node, container: Vivari, capture?: Capture) {
-	const installProcess = await container.spawn('npm', ['install'], {
-		cwd: nodeDirectory(node.id)
-	});
+	const directory = nodeDirectory(node.id);
+	if (!(await hasDependencies(container, directory))) return;
+
+	const installProcess = await container.spawn('npm', ['install'], { cwd: directory });
 	capture?.(installProcess.output);
 	const code = await installProcess.exit;
 	// The code separates npm running and rejecting the install from npm never running
