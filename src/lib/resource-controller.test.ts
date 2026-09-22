@@ -169,7 +169,7 @@ describe('ResourceController', () => {
 		expect(definition.start).toHaveBeenCalled();
 	});
 
-	it('holds a server-hosting instance at starting until server-ready promotes it', async () => {
+	it('holds a server-hosting instance at starting until its port opens', async () => {
 		const { services, controller } = setup({}, { readyOnStart: false });
 
 		controller.start();
@@ -178,13 +178,13 @@ describe('ResourceController', () => {
 		expect(services.scheduleNeighbours).not.toHaveBeenCalled();
 
 		const port = controller.instances[0].port;
-		expect(controller.onServerReady(port, `http://x/${port}/`)).toBe(true);
+		expect(controller.onPortOpen(port, `http://x/${port}/`)).toBe(true);
 		await settle();
 		expect(controller.instances[0].status).toBe('running');
 		expect(controller.instances[0].previewUrl).toBe(`http://x/${port}/`);
 		expect(services.scheduleNeighbours).toHaveBeenCalled();
 		// A port no instance holds is not this controller's to claim
-		expect(controller.onServerReady(59999, 'http://x/59999/')).toBe(false);
+		expect(controller.onPortOpen(59999, 'http://x/59999/')).toBe(false);
 	});
 
 	it('bounces instances on a launch config change but not on a rename', async () => {
@@ -375,8 +375,8 @@ describe('ResourceController', () => {
 		controller.schedule();
 		await settle();
 		expect(controller.status).toBe('starting');
-		controller.onServerReady(controller.instances[0].port, 'http://x/');
-		controller.onServerReady(controller.instances[1].port, 'http://x/');
+		controller.onPortOpen(controller.instances[0].port, 'http://x/');
+		controller.onPortOpen(controller.instances[1].port, 'http://x/');
 		expect(controller.status).toBe('running');
 	});
 

@@ -40,8 +40,8 @@ export type Capture = (output: TextOutput) => void;
 export type InstanceStatus =
 	// From slot creation until fully up: spawning, then waiting for its server to listen
 	| 'starting'
-	// Fully up, in the rotation of whatever points at it. Reached via server-ready, or straight
-	// from start for definitions with readyOnStart
+	// Fully up, in the rotation of whatever points at it. Reached when its port opens, or
+	// straight from start for definitions with readyOnStart
 	| 'running'
 	| 'stopping'
 	| 'crashed'
@@ -141,8 +141,7 @@ export type ResourceDefinition = {
 	// because the region serves it and nothing spawned for it could be killed
 	alwaysOn: boolean;
 	// For resources that don't host a server: start() resolving is being fully up, so
-	// instances go straight to 'running' instead of waiting for a server-ready that
-	// never comes
+	// instances go straight to 'running' instead of waiting for a port that never opens
 	readyOnStart?: boolean;
 	// What the log calls this resource's one instance when its port would say nothing: a
 	// manager whose output is mostly the execution environments it forwards

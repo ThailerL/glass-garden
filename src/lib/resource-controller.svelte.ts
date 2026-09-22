@@ -349,7 +349,7 @@ export class ResourceController {
 				this.log.openStream(instance.port, this.#definition.instanceLabel ?? `:${instance.port}`);
 				this.log.capture(instance.port, handle.output);
 			}
-			// Server-hosting resources stay 'starting' until server-ready promotes them
+			// Server-hosting resources stay 'starting' until their port opens
 			if (this.#definition.readyOnStart) instance.status = 'running';
 			this.log.event(
 				instance.port,
@@ -458,7 +458,7 @@ export class ResourceController {
 
 	// A spawned process is not a listening server, so this is the first point at which
 	// whatever points at this node can be pointed at the instance
-	onServerReady(port: number, url: string): boolean {
+	onPortOpen(port: number, url: string): boolean {
 		const instance = this.instances.find((instance) => instance.port === port);
 		if (!instance) return false;
 		instance.previewUrl = url;

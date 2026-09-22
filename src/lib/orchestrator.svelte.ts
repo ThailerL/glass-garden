@@ -403,9 +403,12 @@ export class Orchestrator {
 		this.#slowBootTimer ??= setTimeout(() => (this.#slowBoot = true), SLOW_BOOT_MS);
 		this.#containerPromise ??= getContainer().then(
 			(container) => {
-				container.on('server-ready', (port, url) => {
+				// The raw bind rather than server-ready, whose probe counts a 503 as not serving:
+				// a load balancer with nothing wired to it answers 503 and would never come up
+				container.on('port', (port, kind, url) => {
+					if (kind !== 'open') return;
 					for (const controller of this.#controllers.values()) {
-						if (controller.onServerReady(port, url)) return;
+						if (controller.onPortOpen(port, url)) return;
 					}
 				});
 				this.#containerReady = true;
