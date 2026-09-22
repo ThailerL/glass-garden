@@ -143,6 +143,8 @@ export type ResourceDefinition = {
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a port that never opens
 	readyOnStart?: boolean;
+	// A challenge run starts this once the rest are up and settled: its first act is sending them traffic
+	startsLast?: boolean;
 	// What the log calls this resource's one instance when its port would say nothing: a
 	// manager whose output is mostly the execution environments it forwards
 	instanceLabel?: string;

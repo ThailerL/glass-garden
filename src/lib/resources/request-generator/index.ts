@@ -70,6 +70,7 @@ export const requestGenerator = {
 	runsProcesses: false,
 	alwaysOn: false,
 	readyOnStart: true,
+	startsLast: true,
 	instanceLabel: 'generator',
 	start: async (
 		node: Node,

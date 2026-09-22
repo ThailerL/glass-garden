@@ -61,6 +61,10 @@ export function ownsStoredData(type: string | undefined): boolean {
 	return getResourceDefinition(type).clear !== undefined;
 }
 
+export function startsLast(type: string | undefined): boolean {
+	return getResourceDefinition(type).startsLast === true;
+}
+
 // Only the identity and type matter, so xyflow's internal nodes are judged as readily as ours
 export type ConnectableNode = { id: string; type?: string };
 

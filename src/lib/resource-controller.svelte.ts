@@ -126,6 +126,10 @@ export class ResourceController {
 		return this.#restartTimer !== undefined;
 	}
 
+	get settled(): boolean {
+		return !this.#converging && !this.#dirty;
+	}
+
 	// A stopping instance still owns its process and its port until the kill lands, so
 	// it counts as up and the number ticks down as each one actually dies
 	get upCount(): number {

@@ -48,12 +48,14 @@ function fakeCanvas(clearFails = false, readHangs = false) {
 		edges: [{ source: 'gen', target: 'app' }]
 	};
 	let statuses: Record<string, ResourceStatus> = { gen: 'stopped', app: 'stopped' };
+	let settled = true;
 	const calls: string[] = [];
 	const services: RunServices = {
 		canvas: () => canvas,
 		statuses: () => statuses,
 		metrics: () => ({}),
-		startAll: () => calls.push('startAll'),
+		startsLast: (type) => type === 'requestGenerator',
+		settled: () => settled,
 		start: (id) => calls.push(`start ${id}`),
 		stop: (id) => calls.push(`stop ${id}`),
 		setConfig: (id, patch) => {
@@ -82,6 +84,7 @@ function fakeCanvas(clearFails = false, readHangs = false) {
 		services,
 		calls,
 		setStatuses: (next: Record<string, ResourceStatus>) => (statuses = next),
+		setSettled: (next: boolean) => (settled = next),
 		edit: (next: CanvasView) => (canvas = next),
 		canvas: () => canvas
 	};
@@ -104,21 +107,42 @@ describe('ChallengeRun', () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 
-	it('starts everything and holds the clock until every node is running', async () => {
+	it('starts the traffic last, and holds the clock until every node is running', async () => {
 		const fake = fakeCanvas();
 		const run = new ChallengeRun(challenge, fake.services);
 		await run.start();
-		expect(fake.calls).toEqual(['stopAll', 'clearStoredData', 'startAll']);
+		expect(fake.calls).toEqual(['stopAll', 'clearStoredData', 'start app']);
 		// Locked from the press, not from the clock: a boot is part of the run
 		expect(run.active).toBe(true);
 		advance(30);
 		expect(run.phase).toBe('starting');
 		expect(run.elapsed).toBe(0);
 
+		fake.setStatuses({ gen: 'stopped', app: 'running' });
+		advance(TICK_MS / 1000);
+		expect(fake.calls.at(-1)).toBe('start gen');
+		expect(run.phase).toBe('starting');
+
 		fake.setStatuses({ gen: 'running', app: 'running' });
 		advance(TICK_MS / 1000);
 		expect(run.phase).toBe('running');
+		expect(fake.calls.filter((call) => call === 'start gen')).toHaveLength(1);
 		expect(fake.calls).toContain('set gen {"requestsPerSecond":5}');
+		run.dispose();
+	});
+
+	it('holds the traffic back until the orchestrator is settled', async () => {
+		const fake = fakeCanvas();
+		const run = new ChallengeRun(challenge, fake.services);
+		await run.start();
+		fake.setSettled(false);
+		fake.setStatuses({ gen: 'stopped', app: 'running' });
+		advance(5);
+		expect(fake.calls).not.toContain('start gen');
+
+		fake.setSettled(true);
+		advance(TICK_MS / 1000);
+		expect(fake.calls.at(-1)).toBe('start gen');
 		run.dispose();
 	});
 

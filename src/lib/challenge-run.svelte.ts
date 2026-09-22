@@ -24,7 +24,8 @@ export type RunServices = {
 	canvas: () => CanvasView;
 	statuses: () => Record<string, ResourceStatus>;
 	metrics: (nodeId: string) => MetricStore;
-	startAll: () => void;
+	startsLast: (type: string) => boolean;
+	settled: () => boolean;
 	start: (nodeId: string) => void;
 	stop: (nodeId: string) => void;
 	setConfig: (nodeId: string, patch: Record<string, unknown>) => void;
@@ -61,7 +62,7 @@ function readKey(nodeId: string, c: DataCondition): string {
 	return JSON.stringify([nodeId, c.read, c.args, c.at]);
 }
 
-// Starts everything, waits for it all to run, then plays the script and judges the goals.
+// Starts the traffic last, waits for everything to run, then plays the script and judges the goals.
 // The clock only starts once every node is up, so a slow boot never eats into the run
 export class ChallengeRun {
 	phase = $state<RunPhase>('idle');
@@ -81,6 +82,7 @@ export class ChallengeRun {
 	// The canvas the run is judged against, as it stood when the clock started
 	#record: RunRecord | undefined;
 	#nextEvent = 0;
+	#lateStarted = false;
 	// Asked once each: a key present but undefined is a read still in flight. Not reactive,
 	// since judging reads them on the tick that follows
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -106,13 +108,20 @@ export class ChallengeRun {
 		this.ended = undefined;
 		this.goals = this.#allWaiting();
 		this.failedAt = {};
+		this.#lateStarted = false;
 		this.#services.stopAll();
 		const uncleared = await this.#services.clearStoredData();
 		if (uncleared) return this.#end('ended', { reason: 'not-cleared', ...uncleared });
 		// Stop run, pressed while that was in flight, has already ended this one
 		if (this.phase !== 'starting') return;
-		this.#services.startAll();
+		this.#startNodes(false);
 		this.#timer = setInterval(() => this.#tick(), TICK_MS);
+	}
+
+	#startNodes(last: boolean) {
+		for (const node of this.#services.canvas().nodes) {
+			if (this.#services.startsLast(node.type) === last) this.#services.start(node.id);
+		}
 	}
 
 	// The reader's way out, which ends it the same way reaching the end does
@@ -144,6 +153,16 @@ export class ChallengeRun {
 			const nodeName = broken.config.name as string;
 			this.#end('ended', { reason: 'did-not-start', nodeId: broken.id, nodeName });
 			return;
+		}
+		// Traffic sent before the rest can answer it is refused and still counted
+		if (!this.#lateStarted) {
+			const earlyUp = canvas.nodes.every(
+				(node) => this.#services.startsLast(node.type) || statuses[node.id] === 'running'
+			);
+			if (!earlyUp) return;
+			if (!this.#services.settled()) return;
+			this.#startNodes(true);
+			this.#lateStarted = true;
 		}
 		if (!canvas.nodes.every((node) => statuses[node.id] === 'running')) return;
 

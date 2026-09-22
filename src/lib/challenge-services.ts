@@ -2,7 +2,7 @@ import { nodeAuthored, nodeConfig, type GraphState } from './graph-state.svelte'
 import type { Orchestrator } from './orchestrator.svelte';
 import type { RunServices } from './challenge-run.svelte';
 import type { Challenge } from './challenge';
-import { getResourceDefinition, readOf } from './resources';
+import { getResourceDefinition, readOf, startsLast } from './resources';
 import { recordRun } from './projects.svelte';
 import { hostGoals, tellHost } from './embed';
 
@@ -27,7 +27,8 @@ export function runServices(
 		statuses: () =>
 			Object.fromEntries(graph.nodes.map((node) => [node.id, orchestrator.getStatus(node.id)])),
 		metrics: (nodeId) => orchestrator.getMetrics(nodeId),
-		startAll: () => orchestrator.startAll(),
+		startsLast,
+		settled: () => orchestrator.settled,
 		start: (nodeId) => orchestrator.start(nodeId),
 		stop: (nodeId) => orchestrator.stop(nodeId),
 		setConfig: (nodeId, patch) => {

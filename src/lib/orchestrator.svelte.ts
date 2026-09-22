@@ -288,6 +288,11 @@ export class Orchestrator {
 		for (const node of this.#graphState.nodes) this.start(node.id);
 	}
 
+	// A pass schedules its neighbours before it ends, so no gap between passes reads as settled
+	get settled(): boolean {
+		return [...this.#controllers.values()].every((controller) => controller.settled);
+	}
+
 	stopAll() {
 		for (const node of this.#graphState.nodes) this.stop(node.id);
 	}

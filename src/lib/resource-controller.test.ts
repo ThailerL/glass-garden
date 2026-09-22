@@ -187,6 +187,23 @@ describe('ResourceController', () => {
 		expect(controller.onPortOpen(59999, 'http://x/59999/')).toBe(false);
 	});
 
+	it('is unsettled from the moment an instance comes up until its neighbours have been told', async () => {
+		const { services, controller } = setup({}, { readyOnStart: false });
+		controller.start();
+		await settle();
+		expect(controller.settled).toBe(true);
+
+		const port = controller.instances[0].port;
+		controller.onPortOpen(port, `http://x/${port}/`);
+		expect(controller.instances[0].status).toBe('running');
+		expect(controller.settled).toBe(false);
+		expect(services.scheduleNeighbours).not.toHaveBeenCalled();
+
+		await settle();
+		expect(services.scheduleNeighbours).toHaveBeenCalled();
+		expect(controller.settled).toBe(true);
+	});
+
 	it('bounces instances on a launch config change but not on a rename', async () => {
 		const { node, definition, handles, controller } = setup();
 
