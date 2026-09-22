@@ -1,0 +1,62 @@
+---
+import { Code } from 'astro:components';
+
+type Props = { label: string; source: string };
+
+const { label, source } = Astro.props;
+
+const lines = source.trimEnd().split('\n');
+
+// Every theme dims comments, because in ordinary code they are noise. Here they are the point:
+// they are what the challenge teaches, next to the line a reader can act on. So shiki colours
+// the code and this puts the comments back up in the app's own green
+const commentLines = new Set(
+	lines.flatMap((line, i) => (/^\s*(\/\/|\*|\/\*)/.test(line) ? [i] : []))
+);
+const keepComments = {
+	name: 'keep-comments',
+	line(node: { properties: Record<string, unknown> }, lineNumber: number) {
+		if (commentLines.has(lineNumber - 1)) node.properties.class = 'comment';
+	}
+};
+---
+
+<div class="overflow-hidden rounded-xl border bg-card">
+	<div class="border-b px-4 py-2.5 font-mono text-xs text-muted-foreground">{label}</div>
+	<Code
+		code={lines.join('\n')}
+		lang="js"
+		themes={{ light: 'github-light', dark: 'github-dark' }}
+		defaultColor={false}
+		transformers={[keepComments]}
+	/>
+</div>
+
+<style is:global>
+	/* Shiki writes both themes onto every token; this picks the one the page is showing */
+	.astro-code,
+	.astro-code span {
+		color: var(--shiki-light);
+	}
+
+	.dark .astro-code,
+	.dark .astro-code span {
+		color: var(--shiki-dark);
+	}
+
+	.astro-code .comment,
+	.astro-code .comment span,
+	.dark .astro-code .comment,
+	.dark .astro-code .comment span {
+		color: var(--primary);
+	}
+
+	.astro-code {
+		max-height: 32rem;
+		overflow: auto;
+		padding: 1rem;
+		background: var(--card) !important;
+		font-size: 0.8125rem;
+		line-height: 1.625;
+	}
+</style>

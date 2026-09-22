@@ -1,0 +1,41 @@
+---
+import Button from '../../components/Button.astro';
+import ChallengeCard from '../../components/ChallengeCard.astro';
+import Page from '../../layouts/Page.astro';
+import { challenges } from '../../challenges';
+
+const all = challenges();
+
+// Written for the search result, inside the ~60 characters shown before it is cut
+const title = 'Cloud architecture challenges you run in the browser';
+const description =
+	'Practise cloud architecture on a canvas that really runs: load balancers, Node apps, queues, and Lambda functions, in a browser tab. Each challenge scores what your system does under traffic.';
+---
+
+<Page {title} {description} narrow>
+	<!-- "Each one" points at the list, so it sits closer than a section would -->
+	<div class="-mb-6 flex flex-col gap-4">
+		<h1 class="text-4xl font-semibold tracking-tight text-balance">
+			Cloud architecture challenges
+		</h1>
+		<p class="max-w-2xl text-lg text-muted-foreground">
+			Each one is a real system with something wrong in it. Get it ready, press Run, and the goals
+			score how it holds up under the traffic.
+		</p>
+	</div>
+
+	<section class="flex flex-col gap-3">
+		{all.map((challenge) => (
+			<ChallengeCard {challenge} />
+		))}
+	</section>
+
+	<section class="flex flex-col gap-3">
+		<h2 class="text-xl font-semibold tracking-tight">The browser tab is the whole stack</h2>
+		<p class="max-w-2xl text-muted-foreground">
+			Glass Garden runs all of it: real Node processes, real Postgres, and a local AWS region that
+			answers the ordinary SDK. A challenge is that canvas with a script and a scoreboard attached.
+		</p>
+		<Button href="/">Open Glass Garden</Button>
+	</section>
+</Page>

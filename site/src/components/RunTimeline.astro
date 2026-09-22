@@ -1,0 +1,50 @@
+---
+import { eventSentence, shadedSpans } from '../../../src/lib/challenge-timeline';
+import type { ChallengeDocument } from '../../../src/lib/project-document';
+
+type Props = { challenge: ChallengeDocument };
+
+const { challenge } = Astro.props;
+const { length, events } = challenge;
+
+// Each stretch drawn as its own translucent layer rather than merged, as the app's own bar
+// draws them: where goals overlap the shading stacks, so the bar is darkest where the most is
+// being judged. Which goal each stretch belongs to is the list underneath's to say
+const judged = shadedSpans(challenge);
+const share = (seconds: number) => `${(seconds / length) * 100}%`;
+---
+
+<!-- The ticks belong to the bar, so they sit tight against it and the events stand further off -->
+<div class="flex flex-col gap-1.5">
+	<div class="relative h-7 overflow-hidden rounded-md bg-muted">
+		{judged.map(([from, to]) => (
+			<div
+				class="absolute inset-y-0 bg-sky-500/30"
+				style={`left: ${share(from)}; width: ${share(to - from)}`}
+			/>
+		))}
+		{events.map((event) => (
+			<div
+				class="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-foreground"
+				style={`left: ${share(event.at)}`}
+			/>
+		))}
+	</div>
+
+	<div class="flex justify-between text-xs tabular-nums text-muted-foreground">
+		<span>0 s</span>
+		<span>{length} s</span>
+	</div>
+
+	{events.length > 0 && (
+		<ul class="mt-2.5 flex flex-col gap-1.5 text-sm">
+			{events.map((event) => (
+				<li>
+					<span class="tabular-nums text-muted-foreground">{event.at} s</span>
+					{' · '}
+					{eventSentence(event)}
+				</li>
+			))}
+		</ul>
+	)}
+</div>

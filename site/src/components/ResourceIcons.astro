@@ -1,0 +1,37 @@
+---
+import type { ResourceType } from '../../../src/lib/resources';
+import { resourceOf } from '../resources';
+
+// What the challenge is about, in the icons the palette and the canvas already use. The "+" is
+// what the line underneath spells out: what comes after it is not on the starting canvas
+type Props = { starting: ResourceType[]; suggested: ResourceType[] };
+
+const { starting, suggested } = Astro.props;
+
+// One row, so the separator is placed rather than the icon markup written out twice
+const row: ({ type: ResourceType } | 'plus')[] = [
+	...starting.map((type) => ({ type })),
+	...(suggested.length > 0 ? (['plus'] as const) : []),
+	...suggested.map((type) => ({ type }))
+];
+---
+
+<div class="flex items-center gap-1.5 text-muted-foreground">
+	{row.map((entry) =>
+		entry === 'plus' ? (
+			<span class="text-xs">+</span>
+		) : (
+			<svg
+				class="size-4 text-resource-icon"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+				set:html={resourceOf(entry.type).icon}
+			/>
+		)
+	)}
+</div>

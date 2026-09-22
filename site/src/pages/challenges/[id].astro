@@ -1,0 +1,112 @@
+---
+import Button from '../../components/Button.astro';
+import CodeFile from '../../components/CodeFile.astro';
+import ChallengeCard from '../../components/ChallengeCard.astro';
+import RunTimeline from '../../components/RunTimeline.astro';
+import StartingCanvas from '../../components/StartingCanvas.astro';
+import Page from '../../layouts/Page.astro';
+import { challenges, runSentence, stackNames, suggestionOf } from '../../challenges';
+import { challengesPath, startPath } from '../../paths';
+import type { BuiltInChallenge } from '../../../../src/lib/challenges';
+import { goalsInOrder, spanLabels } from '../../../../src/lib/challenge-timeline';
+
+export function getStaticPaths() {
+	return challenges().map((challenge) => ({ params: { id: challenge.id }, props: { challenge } }));
+}
+
+type Props = { challenge: BuiltInChallenge };
+
+const { challenge } = Astro.props;
+const { id, document } = challenge;
+const { startingCanvas } = document;
+
+const others = challenges().filter((one) => one.id !== id);
+
+const nodeName = new Map(
+	startingCanvas.nodes.map((node) => [node.id, String(node.config.name ?? node.id)])
+);
+
+// package.json is left off: it lists the dependencies the code already imports, and adds
+// nothing a reader of the page can act on
+const files = Object.entries(startingCanvas.nodeFiles ?? {}).flatMap(([nodeId, byName]) =>
+	Object.entries(byName)
+		.filter(([name]) => name !== 'package.json')
+		.map(([name, source]) => ({ label: `${nodeName.get(nodeId) ?? nodeId} / ${name}`, source }))
+);
+
+const title = `${document.title} · Challenges · Glass Garden`;
+---
+
+<Page {title} description={document.description} narrow>
+	<div class="flex flex-col gap-4">
+		<p class="text-sm text-muted-foreground">
+			<a href={challengesPath} class="hover:text-foreground">
+				Challenges
+			</a>
+			<span> / {document.title}</span>
+		</p>
+		<h1 class="text-4xl font-semibold tracking-tight text-balance">{document.title}</h1>
+		<p class="max-w-2xl text-lg text-muted-foreground">{document.description}</p>
+		<div class="flex flex-col gap-1 text-sm text-muted-foreground">
+			<span>{stackNames(document)}</span>
+			{suggestionOf(document) && <span>{suggestionOf(document)}</span>}
+			<span>{runSentence(document)}</span>
+		</div>
+		<div class="mt-1 flex flex-wrap items-center gap-4">
+			<Button href={startPath(id)}>Start this challenge</Button>
+			<span class="text-sm text-muted-foreground">
+				It runs in your browser. No account, nothing to install.
+			</span>
+		</div>
+	</div>
+
+	<section class="flex flex-col gap-4">
+		<h2 class="text-2xl font-semibold tracking-tight">The setup</h2>
+		<StartingCanvas nodes={startingCanvas.nodes} edges={startingCanvas.edges} />
+		<div class="flex max-w-2xl flex-col gap-3 leading-relaxed">
+			{document.instructions.map((paragraph) => (
+				<p>{paragraph}</p>
+			))}
+		</div>
+	</section>
+
+	<section class="flex flex-col gap-4">
+		<h2 class="text-2xl font-semibold tracking-tight">The run</h2>
+		<p class="max-w-2xl text-muted-foreground">
+			Each goal is judged over its own stretch of the run rather than the whole of it.
+		</p>
+		<RunTimeline challenge={document} />
+		<ul class="flex flex-col border-t">
+			{goalsInOrder(document).map((goal) => (
+				<li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b py-3">
+					<span>{goal.title}</span>
+					<span class="text-sm whitespace-nowrap text-muted-foreground">
+						{spanLabels(goal, document.length).join(', ')}
+					</span>
+				</li>
+			))}
+		</ul>
+	</section>
+
+	{files.length > 0 && (
+		<section class="flex flex-col gap-4">
+			<h2 class="text-2xl font-semibold tracking-tight">The code</h2>
+			<p class="max-w-2xl text-muted-foreground">
+				Ordinary Node against the real AWS SDK, running as real processes in the tab. You can edit
+				any of it once the challenge is open.
+			</p>
+			{files.map((file) => (
+				<CodeFile label={file.label} source={file.source} />
+			))}
+		</section>
+	)}
+
+	{others.length > 0 && (
+		<section class="flex flex-col gap-3">
+			<h2 class="text-2xl font-semibold tracking-tight">More challenges</h2>
+			{others.map((one) => (
+				<ChallengeCard challenge={one} />
+			))}
+		</section>
+	)}
+</Page>

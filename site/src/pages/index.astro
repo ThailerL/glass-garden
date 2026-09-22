@@ -1,6 +1,8 @@
 ---
+import Button from '../components/Button.astro';
 import Embed from '../components/Embed.astro';
 import Page from '../layouts/Page.astro';
+import { challengesPath } from '../paths';
 
 const code = 'rounded bg-muted px-1 py-0.5 text-xs';
 const link = 'underline underline-offset-2 hover:text-foreground';
@@ -13,7 +15,7 @@ const features = [
 	},
 	{
 		title: 'Challenges with scored runs',
-		body: 'A challenge hands you a canvas with something wrong on it. Get it ready, press Run, and watch each goal pass or fail as the traffic climbs.'
+		body: `A <a class="${link}" href="${challengesPath}">challenge</a> hands you a canvas with something wrong on it. Get it ready, press Run, and watch each goal pass or fail as the traffic climbs.`
 	},
 	{
 		title: 'A local AWS region in the tab',
@@ -52,12 +54,7 @@ const description =
 			tab, with no account and nothing to install.
 		</p>
 		<div class="mt-1 flex flex-wrap items-center gap-4">
-			<a
-				href="/"
-				class="rounded-lg bg-primary px-5 py-2.5 font-medium text-primary-foreground hover:brightness-105"
-			>
-				Open Glass Garden
-			</a>
+			<Button href="/">Open Glass Garden</Button>
 			<span class="text-sm text-muted-foreground">A two-minute guided tour starts you off.</span>
 		</div>
 	</div>

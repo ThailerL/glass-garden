@@ -3,11 +3,13 @@ import '../styles/global.css';
 // The app's own icon, imported rather than linked at /favicon.svg so it resolves under this
 // project's dev server too, which serves none of the app's static folder
 import faviconUrl from '../../../static/favicon.svg?url';
+import { aboutPath, challengesPath } from '../paths';
 
-type Props = { title: string; description: string };
+type Props = { title: string; description: string; narrow?: boolean };
 
-const { title, description } = Astro.props;
-const base = import.meta.env.BASE_URL;
+const { title, description, narrow = false } = Astro.props;
+// Running text wants a narrower page than the home page's embedded canvas does
+const width = narrow ? 'max-w-3xl' : 'max-w-page';
 // Relative, since a static build cannot know the origin it will be served from
 const canonical = Astro.url.pathname;
 ---
@@ -35,12 +37,15 @@ const canonical = Astro.url.pathname;
 	</head>
 	<body class="min-h-dvh">
 		<header class="border-b">
-			<nav class="mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4">
-				<a href={base} class="flex items-center gap-2 font-semibold tracking-tight">
+			<nav class={`mx-auto flex ${width} flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4`}>
+				<a href={aboutPath} class="flex items-center gap-2 font-semibold tracking-tight">
 					<img src={faviconUrl} alt="" class="size-6" />
 					Glass Garden
 				</a>
 				<div class="ml-auto flex items-center gap-4">
+					<a href={challengesPath} class="text-sm text-muted-foreground hover:text-foreground">
+						Challenges
+					</a>
 					<a href="/" class="text-sm text-muted-foreground hover:text-foreground">
 						Open Glass Garden
 					</a>
@@ -61,12 +66,14 @@ const canonical = Astro.url.pathname;
 			</nav>
 		</header>
 
-		<main class="mx-auto flex max-w-page flex-col gap-12 px-4 py-12">
+		<main class={`mx-auto flex ${width} flex-col gap-12 px-4 py-12`}>
 			<slot />
 		</main>
 
 		<footer class="border-t">
-			<div class="mx-auto flex max-w-page flex-wrap gap-x-6 gap-y-2 px-4 py-6 text-sm text-muted-foreground">
+			<div
+				class={`mx-auto flex ${width} flex-wrap gap-x-6 gap-y-2 px-4 py-6 text-sm text-muted-foreground`}
+			>
 				<a href="/" class="hover:text-foreground">
 					Open Glass Garden
 				</a>

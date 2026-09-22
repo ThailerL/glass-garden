@@ -43,7 +43,15 @@ describe('sitemap', () => {
 		const xml = sitemap('https://glass.garden/');
 		expect(xml).toContain('<loc>https://glass.garden/</loc>');
 		expect(xml).toContain('<loc>https://glass.garden/about</loc>');
-		expect(xml).not.toContain('/challenges');
+		expect(xml).toContain('<loc>https://glass.garden/about/challenges</loc>');
+		expect(xml).toContain('<loc>https://glass.garden/about/challenges/slow-signups</loc>');
+	});
+
+	// It gives a crawler an empty shell, and the page meant to rank for it is /about/challenges
+	it("leaves out the app's own catalogue", () => {
+		expect(sitemap('https://glass.garden')).not.toContain(
+			'<loc>https://glass.garden/challenges</loc>'
+		);
 	});
 
 	it('does not exist without an address to put in it', () => {

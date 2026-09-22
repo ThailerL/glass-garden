@@ -35,6 +35,12 @@
 	   warm so their blue borders read as borders rather than as the ground bleeding in */
 	--canvas: oklch(0.965 0.007 80);
 	--canvas-pattern: oklch(0.87 0.012 80);
+	/* One node card, wherever it is drawn: the canvas draws it through xy-theme.css, and the
+	   content site draws the same card in a static page */
+	--node-border: 1px solid color-mix(in oklab, var(--glass) 40%, var(--border));
+	--node-radius: 14px;
+	--node-shadow:
+		0 1px 2px oklch(0.21 0.018 258 / 0.06), 0 4px 10px -3px oklch(0.21 0.018 258 / 0.09);
 	/* Categorical: a series keeps its hue however many are drawn, and the slots are handed
 	   out in this fixed order, which is what keeps adjacent lines apart under colour blindness.
 	   Dark's values are chosen against the dark surface, not lightened copies of these. */
@@ -78,6 +84,7 @@
 	/* Plain: warm goes brown on dark, and lightness alone separates the cards here */
 	--canvas: oklch(0.148 0.011 258);
 	--canvas-pattern: oklch(0.32 0.014 258);
+	--node-shadow: 0 1px 2px oklch(0 0 0 / 0.4);
 	--chart-1: #3987e5;
 	--chart-2: #d95926;
 	--chart-3: #199e70;

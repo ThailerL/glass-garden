@@ -1,0 +1,37 @@
+---
+import type { BuiltInChallenge } from '../../../src/lib/challenges';
+import { startingResources, suggestedResources } from '../../../src/lib/challenge-stack';
+import { runFacts, stackNames, suggestionOf } from '../challenges';
+import { challengePath } from '../paths';
+import ResourceIcons from './ResourceIcons.astro';
+
+type Props = { challenge: BuiltInChallenge };
+
+const { challenge } = Astro.props;
+const { id, document } = challenge;
+
+const suggestion = suggestionOf(document);
+---
+
+<a
+	href={challengePath(id)}
+	class="group flex justify-between gap-4 rounded-xl border bg-card p-4 hover:border-[var(--glass-deep)]"
+>
+	<div class="flex flex-col gap-1">
+		<h3 class="font-medium tracking-tight">{document.title}</h3>
+		<p class="text-sm text-muted-foreground">{document.description}</p>
+		<p class="text-xs text-muted-foreground">{stackNames(document)}</p>
+		{suggestion && <p class="text-xs text-muted-foreground">{suggestion}</p>}
+	</div>
+	<!-- Down the right edge, so a reader can compare the cards by scanning one column: what the
+	     challenge is made of at the top, how long it runs for at the bottom -->
+	<div class="flex shrink-0 flex-col items-end justify-between gap-4 text-muted-foreground">
+		<div class="group-hover:text-foreground">
+			<ResourceIcons
+				starting={startingResources(document)}
+				suggested={suggestedResources(document)}
+			/>
+		</div>
+		<span class="text-xs whitespace-nowrap">{runFacts(document).join(' · ')}</span>
+	</div>
+</a>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resourceDefinitions, type ResourceDefinition } from './index';
+import { resourceOf, resourceTypes } from '../../../site/src/resources';
 
 const definitions: [string, ResourceDefinition][] = Object.entries(resourceDefinitions);
 
@@ -28,6 +29,16 @@ describe('resourceDefinitions', () => {
 				Object.keys(definition.configSchema.shape),
 				`${type}'s aws.resourceKey names no config field`
 			).toContain(definition.aws?.resourceKey);
+		}
+	});
+
+	// The content site draws a challenge's starting canvas, and cannot load a definition to ask
+	// what a node is called. So it keeps its own list, and a resource added or renamed here
+	// fails until that one says the same thing
+	it('is named the same way by the content site', () => {
+		expect(resourceTypes.toSorted()).toEqual(Object.keys(resourceDefinitions).toSorted());
+		for (const [type, definition] of definitions) {
+			expect(resourceOf(type).name, `the site calls ${type} something else`).toBe(definition.name);
 		}
 	});
 });

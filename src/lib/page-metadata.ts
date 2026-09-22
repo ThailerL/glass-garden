@@ -1,3 +1,5 @@
+import challengeIndex from '../../static/challenges/index.json';
+
 type PageMetadata = { description: string };
 
 // The app's own pages worth a search result; everything else is a view onto one browser's
@@ -9,9 +11,19 @@ const PAGES: Record<string, PageMetadata> = {
 	}
 };
 
+// The content site's own prefix, which `site/astro.config.mjs` sets as its base. Its pages are
+// generated from the same index read here, so the sitemap lists what that build produced
+const ABOUT = '/about';
+const CHALLENGES = `${ABOUT}/challenges`;
+
 // Everything crawlable, whichever build produced it. The content site cannot write absolute
 // URLs, since only the running deployment knows its address
-const CRAWLABLE = [...Object.keys(PAGES), '/about'];
+const CRAWLABLE = [
+	...Object.keys(PAGES),
+	ABOUT,
+	CHALLENGES,
+	...challengeIndex.challenges.map(({ id }) => `${CHALLENGES}/${id}`)
+];
 
 function trimOrigin(origin: string | undefined): string | undefined {
 	return origin?.replace(/\/$/, '') || undefined;

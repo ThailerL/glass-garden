@@ -1,4 +1,13 @@
 {
 	"extends": "astro/tsconfigs/strict",
-	"include": [".astro/types.d.ts", "**/*"]
+	"include": [".astro/types.d.ts", "**/*"],
+	"compilerOptions": {
+		// The app's types come from files that import each other through its own alias, so this
+		// project has to know the alias to read them
+		"baseUrl": "..",
+		"paths": {
+			"$lib": ["src/lib"],
+			"$lib/*": ["src/lib/*"]
+		}
+	}
 }
