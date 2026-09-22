@@ -10,8 +10,10 @@
 		"vendor": "node scripts/vendor-assets.mjs && node scripts/vendor-aws-region.mjs && node scripts/vendor-aws-cli.mjs && node scripts/vendor-postgres.mjs",
 		"predev": "npm run vendor",
 		"dev": "vite dev --port 3000",
-		"prebuild": "node scripts/check-no-runtime-deps.mjs && npm run vendor",
+		"prebuild": "node scripts/check-no-runtime-deps.mjs && npm run vendor && npm run build:site",
 		"build": "vite build",
+		"build:site": "npm --prefix site run build --",
+		"dev:site": "npm --prefix site run dev --",
 		"preview": "vite preview --host --port 3000",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -19,7 +21,7 @@
 		"test": "vitest run",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"postinstall": "patch-package"
+		"postinstall": "patch-package && npm --prefix site install"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-dynamodb": "^3.1127.0",
@@ -65,6 +67,7 @@
 		"patch-package": "^8.0.1",
 		"pocket-region": "^0.7.2",
 		"prettier": "^3.8.3",
+		"prettier-plugin-astro": "^1.0.1",
 		"prettier-plugin-svelte": "^4.1.0",
 		"prettier-plugin-tailwindcss": "^0.8.0",
 		"rolldown": "^1.2.7",

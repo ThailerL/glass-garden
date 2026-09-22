@@ -8,5 +8,6 @@ bun.lockb
 # Miscellaneous
 /static/
 
-# Mounted into the VM and shown in the editor, so it keeps its own formatting
+# User code shown in the app's editor, so it keeps its own formatting
 /resources/
+/site/src/demo/app/

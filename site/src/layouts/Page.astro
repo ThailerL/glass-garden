@@ -1,0 +1,85 @@
+---
+import '../styles/global.css';
+// The app's own icon, imported rather than linked at /favicon.svg so it resolves under this
+// project's dev server too, which serves none of the app's static folder
+import faviconUrl from '../../../static/favicon.svg?url';
+
+type Props = { title: string; description: string };
+
+const { title, description } = Astro.props;
+const base = import.meta.env.BASE_URL;
+// Relative, since a static build cannot know the origin it will be served from
+const canonical = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		<link rel="icon" type="image/svg+xml" href={faviconUrl} />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<!-- A meta cannot read a CSS var: these restate --background from src/lib/theme.css -->
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfd" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e1116" />
+		<!-- Before paint, so the page never flashes the other theme -->
+		<script is:inline>
+			if (matchMedia('(prefers-color-scheme: dark)').matches) {
+				document.documentElement.classList.add('dark');
+			}
+		</script>
+	</head>
+	<body class="min-h-dvh">
+		<header class="border-b">
+			<nav class="mx-auto flex max-w-page flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4">
+				<a href={base} class="flex items-center gap-2 font-semibold tracking-tight">
+					<img src={faviconUrl} alt="" class="size-6" />
+					Glass Garden
+				</a>
+				<div class="ml-auto flex items-center gap-4">
+					<a href="/" class="text-sm text-muted-foreground hover:text-foreground">
+						Open Glass Garden
+					</a>
+					<!-- The app's sidebar draws the same mark, so the two headers match -->
+					<a
+						href="https://github.com/ThailerL/glass-garden"
+						target="_blank"
+						rel="noreferrer"
+						title="Glass Garden on GitHub"
+						class="shrink-0 text-muted-foreground hover:text-foreground"
+					>
+						<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="size-4">
+							<path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"></path>
+						</svg>
+						<span class="sr-only">Glass Garden on GitHub</span>
+					</a>
+				</div>
+			</nav>
+		</header>
+
+		<main class="mx-auto flex max-w-page flex-col gap-12 px-4 py-12">
+			<slot />
+		</main>
+
+		<footer class="border-t">
+			<div class="mx-auto flex max-w-page flex-wrap gap-x-6 gap-y-2 px-4 py-6 text-sm text-muted-foreground">
+				<a href="/" class="hover:text-foreground">
+					Open Glass Garden
+				</a>
+				<a href="https://github.com/ThailerL/glass-garden" class="hover:text-foreground">
+					GitHub
+				</a>
+				<a
+					href="https://github.com/ThailerL/glass-garden/blob/main/LICENSE"
+					class="hover:text-foreground"
+				>
+					AGPL-3.0
+				</a>
+			</div>
+		</footer>
+	</body>
+</html>

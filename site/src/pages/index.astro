@@ -1,0 +1,75 @@
+---
+import Embed from '../components/Embed.astro';
+import Page from '../layouts/Page.astro';
+
+const code = 'rounded bg-muted px-1 py-0.5 text-xs';
+const link = 'underline underline-offset-2 hover:text-foreground';
+
+// Short enough to skim: below the embed a reader is deciding, not reading
+const features = [
+	{
+		title: 'Real Node processes',
+		body: 'An instance group runs actual Node processes. Edit the code, save, and the instances come back on it.'
+	},
+	{
+		title: 'Challenges with scored runs',
+		body: 'A challenge hands you a canvas with something wrong on it. Get it ready, press Run, and watch each goal pass or fail as the traffic climbs.'
+	},
+	{
+		title: 'A local AWS region in the tab',
+		body: `The endpoint and credentials are already in a node's environment, so <code class="${code}">new S3Client({})</code> needs no arguments. What answers is <a class="${link}" href="https://pocket-region.dev">Pocket Region</a>, usable on its own in any page or Node process.`
+	},
+	{
+		title: 'A terminal on every project',
+		body: `The <code class="${code}">aws</code> command is on the PATH of every shell, against the same region your code uses. List an S3 bucket, send to an SQS queue, scan a DynamoDB table, or invoke a Lambda function.`
+	},
+	{
+		title: 'Break it on purpose',
+		body: 'Kill an instance and the load balancer stops sending it traffic. Starve a worker and the queue backs up.'
+	},
+	{
+		title: 'Open, and yours to host',
+		body: 'Free and open source, with no paid tier. Nothing leaves your machine, and the Docker image gives you exactly what is at glass.garden.'
+	}
+];
+
+// Written for the search result, inside the ~60 characters shown before it is cut
+const title = 'Glass Garden: cloud architecture that runs in your browser';
+const description =
+	'Glass Garden runs servers, Postgres, and AWS services like Lambda and S3 in your browser, on a canvas you build by dragging. Free, open source, and self-hostable.';
+---
+
+<Page {title} {description}>
+	<!-- The canvas finishes the sentence the hero starts, so it sits closer than a section would -->
+	<div class="-mb-6 flex flex-col gap-4">
+		<h1 class="text-4xl font-semibold tracking-tight text-balance">
+			Cloud architecture that actually runs
+		</h1>
+		<!-- Narrower than the page: running text past about 75 characters is hard to track -->
+		<p class="max-w-2xl text-lg text-muted-foreground">
+			Glass Garden is a canvas where you drag out servers, Postgres, and AWS services like Lambda
+			and S3. Wire them up, press play, and it all runs as real code in a WebAssembly VM in your
+			tab, with no account and nothing to install.
+		</p>
+		<div class="mt-1 flex flex-wrap items-center gap-4">
+			<a
+				href="/"
+				class="rounded-lg bg-primary px-5 py-2.5 font-medium text-primary-foreground hover:brightness-105"
+			>
+				Open Glass Garden
+			</a>
+			<span class="text-sm text-muted-foreground">A two-minute guided tour starts you off.</span>
+		</div>
+	</div>
+
+	<Embed />
+
+	<section class="grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
+		{features.map(({ title, body }) => (
+			<div class="flex flex-col gap-1">
+				<h2 class="font-medium tracking-tight">{title}</h2>
+				<p class="text-sm text-muted-foreground" set:html={body} />
+			</div>
+		))}
+	</section>
+</Page>

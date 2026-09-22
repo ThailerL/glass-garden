@@ -3,6 +3,9 @@ WORKDIR /app
 # git is needed by scripts/vendor-assets.mjs, which clones Vivari at its release tag
 RUN apk add --no-cache git
 COPY package*.json ./
+# The content site is its own package, installed by the root postinstall, so its manifest has
+# to be here before npm ci runs
+COPY site/package*.json ./site/
 COPY ./patches ./patches
 RUN npm ci
 COPY . .

@@ -12,9 +12,12 @@ README.md
 .svelte-kit
 .vscode
 node_modules
+site/node_modules
 build
 package
 **/.env
 
 # Generated during the image build by scripts/vendor-assets.mjs
 static/vendor
+# Generated during the image build by the content site under site/
+static/about

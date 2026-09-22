@@ -1,0 +1,92 @@
+---
+import { embedPath } from '../demo/embed-url';
+
+// Only the app serves this page at an origin the frame can be built from; under `astro dev`
+// the origin is Astro, which has no app to embed
+const servedByTheApp = !import.meta.env.DEV;
+const path = servedByTheApp ? await embedPath() : undefined;
+---
+
+<figure>
+	{servedByTheApp ? (
+		// Lazy, so a reader who never scrolls here pays nothing; `?start` runs it once in view
+		<iframe
+			data-path={path}
+			title="A running Glass Garden canvas: traffic reaching a Node app"
+			loading="lazy"
+			allow="cross-origin-isolated"
+		></iframe>
+	) : (
+		<div class="placeholder">
+			<p>
+				The running canvas goes here. It needs Glass Garden to be serving this page, so run{' '}
+				<code>npm run build && npm run preview</code> and open <code>/about</code> there.
+			</p>
+		</div>
+	)}
+	<figcaption>
+		Every dot on a wire is one HTTP request. Click the Web App node for its code, its logs, and a
+		preview of the page it is serving.
+	</figcaption>
+</figure>
+
+<!-- The app holds one lock per origin, so a frame sharing it goes blank for anyone who also has
+     Glass Garden open in a tab. Built here because only the browser knows the host it was
+     served from, which a static build cannot. Loopback has no subdomains, so it stays put -->
+<script is:inline>
+	const frame = document.querySelector('iframe[data-path]');
+	if (frame) {
+		const { hostname, origin } = location;
+		const local = ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
+		frame.src = (local ? origin : `${location.protocol}//demo.embed.${hostname}`) + frame.dataset.path;
+	}
+</script>
+
+<style>
+	figure {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	/* The frame and the placeholder it stands in for occupy the same box */
+	figure > :first-child {
+		/* Tall enough for the nodes and the pinned chart without dwarfing the page */
+		height: 26rem;
+		border-radius: var(--radius-lg);
+	}
+
+	iframe {
+		width: 100%;
+		border: 1px solid var(--border);
+		background: var(--canvas);
+	}
+
+	/* On the box, not the paragraph, which would make every text node its own grid row */
+	.placeholder {
+		display: grid;
+		place-items: center;
+		padding: 1.5rem;
+		border: 1px dashed var(--border);
+	}
+
+	.placeholder p {
+		margin: 0;
+		max-width: 44ch;
+		text-align: center;
+		color: var(--muted-foreground);
+	}
+
+	.placeholder code {
+		font-family: ui-monospace, monospace;
+		font-size: 0.9em;
+		color: var(--foreground);
+	}
+
+	figcaption {
+		font-size: 0.875rem;
+		color: var(--muted-foreground);
+		max-width: 65ch;
+	}
+</style>

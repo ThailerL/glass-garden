@@ -1,12 +1,17 @@
 type PageMetadata = { description: string };
 
-// The pages worth a search result; everything else is a view onto one browser's own projects
+// The app's own pages worth a search result; everything else is a view onto one browser's
+// own projects. Static files never reach the hook, so the content site is not here
 const PAGES: Record<string, PageMetadata> = {
 	'/': {
 		description:
-			'Drag-and-drop cloud infrastructure that actually runs, entirely in your browser. Load balancers, Node apps, Postgres, Lambda, S3, and SQS, with nothing to install.'
+			'Drag-and-drop cloud architecture that actually runs, entirely in your browser. Load balancers, Node apps, Postgres, Lambda, S3, and SQS, with nothing to install.'
 	}
 };
+
+// Everything crawlable, whichever build produced it. The content site cannot write absolute
+// URLs, since only the running deployment knows its address
+const CRAWLABLE = [...Object.keys(PAGES), '/about'];
 
 function trimOrigin(origin: string | undefined): string | undefined {
 	return origin?.replace(/\/$/, '') || undefined;
@@ -52,7 +57,7 @@ export function sitemap(publicOrigin: string | undefined): string | undefined {
 	const origin = trimOrigin(publicOrigin);
 	if (!origin) return undefined;
 
-	const urls = Object.keys(PAGES).map((pathname) => `<url><loc>${origin}${pathname}</loc></url>`);
+	const urls = CRAWLABLE.map((pathname) => `<url><loc>${origin}${pathname}</loc></url>`);
 	return [
 		'<?xml version="1.0" encoding="UTF-8"?>',
 		'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

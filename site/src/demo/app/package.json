@@ -1,0 +1,7 @@
+{
+	"name": "web-app",
+	"type": "module",
+	"scripts": {
+		"start": "node server.js"
+	}
+}

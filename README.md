@@ -11,7 +11,7 @@ Everything on your canvas is running real code, and your app talks to it the sam
 - instance groups running actual Node processes with editable code
 - Lambda functions with the standard handler shape, running in execution environments that scale to zero
 - a Postgres server you connect to with the ordinary `pg` client
-- an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK, powered by [pocket-region](https://pocket-region.dev), which you can also use on its own in Node or a browser tab
+- an in-browser AWS region with S3, SQS, and DynamoDB you call with the ordinary AWS SDK, powered by [Pocket Region](https://pocket-region.dev), which you can also use on its own in Node or a browser tab
 
 Access between resources works by drawing edges between them, and a call the canvas does not allow is refused.
 
@@ -236,3 +236,13 @@ docker run -d --name=firefox --network host \
 The preference turns on WebAssembly JSPI, which the local AWS region needs.
 
 Then open `http://<remote-host>:5800` and browse to `localhost:3000`.
+
+The pages under `/about` are a separate Astro project in `site/`, with a dev server of its own:
+
+```sh
+npm run dev:site
+```
+
+That serves them on port `4321`, so the hub page is at `http://localhost:4321/about`. Astro runs it in the background rather than holding the terminal, so stop it with `npm run dev:site -- stop`, and put `status` or `logs` in place of `stop` to check on it. Add `npm run dev:site -- --host` to reach it from another machine.
+
+The app's own dev server serves these pages from whatever `npm run build:site` last wrote into `static/`, so they are stale or missing until you run it, and it serves them only at their exact paths, so `/about/index.html` works there and `/about` does not. To see them as they are deployed, and to see the running canvas the About page embeds, run `npm run build` and then `npm run preview`.

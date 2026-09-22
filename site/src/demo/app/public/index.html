@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web App</title>
+    <style>
+      /* Ordinary CSS served by the app itself. Edit it and save, and the next refresh has it */
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f6f8;
+        --fg: #111827;
+        --muted: #6b7280;
+        --accent: #15803d;
+        --line: #e5e7eb;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0e1116;
+          --fg: #e8eaed;
+          --muted: #9aa4b2;
+          --accent: #4ade80;
+          --line: #262d36;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      /* Sized against the viewport, because this is read in the inspector's Preview pane as
+         often as in a full tab, and that pane is a few hundred pixels wide */
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: clamp(0.5rem, 3vw, 1.5rem);
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+
+      /* No border or panel of its own: this is read inside the Preview pane, which already
+         draws one, and a box inside a box reads as a mistake */
+      .card {
+        width: min(24rem, 100%);
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(0.9375rem, 3.5vw, 1.125rem);
+        letter-spacing: -0.01em;
+      }
+
+      .label {
+        margin: clamp(0.5rem, 3vw, 1.25rem) 0 0;
+        font-size: clamp(0.6875rem, 2.5vw, 0.8125rem);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .port {
+        margin: 0.125rem 0 0;
+        font: 600 clamp(1.5rem, 9vw, 2.25rem) / 1.1 ui-monospace, "SF Mono", Menlo, monospace;
+        color: var(--accent);
+      }
+
+      .served {
+        margin: clamp(0.5rem, 3vw, 1.25rem) 0 0;
+        padding-top: clamp(0.5rem, 3vw, 1rem);
+        border-top: 1px solid var(--line);
+        font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+        color: var(--muted);
+      }
+
+      .served strong {
+        color: var(--fg);
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Web App</h1>
+      <p class="label">Answered by port</p>
+      <p class="port">{{port}}</p>
+      <p class="served">This instance has served <strong>{{served}}</strong> requests</p>
+    </div>
+  </body>
+</html>

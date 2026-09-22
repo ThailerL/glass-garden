@@ -1,0 +1,9 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+/* The app owns the design system; this site borrows it so a utility name means one thing */
+@import '../../../src/lib/theme.css';
+
+@theme {
+	/* Floored by the app's 768px breakpoint: narrower and the embedded canvas goes phone-shaped */
+	--container-page: 64rem;
+}

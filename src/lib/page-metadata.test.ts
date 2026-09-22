@@ -38,9 +38,11 @@ describe('headTags', () => {
 });
 
 describe('sitemap', () => {
-	it('lists the indexable pages under the public origin, and nothing else', () => {
+	// The content site cannot write absolute URLs, so its pages are listed from here
+	it('lists every crawlable page under the public origin, whichever build made it', () => {
 		const xml = sitemap('https://glass.garden/');
 		expect(xml).toContain('<loc>https://glass.garden/</loc>');
+		expect(xml).toContain('<loc>https://glass.garden/about</loc>');
 		expect(xml).not.toContain('/challenges');
 	});
 
@@ -51,9 +53,10 @@ describe('sitemap', () => {
 });
 
 describe('robots', () => {
-	it('allows everything and names the sitemap', () => {
+	it('allows everything and names the one sitemap', () => {
 		expect(robots('https://glass.garden')).toBe(
-			'# allow crawling everything by default\nUser-agent: *\nDisallow:\nSitemap: https://glass.garden/sitemap.xml\n'
+			'# allow crawling everything by default\nUser-agent: *\nDisallow:\n' +
+				'Sitemap: https://glass.garden/sitemap.xml\n'
 		);
 	});
 

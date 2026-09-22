@@ -1,0 +1,29 @@
+{
+	"format": "gg:project/1",
+	"name": "Traffic to an app",
+	"nodes": [
+		{
+			"id": "traffic",
+			"type": "requestGenerator",
+			"position": { "x": -330, "y": 0 },
+			"config": { "name": "Traffic", "requestsPerSecond": 3 }
+		},
+		{
+			"id": "balancer",
+			"type": "httpLoadBalancer",
+			"position": { "x": -60, "y": 0 },
+			"config": { "name": "Balancer" },
+			"chart": "requests"
+		},
+		{
+			"id": "app",
+			"type": "instanceGroup",
+			"position": { "x": 210, "y": 0 },
+			"config": { "name": "Web App" }
+		}
+	],
+	"edges": [
+		{ "source": "traffic", "target": "balancer" },
+		{ "source": "balancer", "target": "app" }
+	]
+}
