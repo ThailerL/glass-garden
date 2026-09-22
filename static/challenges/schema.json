@@ -465,6 +465,9 @@
 													"type": "number",
 													"exclusiveMinimum": 0
 												},
+												"eq": {
+													"type": "number"
+												},
 												"lte": {
 													"type": "number"
 												},

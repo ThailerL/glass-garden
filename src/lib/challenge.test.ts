@@ -419,6 +419,23 @@ describe('judge', () => {
 		expect(stateAt(low, queue(backedUp), 18)).toBe('failed');
 	});
 
+	it('holds a metric to an exact count, failing one either side of it', () => {
+		const exactly = challengeOf({
+			metric: {
+				node: { name: 'Jobs' },
+				metricName: 'messages',
+				statistic: 'Sum',
+				from: 0,
+				to: 10,
+				eq: 5
+			}
+		});
+		const queue = (at: Record<number, number>) => run({ metrics: () => recorded('messages', at) });
+		expect(stateAt(exactly, queue({ 2: 3, 6: 2 }), 10)).toBe('met');
+		expect(stateAt(exactly, queue({ 2: 3, 6: 1 }), 10)).toBe('failed');
+		expect(stateAt(exactly, queue({ 2: 3, 6: 3 }), 10)).toBe('failed');
+	});
+
 	it('folds a period into one reading, so a slow second inside it does not fail the goal', () => {
 		const rate = challengeOf({
 			metric: {

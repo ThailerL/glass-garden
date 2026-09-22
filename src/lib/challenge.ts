@@ -58,11 +58,12 @@ const metricCondition = z
 		// to the end of the challenge
 		from: z.number().min(0).optional(),
 		to: z.number().positive().optional(),
+		eq: z.number().optional(),
 		lte: z.number().optional(),
 		gte: z.number().optional()
 	})
-	.refine((m) => m.lte !== undefined || m.gte !== undefined, {
-		error: 'A metric condition needs lte, gte, or both'
+	.refine((m) => m.eq !== undefined || m.lte !== undefined || m.gte !== undefined, {
+		error: 'A metric condition needs eq, lte or gte'
 	})
 	.refine((m) => m.period === undefined || m.over !== 'whole window', {
 		error: 'A period needs a datapoint read, since a whole window is already one reading'
@@ -365,10 +366,12 @@ export function matches(canvas: CanvasView, ref: NodeRef): CanvasNode[] {
 }
 
 // What a metric condition judges by, and the numeric half of a setting comparison
-type Bounds = { gte?: number; lte?: number };
+type Bounds = { eq?: number; gte?: number; lte?: number };
 
-const within = (value: number, { gte, lte }: Bounds) =>
-	(gte === undefined || value >= gte) && (lte === undefined || value <= lte);
+const within = (value: number, { eq, gte, lte }: Bounds) =>
+	(eq === undefined || value === eq) &&
+	(gte === undefined || value >= gte) &&
+	(lte === undefined || value <= lte);
 
 // A setting is whatever the document put there, so a bound only holds for a number
 function compare(value: unknown, { eq, gte, lte }: z.infer<typeof comparison>): boolean {
@@ -442,13 +445,13 @@ function judgeData(c: DataCondition, run: RunRecord, t: number): GoalState {
 function judgeMetric(metric: MetricCondition, run: RunRecord, t: number): GoalState {
 	const [open, close] = windowOf(metric, run.length);
 	if (t < open) return 'waiting';
-	const { over, lte, gte } = metric;
+	const { over, eq, lte, gte } = metric;
 	if (over === 'whole window' && t < close) return 'judging';
 	// Datapoint by datapoint as the run plays, so a goal about a backlog fails where it broke
 	const readings = matches(run.canvas, metric.node).map((node) =>
 		metricReadings(run, node.id, metric, open, over === 'whole window' ? close : Math.min(t, close))
 	);
-	const holds = (value: number) => within(value, { lte, gte });
+	const holds = (value: number) => within(value, { eq, lte, gte });
 	const passes = (node: number[]) =>
 		over === 'any datapoint' ? node.some(holds) : node.every(holds);
 	// Every node the condition names, not just one of them: a name matches a single node, so this
