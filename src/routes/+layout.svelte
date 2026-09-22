@@ -3,7 +3,6 @@
 	import { untrack } from 'svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
-	import { Spinner } from '$lib/components/ui/spinner';
 	import { embedded, openEmbeddedProject } from '$lib/embed';
 	import { messageOf } from '$lib/errors';
 	import AppShell from './AppShell.svelte';
@@ -19,6 +18,8 @@
 
 	// An iframe's navigations land in the host page's history, so the editor swaps in place
 	if (embedded) document.body.setAttribute('data-sveltekit-replacestate', '');
+
+	document.getElementById('boot-spinner')?.remove();
 </script>
 
 <ModeWatcher />
@@ -28,10 +29,7 @@
 {:else if initial.state === 'blocked'}
 	<DuplicateTabNotice />
 {:else}
-	<!-- A plain id is not a promise, so only the embed's import waits here -->
-	{#await initial.state === 'embed' ? openEmbeddedProject(initial.hash) : initial.projectId}
-		<Notice icon={Spinner} title="Setting up" />
-	{:then projectId}
+	{#await initial.state === 'embed' ? openEmbeddedProject(initial.hash) : initial.projectId then projectId}
 		<AppShell {projectId} start={initial.state === 'embed' && initial.start}>
 			{@render children?.()}
 		</AppShell>
