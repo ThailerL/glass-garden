@@ -7,6 +7,7 @@ export {
 	getFileDraftState,
 	anyDraftsDirty
 } from './draft-state.svelte';
+export { fileToOpen } from './file-tree';
 export { FileRefresh, setFileRefresh, getFileRefresh } from './refresh.svelte';
 export { saveFile } from './save';
 export { isAtOrUnder, rebase, createFile, createFolder, directoryListing } from './tree.svelte';

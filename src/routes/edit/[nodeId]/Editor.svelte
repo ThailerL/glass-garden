@@ -7,7 +7,7 @@
 	import Workspace from '$lib/components/Workspace.svelte';
 	import RootFileTree from './RootFileTree.svelte';
 	import TextEditor from './TextEditor.svelte';
-	import { setFileDraftState, setFileRefresh, saveFile } from '$lib/files';
+	import { setFileDraftState, setFileRefresh, saveFile, fileToOpen } from '$lib/files';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getEditingLock, LOCKED_UNTIL_RUN_ENDS } from '$lib/challenge-run.svelte';
@@ -49,7 +49,7 @@
 	const root = untrack(() => nodeId);
 	const rootPath = nodeDirectory(root);
 
-	let selectedFilePath = $state<string[]>([]);
+	let selectedFilePath = $state<string[]>(untrack(() => fileToOpen(initialFiles)));
 
 	const fileDraftState = setFileDraftState(root);
 	const refresh = setFileRefresh();
