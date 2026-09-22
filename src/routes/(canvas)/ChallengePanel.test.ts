@@ -59,8 +59,8 @@ describe('timelineRows', () => {
 		).toEqual([
 			['0 s', 'event'],
 			// Not "0 s": the canvas check reads the canvas the clock started on
-			['At start', 'wired'],
-			['At start, 22–35 s', 'both'],
+			['At the start', 'wired'],
+			['At the start, 22–35 s', 'both'],
 			['10 s', 'event'],
 			['22–35 s', 'outage'],
 			['35 s', 'event'],
@@ -84,12 +84,31 @@ describe('timelineRows', () => {
 		expect(
 			timelineRows(shared).map((row) => [row.time, row.event ? 'event' : row.goal.id])
 		).toEqual([
-			['At start', 'a'],
+			['At the start', 'a'],
 			['', 'b'],
 			['20 s', 'event'],
 			['', 'event'],
 			// A span starting the same second is not the same label, so it keeps its own
 			['20–30 s', 'c']
+		]);
+	});
+
+	it('labels a goal by the union of its windows, once', () => {
+		const read = (key: string) => ({
+			data: { node: { name: 'Table' }, read: 'item', args: { key } }
+		});
+		const overlapping = challengeSchema.parse({
+			length: 45,
+			goals: [
+				{ id: 'reads', title: 'Reads', conditions: [read('a'), read('b'), read('c')] },
+				{ id: 'covered', title: 'Covered', conditions: [errorRate(0, 10), errorRate(0, 0)] },
+				{ id: 'apart', title: 'Apart', conditions: [errorRate(0, 5, 10), errorRate(0, 20, 30)] }
+			]
+		});
+		expect(timelineRows(overlapping).map((row) => [row.time, row.goal?.id])).toEqual([
+			['0 s–end', 'covered'],
+			['5–10 s, 20–30 s', 'apart'],
+			['At the end', 'reads']
 		]);
 	});
 });

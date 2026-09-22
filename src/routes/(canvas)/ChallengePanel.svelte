@@ -33,6 +33,17 @@
 		return atStart ? 0 : Math.min(...judged.map(([from]) => from));
 	};
 
+	// A goal is judged over the union of its conditions' windows, so a covered one says nothing
+	function mergeSpans(spans: [number, number][]): [number, number][] {
+		const merged: [number, number][] = [];
+		for (const [from, to] of spans.toSorted((a, b) => a[0] - b[0])) {
+			const last = merged.at(-1);
+			if (last && from <= last[1]) last[1] = Math.max(last[1], to);
+			else merged.push([from, to]);
+		}
+		return merged;
+	}
+
 	// One list in run order, so the reader never matches times across two lists
 	export function timelineRows(challenge: Challenge): Row[] {
 		const { events, length } = challenge;
@@ -43,7 +54,7 @@
 		}));
 		const goalRows: Row[] = goalsInOrder(challenge).map((goal) => {
 			const { atStart, judged } = windowsOf(goal, length);
-			const spans = judged.map(([from, to]) => {
+			const spans = mergeSpans(judged).map(([from, to]) => {
 				// A read is taken at a moment, where the two ends of its window meet
 				if (from === to) return to >= length ? 'At the end' : `At ${from} s`;
 				return to >= length ? `${from} s–end` : `${from}–${to} s`;
@@ -51,7 +62,7 @@
 			return {
 				at: startOf(goal, length),
 				// Not "0 s", which on an event row means something that happens then
-				time: (atStart ? ['At start', ...spans] : spans).join(', '),
+				time: (atStart ? ['At the start', ...spans] : spans).join(', '),
 				goal
 			};
 		});
