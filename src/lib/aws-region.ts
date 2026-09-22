@@ -87,8 +87,8 @@ function handleOutput(line: string) {
 }
 
 // Boots on first call and is awaited by every later one, so warming and a resource that
-// needs the region share a single boot. The region then lives as long as the container:
-// every node can emit CloudWatch, so there is no point at which nothing wants it
+// needs the region share a single boot. Once up it lives as long as the container, since a
+// canvas that asked once will ask again
 export async function ensureRegion(): Promise<void> {
 	// pocket-region refuses to boot without JSPI, and finding out that way costs a VM boot
 	if (!('Suspending' in WebAssembly)) {

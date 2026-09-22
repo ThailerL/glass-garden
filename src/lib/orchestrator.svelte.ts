@@ -82,13 +82,20 @@ export class Orchestrator {
 		return this.#slowBoot && !this.#containerReady && anyPostgresNodes();
 	}
 
+	// Asked per call, since a resource dropped on the canvas changes the answer. Whole canvas
+	// rather than one node's neighbours: without an AWS node there is no neighbour to have
+	#needsRegion(): boolean {
+		return this.#graphState.nodes.some((node) => getResourceDefinition(node.type).aws);
+	}
+
 	warmUp() {
-		// No node owns this failure, and nothing can run without it, so it is said once here
-		// rather than waiting for the first start to report it as a failed prepare
-		void this.#getContainer()
-			.then(() => ensureRegion())
-			// ensureRegion already toasts; a start that needs the region reports it again
-			.catch(() => {});
+		// Always: every node needs it, and the canvas reads its readiness as the boot status
+		const container = this.#getContainer();
+		// The region only where the canvas has something to ask it, since booting costs the
+		// download and refuses without JSPI. A node that needs it later boots it itself
+		const warmed = this.#needsRegion() ? container.then(() => ensureRegion()) : container;
+		// The boot reports itself on the status, and ensureRegion has already toasted
+		void warmed.catch(() => {});
 		// Editable files are laid down on load rather than first use, so an export finds them
 		for (const node of this.#graphState.nodes)
 			if (getResourceDefinition(node.type).hasEditableFiles)
@@ -372,7 +379,9 @@ export class Orchestrator {
 			getNode: () => this.#graphState.getNode(nodeId),
 			getContainer: () => this.#getContainer(),
 			// A region that cannot start must not stop a canvas that never calls it
-			regionReady: () => ensureRegion().catch(() => {}),
+			regionReady: async () => {
+				if (this.#needsRegion()) await ensureRegion().catch(() => {});
+			},
 			takePort: () => this.#takePort(nodeId),
 			mountFiles: () => this.mountFiles(nodeId),
 			reconcileReservations: () => this.#reconcileReservations(nodeId),

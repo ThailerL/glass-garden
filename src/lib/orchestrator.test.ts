@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node } from '@xyflow/svelte';
 import { Orchestrator } from '$lib/orchestrator.svelte';
 import { GraphState, nodeConfig } from '$lib/graph-state.svelte';
+import { ensureRegion } from '$lib/aws-region';
+import { getContainer } from '$lib/container';
 import type { ResourceType } from '$lib/resources';
 
 // Reservation logic is tested against a real GraphState (persistence and node
 // replacement are part of the contract) and real controllers for live-instance state;
 // only the container, the resource registry and the toaster are faked
-const fake = vi.hoisted(() => ({ stopFails: false, alwaysOn: false }));
+const fake = vi.hoisted(() => ({ stopFails: false, alwaysOn: false, aws: false }));
 
 vi.mock('$lib/container', () => ({
 	getContainer: vi.fn(async () => ({ on: vi.fn() })),
@@ -43,6 +45,10 @@ vi.mock('$lib/resources', async () => {
 		readyOnStart: true,
 		get alwaysOn() {
 			return fake.alwaysOn;
+		},
+		// Only a resource the region answers for declares this, and it is what warming keys off
+		get aws() {
+			return fake.aws ? { service: 's3', resourceKey: 'bucketName' } : undefined;
 		},
 		start: async () => ({
 			// Never exits on its own; a failing stop is how a test makes an instance stick
@@ -104,6 +110,8 @@ beforeEach(() => {
 	globalThis.localStorage = makeLocalStorage();
 	fake.stopFails = false;
 	fake.alwaysOn = false;
+	fake.aws = false;
+	vi.mocked(ensureRegion).mockClear();
 });
 
 afterEach(() => {
@@ -118,6 +126,49 @@ describe('Orchestrator instance statuses', () => {
 		orchestrator.start(id);
 		await settle();
 		expect(orchestrator.getInstanceStatuses(id)).toEqual(['running', 'running', 'running']);
+	});
+});
+
+describe('Orchestrator warm-up', () => {
+	it('boots the region for a canvas holding a resource it answers for', async () => {
+		fake.aws = true;
+		const { orchestrator } = setup([1]);
+		orchestrator.warmUp();
+		await settle();
+		expect(ensureRegion).toHaveBeenCalled();
+	});
+
+	it('leaves the region alone for a canvas with nothing to ask it', async () => {
+		const { orchestrator } = setup([1]);
+		orchestrator.warmUp();
+		await settle();
+		expect(ensureRegion).not.toHaveBeenCalled();
+	});
+
+	// The canvas reads the container's readiness as its boot status, so skipping this leaves it
+	// spinning on "Booting" until something starts a node
+	it('boots the container even where the region is not wanted', async () => {
+		const { orchestrator } = setup([1]);
+		orchestrator.warmUp();
+		await settle();
+		expect(getContainer).toHaveBeenCalled();
+		expect(orchestrator.containerReady).toBe(true);
+	});
+
+	it('waits for the region before starting a node, where the canvas holds one', async () => {
+		fake.aws = true;
+		const { orchestrator, nodeIds } = setup([1]);
+		orchestrator.start(nodeIds[0]);
+		await settle();
+		expect(ensureRegion).toHaveBeenCalled();
+	});
+
+	it('starts a node without one, where the canvas has no resource it answers for', async () => {
+		const { orchestrator, nodeIds } = setup([1]);
+		orchestrator.start(nodeIds[0]);
+		await settle();
+		expect(orchestrator.getInstanceStatuses(nodeIds[0])).toEqual(['running']);
+		expect(ensureRegion).not.toHaveBeenCalled();
 	});
 });
 
