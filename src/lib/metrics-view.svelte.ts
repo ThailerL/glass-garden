@@ -13,7 +13,9 @@ export type MetricWindow = (typeof METRIC_WINDOWS)[number];
 // unmounts whenever the reader glances at Logs, and a picker that forgets on its own is worse
 // than one that is occasionally set to the wrong thing
 class MetricsView {
-	window = $state<MetricWindow>(METRIC_WINDOWS[1]);
+	// The narrowest, since traffic here is hand-driven: a wider one folds to 5s or 15s and a
+	// burst of clicks flattens into it
+	window = $state<MetricWindow>(METRIC_WINDOWS[0]);
 
 	// A reading goes stale on its own, so charts move without new samples
 	now = $state(Date.now());
