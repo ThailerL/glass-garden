@@ -1,10 +1,9 @@
+import { eventTarget, momentOf } from './challenge-timeline';
 import {
 	dataConditions,
-	eventTarget,
 	goalIds,
 	judge,
 	matches,
-	momentOf,
 	type CanvasView,
 	type Challenge,
 	type DataCondition,

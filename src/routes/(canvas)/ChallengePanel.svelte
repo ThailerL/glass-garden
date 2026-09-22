@@ -1,85 +1,6 @@
 <script module lang="ts">
-	import {
-		eventTarget,
-		windowsOf,
-		type Challenge,
-		type Goal,
-		type GoalState,
-		type ScriptEvent
-	} from '$lib/challenge';
+	import type { Goal, GoalState } from '$lib/challenge';
 	import type { RunEnd, RunPhase } from '$lib/challenge-run.svelte';
-
-	// The author's sentence where there is one: a setting's name is code vocabulary
-	export function eventSentence(event: ScriptEvent) {
-		if (event.text) return event.text;
-		const who = eventTarget(event).name;
-		if ('start' in event) return `${who} starts`;
-		if ('stop' in event) return `${who} stops`;
-		return `${who}'s settings change`;
-	}
-
-	export type Row = { at: number; time: string } & (
-		{ event: ScriptEvent; goal?: undefined } | { goal: Goal; event?: undefined }
-	);
-
-	// In the order they are judged, which is also the order the marks strip shows them, so the
-	// two views of one set of goals never disagree
-	export function goalsInOrder({ goals, length }: Challenge): Goal[] {
-		return goals.toSorted((a, b) => startOf(a, length) - startOf(b, length));
-	}
-
-	const startOf = (goal: Goal, length: number) => {
-		const { atStart, judged } = windowsOf(goal, length);
-		return atStart ? 0 : Math.min(...judged.map(([from]) => from));
-	};
-
-	// A goal is judged over the union of its conditions' windows, so a covered one says nothing
-	function mergeSpans(spans: [number, number][]): [number, number][] {
-		const merged: [number, number][] = [];
-		for (const [from, to] of spans.toSorted((a, b) => a[0] - b[0])) {
-			const last = merged.at(-1);
-			if (last && from <= last[1]) last[1] = Math.max(last[1], to);
-			else merged.push([from, to]);
-		}
-		return merged;
-	}
-
-	// One list in run order, so the reader never matches times across two lists
-	export function timelineRows(challenge: Challenge): Row[] {
-		const { events, length } = challenge;
-		const eventRows: Row[] = events.map((event) => ({
-			at: event.at,
-			time: `${event.at} s`,
-			event
-		}));
-		const goalRows: Row[] = goalsInOrder(challenge).map((goal) => {
-			const { atStart, judged } = windowsOf(goal, length);
-			const spans = mergeSpans(judged).map(([from, to]) => {
-				// A read is taken at a moment, where the two ends of its window meet
-				if (from === to) return to >= length ? 'At the end' : `At ${from} s`;
-				return to >= length ? `${from} s–end` : `${from}–${to} s`;
-			});
-			return {
-				at: startOf(goal, length),
-				// Not "0 s", which on an event row means something that happens then
-				time: (atStart ? ['At the start', ...spans] : spans).join(', '),
-				goal
-			};
-		});
-		// Sorting is stable and the events went in first, so they keep their place within a second
-		const rows = [...eventRows, ...goalRows].sort((a, b) => a.at - b.at);
-		// One label covers rows sharing a time, and only an exact repeat: a longer span says more
-		return rows.map((row, i) => (row.time === rows[i - 1]?.time ? { ...row, time: '' } : row));
-	}
-
-	// Every stretch any goal is judged over, once each, shaded on the bar. A moment shades
-	// nothing, since a zero-width band would be a line the bar already has for events
-	export function shadedSpans({ goals, length }: Challenge): [number, number][] {
-		const spans = goals
-			.flatMap((goal) => windowsOf(goal, length).judged)
-			.filter(([from, to]) => from !== to);
-		return [...new Map(spans.map((span) => [`${span[0]}-${span[1]}`, span])).values()];
-	}
 
 	// The mark carries the state, so the line says the one thing it cannot: where a goal broke
 	export function stateNote(state: GoalState, failedAt: number | undefined) {
@@ -119,6 +40,7 @@
 	import SlidersIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import { toast } from 'svelte-sonner';
+	import { eventSentence, goalsInOrder, shadedSpans, timelineRows } from '$lib/challenge-timeline';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { messageOf } from '$lib/errors';
 	import { getGraphState } from '$lib/graph-state.svelte';

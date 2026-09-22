@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { conditionWindow, eventTarget, momentOf, windowOf } from './challenge-timeline';
 import { readOf, readsOf, resourceTypeSchema } from './resources';
 import { scalar, type Scalar } from './resources/types';
 import {
@@ -317,13 +318,6 @@ export function goalIds(challenge: Challenge): string[] {
 	return challenge.goals.map((goal) => goal.id);
 }
 
-// The one node an event acts on, whichever kind it is
-export function eventTarget(event: ScriptEvent): NamedRef {
-	if ('start' in event) return event.start;
-	if ('stop' in event) return event.stop;
-	return event.set.node;
-}
-
 export type CanvasNode = {
 	id: string;
 	type: string;
@@ -378,34 +372,6 @@ function compare(value: unknown, { eq, gte, lte }: z.infer<typeof comparison>): 
 	if (eq !== undefined && value !== eq) return false;
 	if (gte === undefined && lte === undefined) return true;
 	return typeof value === 'number' && within(value, { gte, lte });
-}
-
-function windowOf(c: { from?: number; to?: number }, length: number): [number, number] {
-	return [c.from ?? 0, c.to ?? length];
-}
-
-// The stretch a condition is judged over, a moment where the two ends meet, or nothing for one
-// checked as the run starts. One rule, so the judge, the document's checks and the panel's
-// timeline cannot come to disagree
-export function conditionWindow(c: Condition, length: number): [number, number] | undefined {
-	if ('metric' in c) return windowOf(c.metric, length);
-	if (!('data' in c)) return undefined;
-	const at = momentOf(c.data, length);
-	return [at, at];
-}
-
-// The second a read is taken, read by the judge, the runner and the panel alike
-export function momentOf(c: DataCondition, length: number): number {
-	return c.at ?? length;
-}
-
-// When each of a goal's conditions is judged
-export function windowsOf(goal: Goal, length: number) {
-	const windows = goal.conditions.map((c) => conditionWindow(c, length));
-	return {
-		atStart: windows.some((window) => window === undefined),
-		judged: windows.filter((window) => window !== undefined)
-	};
 }
 
 function judgeCondition(c: Condition, run: RunRecord, t: number): GoalState {
