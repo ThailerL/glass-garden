@@ -6,6 +6,10 @@
 			"file": "first-challenge.json"
 		},
 		{
+			"id": "oversold",
+			"file": "oversold.json"
+		},
+		{
 			"id": "slow-signups",
 			"file": "slow-signups.json"
 		}

@@ -1,0 +1,217 @@
+{
+  "$schema": "./schema.json",
+  "format": "gg:challenge/1",
+  "title": "The concert that oversold",
+  "description": "Box Office counts the tickets it has left. Keep the concert from selling more than it has when Box Office scales out.",
+  "stack": "Request generator, HTTP load balancer, instance group, Table (DynamoDB)",
+  "instructions": [
+    "Box Office sells the concert's 500 tickets. Five seconds in, it scales out to three instances to keep up with the buyers.",
+    "Sell every ticket exactly once, however many instances are running. Tickets is a table every instance can reach."
+  ],
+  "length": 30,
+  "events": [
+    {
+      "at": 5,
+      "text": "Box Office scales out to three instances",
+      "set": {
+        "node": {
+          "name": "Box Office"
+        },
+        "config": {
+          "instanceCount": 3
+        }
+      }
+    }
+  ],
+  "fixed": [
+    {
+      "node": {
+        "name": "Ticket Buyers"
+      }
+    },
+    {
+      "node": {
+        "name": "Ticket Balancer"
+      }
+    },
+    {
+      "node": {
+        "name": "Box Office"
+      },
+      "include": [
+        "instanceCount"
+      ]
+    },
+    {
+      "node": {
+        "name": "Tickets"
+      }
+    }
+  ],
+  "goals": [
+    {
+      "id": "routed",
+      "title": "Every buyer reaches Box Office through Ticket Balancer",
+      "hint": "A request generator sends to one instance, so a buyer wired straight to Box Office only ever reaches the first one.",
+      "conditions": [
+        {
+          "edge": {
+            "from": {
+              "name": "Ticket Buyers"
+            },
+            "to": {
+              "name": "Ticket Balancer"
+            }
+          }
+        },
+        {
+          "edge": {
+            "from": {
+              "name": "Ticket Balancer"
+            },
+            "to": {
+              "name": "Box Office"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "in-stock",
+      "title": "Nobody is turned away while tickets are left",
+      "hint": "At 40 buyers a second the last ticket cannot go in the first 10 seconds, so a sold out that early means a buyer was refused a ticket that existed.",
+      "conditions": [
+        {
+          "metric": {
+            "node": {
+              "name": "Ticket Buyers"
+            },
+            "metricName": "requests",
+            "dimensions": {
+              "status": "409"
+            },
+            "statistic": "Sum",
+            "to": 10,
+            "eq": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "sold",
+      "title": "Exactly 500 tickets are sold",
+      "hint": "Each instance is a separate process, so each one has its own count of what is left. An instance that starts late starts the same way the first one did.",
+      "conditions": [
+        {
+          "metric": {
+            "node": {
+              "name": "Ticket Buyers"
+            },
+            "metricName": "requests",
+            "dimensions": {
+              "status": "201"
+            },
+            "statistic": "Sum",
+            "eq": 500
+          }
+        }
+      ]
+    },
+    {
+      "id": "answered",
+      "title": "Every buyer is answered, with a ticket or a sold out",
+      "hint": "Sold out is an answer, and the starting code sends it as a 409. An error is not.",
+      "conditions": [
+        {
+          "metric": {
+            "node": {
+              "name": "Ticket Buyers"
+            },
+            "metricName": "errors",
+            "statistic": "Sum",
+            "lte": 0
+          }
+        }
+      ]
+    }
+  ],
+  "startingCanvas": {
+    "format": "gg:project/1",
+    "nodes": [
+      {
+        "id": "buyers",
+        "type": "requestGenerator",
+        "position": {
+          "x": -420,
+          "y": 0
+        },
+        "config": {
+          "name": "Ticket Buyers",
+          "method": "POST",
+          "path": "/tickets",
+          "body": "{\"buyer\":\"{{n}}\"}",
+          "requestsPerSecond": 40
+        },
+        "chart": "requests"
+      },
+      {
+        "id": "balancer",
+        "type": "httpLoadBalancer",
+        "position": {
+          "x": -140,
+          "y": 0
+        },
+        "config": {
+          "name": "Ticket Balancer"
+        }
+      },
+      {
+        "id": "office",
+        "type": "instanceGroup",
+        "position": {
+          "x": 140,
+          "y": 0
+        },
+        "config": {
+          "name": "Box Office",
+          "instanceCount": 1
+        },
+        "chart": "tickets sold"
+      },
+      {
+        "id": "tickets",
+        "type": "dynamodbTable",
+        "position": {
+          "x": 420,
+          "y": 0
+        },
+        "config": {
+          "name": "Tickets",
+          "tableName": "tickets",
+          "partitionKey": "id"
+        },
+        "chart": "items"
+      }
+    ],
+    "edges": [
+      {
+        "source": "buyers",
+        "target": "balancer"
+      },
+      {
+        "source": "balancer",
+        "target": "office"
+      },
+      {
+        "source": "office",
+        "target": "tickets"
+      }
+    ],
+    "nodeFiles": {
+      "office": {
+        "package.json": "{\n  \"name\": \"instance-group\",\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^5.1.0\",\n    \"@aws-sdk/client-dynamodb\": \"^3.982.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}\n",
+        "server.js": "import express from 'express';\nimport { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';\n\n// Glass Garden gives every instance its own PORT, because they all share one machine here.\n// In a real deployment they would each be on their own machine, and could all listen on the same port.\nconst port = Number(process.env.PORT);\nif (!port) {\n  throw new Error('PORT is not set');\n}\n\n// Set by the table this node is connected to. The endpoint and the credentials the SDK\n// needs to reach the local AWS region arrive in the environment too, which is why the\n// client below takes no arguments at all. You can see every one of them in the Config tab\nconst tableName = process.env.DYNAMODB_TABLE;\nif (!tableName) {\n  throw new Error('DYNAMODB_TABLE is not set. Connect this instance group to one table node.');\n}\n\nconst dynamodb = new DynamoDBClient({});\n\n// The tickets this process has left to sell. A variable lives in the memory of the process\n// that declared it, and starts again at 500 whenever a process starts\nlet remaining = 500;\n\n// Embedded Metric Format: the shape CloudWatch extracts metrics from a log line, and how\n// anything running here puts a number on its own Metrics tab\nfunction putMetric(name, value, unit) {\n  console.log(\n    JSON.stringify({\n      _aws: {\n        Timestamp: Date.now(),\n        CloudWatchMetrics: [\n          { Namespace: 'glass-garden', Dimensions: [[]], Metrics: [{ Name: name, Unit: unit }] }\n        ]\n      },\n      [name]: value\n    })\n  );\n}\n\n// Once at startup, so the name is in the Metrics tab before anybody buys a ticket\nputMetric('tickets sold', 0, 'Count');\n\nconst app = express();\napp.use(express.json());\n\n// The load balancer asks for this before it sends any buyers here, the way an ALB checks a\n// target group. An instance that stops answering it is taken out of the rotation\napp.get('/', (req, res) => {\n  res.type('text/plain').send('ok\\n');\n});\n\napp.post('/tickets', async (req, res) => {\n  const { buyer = 'nobody' } = req.body;\n\n  // Sold out is an answer, not a failure, so it is a 409 rather than an error\n  if (remaining === 0) {\n    res.status(409).json({ status: 'sold out' });\n    return;\n  }\n  remaining -= 1;\n\n  // Every ticket sold is recorded, keyed by who bought it\n  await dynamodb.send(\n    new PutItemCommand({\n      TableName: tableName,\n      Item: { id: { S: `ticket-${buyer}` }, buyer: { S: buyer } }\n    })\n  );\n\n  putMetric('tickets sold', 1, 'Count');\n  res.status(201).json({ status: 'sold' });\n});\n\napp.listen(port, () => {\n  console.log(`Server running on http://localhost:${port}`);\n});\n"
+      }
+    }
+  }
+}
