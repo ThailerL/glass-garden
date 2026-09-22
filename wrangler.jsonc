@@ -7,7 +7,10 @@
 	"compatibility_flags": ["nodejs_als"],
 	"assets": {
 		"binding": "ASSETS",
-		"directory": ".svelte-kit/cloudflare"
+		"directory": ".svelte-kit/cloudflare",
+		// Without this the default serves /about/ and redirects /about to it, contradicting the
+		// content site's trailingSlash and the sitemap, which both write the bare path
+		"html_handling": "drop-trailing-slash"
 	},
 	"vars": {
 		"PUBLIC_ORIGIN": "https://glass.garden"
