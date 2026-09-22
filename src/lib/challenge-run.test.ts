@@ -34,7 +34,7 @@ const challenge = challengeSchema.parse({
 	]
 });
 
-function fakeCanvas(clearFails = false) {
+function fakeCanvas(clearFails = false, readHangs = false) {
 	let canvas: CanvasView = {
 		nodes: [
 			{
@@ -72,6 +72,7 @@ function fakeCanvas(clearFails = false) {
 		},
 		read: async (id, read) => {
 			calls.push(`read ${read} ${id}`);
+			if (readHangs) await new Promise(() => {});
 			return undefined;
 		},
 		finished: vi.fn(),
@@ -184,6 +185,47 @@ describe('ChallengeRun', () => {
 		// Nothing is cleared away: the node that crashed is the thing the reader has to look at,
 		// so the only stop is the one that prepared the run
 		expect(fake.calls.filter((call) => call === 'stopAll')).toHaveLength(1);
+	});
+
+	// A read with no `at` is taken at the run's own end, so the clock running out is not the
+	// same as the run being knowable
+	const storedAtTheEnd = challengeSchema.parse({
+		length: 10,
+		goals: [
+			{
+				id: 'g',
+				title: 'Stored',
+				conditions: [{ data: { node: { name: 'App' }, read: 'item', args: { key: 'k' } } }]
+			}
+		]
+	});
+
+	async function readAtTheEnd(readHangs: boolean) {
+		const fake = fakeCanvas(false, readHangs);
+		const run = new ChallengeRun(storedAtTheEnd, fake.services);
+		await run.start();
+		fake.setStatuses({ gen: 'running', app: 'running' });
+		advance(TICK_MS / 1000);
+		advance(10);
+		expect(fake.calls).toContain('read item app');
+		return { fake, run };
+	}
+
+	it('waits for a read taken at its end before scoring', async () => {
+		const { fake, run } = await readAtTheEnd(true);
+		advance(30);
+		expect(run.phase).toBe('running');
+		expect(fake.services.finished).not.toHaveBeenCalled();
+		run.dispose();
+	});
+
+	it('scores once that read has answered, finding nothing being an answer', async () => {
+		const { fake, run } = await readAtTheEnd(false);
+		await Promise.resolve();
+		advance(TICK_MS / 1000);
+		expect(run.phase).toBe('done');
+		expect(fake.services.finished).toHaveBeenCalledWith({ met: [], failed: ['g'] });
+		run.dispose();
 	});
 
 	it('stops on request by undoing Run, and a new start begins from nothing', async () => {

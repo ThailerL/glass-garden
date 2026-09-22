@@ -179,8 +179,13 @@ export class ChallengeRun {
 			this.goals = goals;
 		}
 		if (t < length) return;
-		this.#end('done');
+		// Everything down before the reads taken at the end are waited on: they would otherwise
+		// be competing for the machine with the system they are measuring, at its busiest
 		this.#services.stopAll();
+		// The clock running out is not the same as the run being knowable. Each read has a
+		// timeout behind it, so a region that never answers cannot hold this open for long
+		if ([...this.#readings.values()].some((reading) => reading === undefined)) return;
+		this.#end('done');
 		// Every window has closed by the end, so a goal not met has failed
 		const ids = Object.keys(goals);
 		this.#services.finished({
@@ -200,8 +205,9 @@ export class ChallengeRun {
 				void this.#services
 					.read(node.id, condition.read, condition.args)
 					.then((found) => this.#readings.set(key, { found }))
-					// Left in flight rather than asked again, which would be a read every tick
-					.catch(() => {});
+					// A read that could not be taken cannot satisfy a goal, and leaving it pending
+					// would hold the run open waiting for an answer that is never coming
+					.catch(() => this.#readings.set(key, {}));
 			}
 		}
 	}
