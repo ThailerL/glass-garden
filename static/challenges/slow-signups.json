@@ -9,7 +9,7 @@
 		"The usual answer is a queue with a function behind it: the API hands the signup over and answers, and the function does the hashing and the write. Anything that answers as quickly and stores the same thing will do.",
 		"Move the hashing wherever you like, but leave what it computes alone. The goals compare the hashes you stored against the ones this code produces."
 	],
-	"length": 45,
+	"length": 30,
 	"events": [
 		{
 			"at": 5,
@@ -28,7 +28,7 @@
 	"goals": [
 		{
 			"id": "served",
-			"title": "At least 15 signups are answered every 5 seconds",
+			"title": "Every signup is answered, at least 15 every 5 seconds",
 			"conditions": [
 				{
 					"metric": {
@@ -39,6 +39,14 @@
 						"period": 5,
 						"from": 10,
 						"gte": 15
+					}
+				},
+				{
+					"metric": {
+						"node": { "name": "Signup Traffic" },
+						"metricName": "errors",
+						"statistic": "Sum",
+						"lte": 0
 					}
 				}
 			]
@@ -60,18 +68,46 @@
 			]
 		},
 		{
-			"id": "hashed",
-			"title": "Signups are stored with their passwords hashed",
-			"hint": "Three accounts are read out of Accounts and their stored hash compared. A mismatch means the password was hashed differently rather than not stored at all, so check that the cost, the key length and the salt are the ones the starting code used.",
+			"id": "stored",
+			"title": "Signups are stored in Accounts",
+			"hint": "Three accounts are looked for. If one is still on the queue when the run ends, it is not stored yet. A function that runs out of time puts its batch back on the queue, and its Logs tab says so.",
 			"conditions": [
 				{
 					"data": {
 						"node": { "name": "Accounts" },
 						"read": "item",
-						"args": { "key": "20@example.com" },
+						"args": { "key": "15@example.com" }
+					}
+				},
+				{
+					"data": {
+						"node": { "name": "Accounts" },
+						"read": "item",
+						"args": { "key": "40@example.com" }
+					}
+				},
+				{
+					"data": {
+						"node": { "name": "Accounts" },
+						"read": "item",
+						"args": { "key": "65@example.com" }
+					}
+				}
+			]
+		},
+		{
+			"id": "hashed",
+			"title": "Stored passwords are hashed the way the starting code does",
+			"hint": "If Signups are stored in Accounts failed too, start there. If an account is stored but does not match, its password was hashed differently from the starting code.",
+			"conditions": [
+				{
+					"data": {
+						"node": { "name": "Accounts" },
+						"read": "item",
+						"args": { "key": "15@example.com" },
 						"has": {
 							"hash": {
-								"eq": "ixkldi3mG5s7OpUxJy2LLjy+MEiRciIT5vrM8fg9D/JjxYP6sEAP9TXh458bGpEqxV2aXI/RxPr709Ldw8+nIg=="
+								"eq": "apHjDAXjaXjJrG+xERPgoaEnuvWhqDr5skmuMCgjhfUzlwtwck/fW+FfQtiJJdwUfUzcxJORoqzVUC7Wr1/ivQ=="
 							}
 						}
 					}
@@ -80,10 +116,10 @@
 					"data": {
 						"node": { "name": "Accounts" },
 						"read": "item",
-						"args": { "key": "60@example.com" },
+						"args": { "key": "40@example.com" },
 						"has": {
 							"hash": {
-								"eq": "gJoAMsHjN7NxQWwHVGBMIDLGDRzQFyUHaKnzpvvGvfy/qoBM2f1+y7X9yvtuEBNpYVjbWpMrb5paomTaN5+HRg=="
+								"eq": "aLsujVs5eobo7zb0iTfNpQr46SgOIJXRF2m770qW06S/lcmYDoXT538BCWOQigSNwsKksqPDrWDQkeOVhuyPkw=="
 							}
 						}
 					}
@@ -92,10 +128,10 @@
 					"data": {
 						"node": { "name": "Accounts" },
 						"read": "item",
-						"args": { "key": "100@example.com" },
+						"args": { "key": "65@example.com" },
 						"has": {
 							"hash": {
-								"eq": "OaK45Z8i9AiGED7fHkLwk8/LTrtmp9hncH7ThIVr2qyBVThke7/GYHYwOY05pA+f2nb6G/DKFAayLP9kW7h3pA=="
+								"eq": "BBJRVvM8ceUZ/Fl3fChYP48eYYt6JHCkIZpAUJbJturO/TRJWaBhihzzcXqMhjgAwSFwfGGc0KJSzD3J4R/cBw=="
 							}
 						}
 					}
