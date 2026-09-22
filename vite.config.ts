@@ -7,6 +7,7 @@ import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type Connect, type Plugin } from 'vite';
 import { ISOLATION_HEADERS } from './src/lib/isolation-headers';
+import packageJson from './package.json' with { type: 'json' };
 // Type-only: erased at compile time, so this browser-only package is never actually
 // loaded by the Node build. Keep it `import type`
 import type { FileSystemTree } from '@vivari/core';
@@ -188,7 +189,9 @@ export default defineConfig({
 			adapter:
 				process.env.ADAPTER === 'cloudflare'
 					? (await import('@sveltejs/adapter-cloudflare')).default()
-					: adapter()
+					: adapter(),
+
+			version: { name: packageJson.version }
 		})
 	],
 

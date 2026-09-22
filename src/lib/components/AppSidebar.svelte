@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { version } from '$app/environment';
 	import { asset } from '$app/paths';
 	import { page } from '$app/state';
 	import * as Sidebar from '$lib/components/ui/sidebar';
@@ -33,11 +34,20 @@
 			<img src={asset('/favicon.svg')} alt="" class="size-6 shrink-0" />
 			<span class="truncate font-semibold tracking-tight">Glass Garden</span>
 			<a
+				href="https://github.com/ThailerL/glass-garden/releases/tag/v{version}"
+				target="_blank"
+				rel="noreferrer"
+				title="Release notes for this version"
+				class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums hover:text-foreground"
+			>
+				v{version}
+			</a>
+			<a
 				href="https://github.com/ThailerL/glass-garden"
 				target="_blank"
 				rel="noreferrer"
 				title="Glass Garden on GitHub"
-				class="ml-auto shrink-0 text-muted-foreground hover:text-foreground"
+				class="shrink-0 text-muted-foreground hover:text-foreground"
 			>
 				<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="size-4">
 					<path
