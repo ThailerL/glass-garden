@@ -1,0 +1,14 @@
+diff --git a/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js b/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
+index cfce5d3..e6f590e 100644
+--- a/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
++++ b/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
+@@ -2783,7 +2783,8 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+ 				this._closed = true;
+ 				recount(this);
+ 				if (this.type === TCPConstants.SERVER) {
+-					listeners.delete(this._localPort);
++					// A server whose listen failed must not take the port's real server with it
++					if (listeners.get(this._localPort) === this) listeners.delete(this._localPort);
+ 					if (this._kernelPort != null && syscalls && syscalls.closeServer) {
+ 						try {
+ 							syscalls.closeServer(this._kernelPort);
