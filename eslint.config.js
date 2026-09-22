@@ -11,7 +11,7 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
 	// Mounted into the VM rather than bundled, so the app's rules don't apply
-	{ ignores: ['resources/'] },
+	{ ignores: ['resources/', 'site/src/demo/app/'] },
 	js.configs.recommended,
 	ts.configs.recommended,
 	svelte.configs.recommended,

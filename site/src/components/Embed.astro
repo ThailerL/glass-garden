@@ -38,7 +38,8 @@ const path = servedByTheApp ? await embedPath() : undefined;
 	if (frame) {
 		const { hostname, origin } = location;
 		const local = ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
-		frame.src = (local ? origin : `${location.protocol}//demo.embed.${hostname}`) + frame.dataset.path;
+		frame.src =
+			(local ? origin : `${location.protocol}//demo.embed.${hostname}`) + frame.dataset.path;
 	}
 </script>
 
