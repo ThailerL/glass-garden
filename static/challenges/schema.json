@@ -537,6 +537,7 @@
 													"type": "string",
 													"minLength": 1,
 													"enum": [
+														"objects",
 														"item"
 													]
 												},
@@ -591,6 +592,26 @@
 											],
 											"additionalProperties": false,
 											"anyOf": [
+												{
+													"properties": {
+														"read": {
+															"const": "objects"
+														},
+														"args": {
+															"type": "object",
+															"properties": {
+																"prefix": {
+																	"default": "",
+																	"type": "string"
+																}
+															},
+															"additionalProperties": false
+														}
+													},
+													"required": [
+														"read"
+													]
+												},
 												{
 													"properties": {
 														"read": {

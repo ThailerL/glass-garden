@@ -3,7 +3,7 @@ import { type Node } from '@xyflow/svelte';
 import { Vivari } from '@vivari/core';
 import BucketIcon from '@lucide/svelte/icons/archive';
 import BucketConfig from './BucketConfig.svelte';
-import type { ConnectedNode, ResourceDefinition } from '../types';
+import type { ConnectedNode, ResourceDefinition, Scalar } from '../types';
 import { providing } from '../index';
 import { slugify } from '../shared';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -11,7 +11,8 @@ import {
 	deprovisionResource,
 	ensureRegion,
 	provisionResource,
-	regionLifetime
+	regionLifetime,
+	regionText
 } from '$lib/aws-region';
 import { awsResourceOf } from '$lib/aws-topology';
 
@@ -45,6 +46,32 @@ function launchConfig(node: Node) {
 }
 
 type LaunchConfig = ReturnType<typeof launchConfig>;
+
+function tagText(xml: string, tag: string) {
+	return new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(xml)?.[1];
+}
+
+// S3 has no JSON protocol, so the listing is read as text
+export function listPage(xml: string): { count: number; next?: string } {
+	if (!/<ListBucketResult[\s>]/.test(xml)) throw new Error(`Not a listing: ${xml.slice(0, 200)}`);
+	return {
+		count: Number(tagText(xml, 'KeyCount') ?? 0),
+		next: tagText(xml, 'NextContinuationToken')
+	};
+}
+
+async function countObjects(bucketName: string, prefix: string) {
+	// The local region honours this and real S3 caps it at 1000, which the loop still handles
+	const query = new URLSearchParams({ 'list-type': '2', prefix, 'max-keys': '100000' });
+	let count = 0;
+	for (;;) {
+		const path = `${bucketName}?${query}`;
+		const page = listPage(await regionText('s3', path, { asked: `GET ${path}`, method: 'GET' }));
+		count += page.count;
+		if (!page.next) return count;
+		query.set('continuation-token', page.next);
+	}
+}
 
 export const s3Bucket = {
 	name: 'Bucket (S3)',
@@ -115,6 +142,15 @@ export const s3Bucket = {
 	remove: async (node: Node) => {
 		await ensureRegion();
 		await deprovisionResource('s3', bucketNameOf(node));
+	},
+	reads: {
+		// An empty prefix answers 0, not undefined as a missing table item does
+		objects: {
+			args: z.strictObject({ prefix: z.string().default('') }),
+			read: async (node: Node, { prefix }: Record<string, Scalar>) => ({
+				count: await countObjects(bucketNameOf(node), String(prefix))
+			})
+		}
 	},
 	// Recreated rather than emptied out, since start cannot do it: an always-on node is already
 	// running by the time a run begins. The notifications come back with the next update

@@ -171,15 +171,16 @@ function adminAuthorization(service: Service) {
 	return `AWS4-HMAC-SHA256 Credential=${ADMIN_ACCESS_KEY}/20260101/us-east-1/${service}/aws4_request, SignedHeaders=host, Signature=glass-garden`;
 }
 
-// One signed POST for a protocol the caller speaks itself: it owns the path, the content type
-// and the answer. observe keeps the call off the node's charts - user code is never given the
-// token, so an app cannot hide its own traffic this way
+// One signed request for a protocol the caller speaks itself: it owns the path, the content
+// type and the answer. observe keeps the call off the node's charts - user code is never given
+// the token, so an app cannot hide its own traffic this way
 export async function regionRequest(
 	service: Service,
 	path: string,
 	init: {
+		method?: string;
 		headers?: Record<string, string>;
-		body: BodyInit;
+		body?: BodyInit;
 		observe?: boolean;
 		signal?: AbortSignal;
 	}
@@ -188,7 +189,7 @@ export async function regionRequest(
 	const current = region;
 	if (!current) throw new Error('The region is not running');
 	return fetch(`${withTrailingSlash(current.previewUrl)}${path}`, {
-		method: 'POST',
+		method: init.method ?? 'POST',
 		headers: {
 			authorization: adminAuthorization(service),
 			...(init.observe ? { 'x-gg-observe': current.token } : {}),
@@ -199,17 +200,33 @@ export async function regionRequest(
 	});
 }
 
-// The AWS JSON protocol the SDK speaks, which every resource addresses at the region's root
-export async function callAws(service: Service, target: string, body: unknown) {
-	const response = await regionRequest(service, '', {
-		headers: { 'content-type': 'application/x-amz-json-1.0', 'x-amz-target': target },
-		body: JSON.stringify(body),
+// A control read, whatever protocol answers it: asked names the call in an error
+export async function regionText(
+	service: Service,
+	path: string,
+	{
+		asked,
+		...init
+	}: { asked: string; method?: string; headers?: Record<string, string>; body?: BodyInit }
+) {
+	const response = await regionRequest(service, path, {
+		...init,
 		observe: true,
 		// A read that never answers would leave its goal judging for the rest of the run
 		signal: AbortSignal.timeout(CONTROL_TIMEOUT_MS)
 	});
 	const text = await response.text();
-	if (!response.ok) throw new Error(`${target} answered ${response.status}: ${text}`);
+	if (!response.ok) throw new Error(`${asked} answered ${response.status}: ${text}`);
+	return text;
+}
+
+// The AWS JSON protocol the SDK speaks, which every resource addresses at the region's root
+export async function callAws(service: Service, target: string, body: unknown) {
+	const text = await regionText(service, '', {
+		asked: target,
+		headers: { 'content-type': 'application/x-amz-json-1.0', 'x-amz-target': target },
+		body: JSON.stringify(body)
+	});
 	return JSON.parse(text) as Record<string, unknown>;
 }
 
