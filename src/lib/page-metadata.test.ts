@@ -18,10 +18,10 @@ describe('headTags', () => {
 	it('puts the structured data on the home page', () => {
 		const home = headTags('https://glass.garden', '/');
 		const json = home.match(/<script type="application\/ld\+json">(.*)<\/script>/)?.[1];
-		expect(JSON.parse(json ?? '')).toMatchObject({
-			'@type': 'SoftwareApplication',
-			url: 'https://glass.garden/'
-		});
+		expect(JSON.parse(json ?? '')['@graph']).toMatchObject([
+			{ '@type': 'WebSite', name: 'Glass Garden', url: 'https://glass.garden/' },
+			{ '@type': 'SoftwareApplication', url: 'https://glass.garden/' }
+		]);
 	});
 
 	it('keeps the catalogue out of search, since arriving there cold boots the VM for a list', () => {

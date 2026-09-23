@@ -41,15 +41,22 @@ export function jsonLd(data: unknown): string {
 function structuredData(origin: string, description: string): string {
 	return jsonLd({
 		'@context': 'https://schema.org',
-		'@type': 'SoftwareApplication',
-		name: 'Glass Garden',
-		url: `${origin}/`,
-		description,
-		applicationCategory: 'DeveloperApplication',
-		operatingSystem: 'Any',
-		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-		license: 'https://www.gnu.org/licenses/agpl-3.0.html',
-		sameAs: 'https://github.com/ThailerL/glass-garden'
+		'@graph': [
+			// Only the home page is read for the name printed above a search result, and only
+			// from WebSite, so without this one Google falls back to the bare domain
+			{ '@type': 'WebSite', name: 'Glass Garden', url: `${origin}/` },
+			{
+				'@type': 'SoftwareApplication',
+				name: 'Glass Garden',
+				url: `${origin}/`,
+				description,
+				applicationCategory: 'DeveloperApplication',
+				operatingSystem: 'Any',
+				offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+				license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+				sameAs: 'https://github.com/ThailerL/glass-garden'
+			}
+		]
 	});
 }
 
