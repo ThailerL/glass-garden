@@ -1,42 +1,14 @@
 ---
 import type { CanvasDocument } from '../../../src/lib/project-document';
+import { layoutCanvas, NODE_SIZE } from '../canvas-layout';
 import { nodeSubtitle, resourceOf } from '../resources';
 
 type Props = { nodes: CanvasDocument['nodes']; edges: CanvasDocument['edges'] };
 
 const { nodes, edges } = Astro.props;
 
-// The authored positions are pixels on a canvas that pans and zooms. Here they only have to say
-// what is beside what, so each distinct x becomes a column and each distinct y a row, and the
-// drawing is the same size whatever spacing the author happened to leave
-const SIZE = 104;
-const GAP = { x: 56, y: 32 };
-
-const track = (values: number[]) =>
-	new Map([...new Set(values)].sort((a, b) => a - b).map((value, i) => [value, i]));
-const columns = track(nodes.map((node) => node.position.x));
-const rows = track(nodes.map((node) => node.position.y));
-
-const placed = nodes.map((node) => ({
-	node,
-	left: columns.get(node.position.x)! * (SIZE + GAP.x),
-	top: rows.get(node.position.y)! * (SIZE + GAP.y)
-}));
-const at = new Map(placed.map(({ node, left, top }) => [node.id, { left, top }]));
-
-const width = columns.size * SIZE + (columns.size - 1) * GAP.x;
-const height = rows.size * SIZE + (rows.size - 1) * GAP.y;
-
-// Handle to handle, as the canvas draws them: out of the right of one node and into the left of
-// the next
-const wires = edges
-	.map(({ source, target }) => {
-		const from = at.get(source);
-		const to = at.get(target);
-		if (!from || !to) return undefined;
-		return { x1: from.left + SIZE, y1: from.top + SIZE / 2, x2: to.left, y2: to.top + SIZE / 2 };
-	})
-	.filter((wire) => wire !== undefined);
+// The same placement the link card's drawing uses, so the two pictures of a challenge agree
+const { placed, wires, width, height } = layoutCanvas({ nodes, edges });
 ---
 
 <div class="canvas overflow-x-auto rounded-xl border p-8">
@@ -49,7 +21,7 @@ const wires = edges
 		{placed.map(({ node, left, top }) => (
 			<div
 				class="node absolute flex flex-col items-center justify-center gap-0.5 bg-card px-2 text-center"
-				style={`left: ${left}px; top: ${top}px; width: ${SIZE}px; height: ${SIZE}px`}
+				style={`left: ${left}px; top: ${top}px; width: ${NODE_SIZE}px; height: ${NODE_SIZE}px`}
 			>
 				<svg
 					class="size-9 text-resource-icon"

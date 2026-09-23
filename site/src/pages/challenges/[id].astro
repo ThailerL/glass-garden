@@ -6,7 +6,7 @@ import RunTimeline from '../../components/RunTimeline.astro';
 import StartingCanvas from '../../components/StartingCanvas.astro';
 import Page from '../../layouts/Page.astro';
 import { challenges, pageMeta, runSentence, stackNames, suggestionOf } from '../../challenges';
-import { challengesPath, startPath } from '../../paths';
+import { challengePath, challengesPath, startPath } from '../../paths';
 import type { BuiltInChallenge } from '../../../../src/lib/challenges';
 import { goalsInOrder, spanLabels } from '../../../../src/lib/challenge-timeline';
 
@@ -38,7 +38,7 @@ const { title, shareTitle, description } = pageMeta(challenge);
 const trail = [{ name: 'Challenges', path: challengesPath }, { name: document.title }];
 ---
 
-<Page {title} {shareTitle} {description} {trail} narrow>
+<Page {title} {shareTitle} {description} {trail} image={`${challengePath(id)}/og.png`} narrow>
 	<div class="flex flex-col gap-4">
 		<p class="text-sm text-muted-foreground">
 			<a href={challengesPath} class="hover:text-foreground">
