@@ -6,6 +6,9 @@
 	import { challengeCatalogue, loadCatalogue } from '$lib/challenge-catalogue.svelte';
 	import { buildTourCanvas } from '$lib/tour.svelte';
 
+	// An open challenge has no row of its own, so the section it came from carries the highlight
+	const { challengeOpen = false }: { challengeOpen?: boolean } = $props();
+
 	// A fresh canvas each time, since the one the tour first ran on may no longer match its steps
 	function takeTour() {
 		openProject(createProject('Tour', buildTourCanvas).id);
@@ -20,7 +23,10 @@
 <Sidebar.Group class="py-0">
 	<Sidebar.Menu>
 		<Sidebar.MenuItem>
-			<Sidebar.MenuButton class="text-sm" isActive={page.url.pathname === challengesPath}>
+			<Sidebar.MenuButton
+				class="text-sm"
+				isActive={page.url.pathname === challengesPath || challengeOpen}
+			>
 				{#snippet child({ props })}
 					<a href={challengesPath} {...props}>
 						Challenges

@@ -6,6 +6,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { embedded, mainAppUrl } from '$lib/embed';
 	import { getGraphState } from '$lib/graph-state.svelte';
+	import { getProject } from '$lib/projects.svelte';
 	import ProjectsGroup from './ProjectsGroup.svelte';
 	import FooterMenu from './FooterMenu.svelte';
 
@@ -68,7 +69,7 @@
 	</Sidebar.Content>
 	{#if !embedded}
 		<Sidebar.Footer class="border-t border-sidebar-border px-0 py-2">
-			<FooterMenu />
+			<FooterMenu challengeOpen={onCanvas && !!getProject(graphState.projectId)?.challenge} />
 		</Sidebar.Footer>
 	{/if}
 </Sidebar.Root>
