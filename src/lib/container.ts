@@ -1,5 +1,6 @@
 import { Vivari, type FileSystemTree } from '@vivari/core';
 import { forgetImportedFiles } from './files/imported-files';
+import { patchErrorStacks } from './vm-error-stacks';
 
 // Only one container is booted per tab. Vivari's OPFS root, its preview routing and its
 // service-worker relay are all per-origin, so a second instance would collide with this one
@@ -16,7 +17,9 @@ export function onContainerBoot(task: (container: Vivari) => Promise<void>) {
 }
 
 export function getContainer() {
-	containerPromise ??= Vivari.boot().then((container) => {
+	containerPromise ??= Vivari.boot().then(async (container) => {
+		// Inside the boot rather than a boot task, so no process can start ahead of it
+		await patchErrorStacks(container);
 		booted = container;
 		for (const task of bootTasks) void task(container).catch(console.error);
 		return container;
