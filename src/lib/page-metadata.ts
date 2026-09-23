@@ -25,7 +25,7 @@ const CRAWLABLE = [
 	...challengeIndex.challenges.map(({ id }) => `${CHALLENGES}/${id}`)
 ];
 
-function trimOrigin(origin: string | undefined): string | undefined {
+export function trimOrigin(origin: string | undefined): string | undefined {
 	return origin?.replace(/\/$/, '') || undefined;
 }
 
@@ -33,8 +33,13 @@ function escapeAttribute(value: string): string {
 	return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
 }
 
+// A "</script>" inside the JSON would otherwise end the element
+export function jsonLd(data: unknown): string {
+	return `<script type="application/ld+json">${JSON.stringify(data).replaceAll('<', '\\u003c')}</script>`;
+}
+
 function structuredData(origin: string, description: string): string {
-	const data = {
+	return jsonLd({
 		'@context': 'https://schema.org',
 		'@type': 'SoftwareApplication',
 		name: 'Glass Garden',
@@ -45,10 +50,7 @@ function structuredData(origin: string, description: string): string {
 		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
 		license: 'https://www.gnu.org/licenses/agpl-3.0.html',
 		sameAs: 'https://github.com/ThailerL/glass-garden'
-	};
-	// A "</script>" inside the JSON would otherwise end the element
-	const json = JSON.stringify(data).replaceAll('<', '\\u003c');
-	return `<script type="application/ld+json">${json}</script>`;
+	});
 }
 
 export function headTags(publicOrigin: string | undefined, pathname: string): string {

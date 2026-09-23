@@ -34,6 +34,25 @@ export function challenges(): BuiltInChallenge[] {
 	});
 }
 
+// Search wording, not catalogue wording. Keep each under 45 characters: the suffix costs 15 of
+// the 60 a result line shows. Site copy, since the app never shows either of these
+const SEARCH_TITLES: Record<string, string> = {
+	'first-challenge': 'Connect a load balancer to a Node app',
+	oversold: 'An in-memory count breaks when you scale out',
+	'slow-signups': 'Move password hashing off the request path'
+};
+
+// The claim leads rather than trails, since a search result trims the end
+export function pageMeta({ id, document }: BuiltInChallenge) {
+	const searchTitle = SEARCH_TITLES[id];
+	if (!searchTitle) throw new Error(`${id} has no search title in site/src/challenges.ts`);
+	return {
+		title: `${searchTitle} · Glass Garden`,
+		shareTitle: document.title,
+		description: `Real code, running in your browser. ${document.description}`
+	};
+}
+
 const namesOf = (types: ResourceType[]) => types.map((type) => resourceOf(type).name);
 
 // Spelled out as well as drawn: a reader arriving from a search result has not seen the icons
@@ -48,13 +67,16 @@ export function suggestionOf(document: ChallengeDocument): string | undefined {
 	return suggestionLine(namesOf(suggestedResources(document)));
 }
 
-// Two facts in the card's corner rather than the page's sentence: the reader is scanning a
-// list here, and the same words on every card are read as a shape rather than as prose
-export function runFacts({ length, goals }: ChallengeDocument): string[] {
-	return [`${length}s run`, goals.length === 1 ? '1 goal' : `${goals.length} goals`];
+export function goalCount({ goals }: ChallengeDocument): string {
+	return goals.length === 1 ? '1 goal' : `${goals.length} goals`;
 }
 
-export function runSentence({ length, goals }: ChallengeDocument): string {
-	const scored = goals.length === 1 ? '1 goal' : `${goals.length} goals`;
-	return `A ${length}-second run, scored against ${scored}`;
+// Two facts in the card's corner rather than the page's sentence: the reader is scanning a
+// list here, and the same words on every card are read as a shape rather than as prose
+export function runFacts(document: ChallengeDocument): string[] {
+	return [`${document.length}s run`, goalCount(document)];
+}
+
+export function runSentence(document: ChallengeDocument): string {
+	return `A ${document.length}-second run, scored against ${goalCount(document)}`;
 }

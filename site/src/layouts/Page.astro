@@ -3,15 +3,54 @@ import '../styles/global.css';
 // The app's own icon, imported rather than linked at /favicon.svg so it resolves under this
 // project's dev server too, which serves none of the app's static folder
 import faviconUrl from '../../../static/favicon.svg?url';
+import { jsonLd, trimOrigin } from '$lib/page-metadata';
 import { aboutPath, challengesPath } from '../paths';
 
-type Props = { title: string; description: string; narrow?: boolean };
+// The last crumb carries no path: Google reads it off the URL that served the page
+type Crumb = { name: string; path?: string };
 
-const { title, description, narrow = false } = Astro.props;
+// `title` is for the search result, `shareTitle` for a feed, when they read differently
+type Props = {
+	title: string;
+	description: string;
+	shareTitle?: string;
+	image?: string;
+	narrow?: boolean;
+	trail?: Crumb[];
+};
+
+// The app's own card, which is a screenshot of a canvas running, unless a page draws its own
+const {
+	title,
+	description,
+	shareTitle = title,
+	image = '/og.png',
+	narrow = false,
+	trail
+} = Astro.props;
+// Scrapers reject a relative og:image, and this build knows no address unless it was given one
+const origin = trimOrigin(import.meta.env.PUBLIC_ORIGIN);
 // Running text wants a narrower page than the home page's embedded canvas does
 const width = narrow ? 'max-w-3xl' : 'max-w-page';
 // Relative, since a static build cannot know the origin it will be served from
 const canonical = Astro.url.pathname;
+
+// Without this Google builds the trail from the URL, where "about" is only the mount segment.
+// Every page sits under the site root, so the layout supplies that crumb rather than each page
+function breadcrumbScript(crumbs: Crumb[]): string {
+	return jsonLd({
+		'@context': 'https://schema.org',
+		'@type': 'BreadcrumbList',
+		itemListElement: [{ name: 'Glass Garden', path: aboutPath }, ...crumbs].map(
+			({ name, path }, index) => ({
+				'@type': 'ListItem',
+				position: index + 1,
+				name,
+				...(path ? { item: path } : {})
+			})
+		)
+	});
+}
 ---
 
 <!doctype html>
@@ -23,8 +62,17 @@ const canonical = Astro.url.pathname;
 		<meta name="description" content={description} />
 		<link rel="canonical" href={canonical} />
 		<link rel="icon" type="image/svg+xml" href={faviconUrl} />
-		<meta property="og:title" content={title} />
+		<!-- Rendered above the title, which is why a share title names only the page -->
+		<meta property="og:site_name" content="Glass Garden" />
+		<meta property="og:title" content={shareTitle} />
 		<meta property="og:description" content={description} />
+		{origin && (
+			<Fragment>
+				<meta property="og:image" content={`${origin}${image}`} />
+				<meta name="twitter:card" content="summary_large_image" />
+			</Fragment>
+		)}
+		{trail && <Fragment set:html={breadcrumbScript(trail)} />}
 		<!-- A meta cannot read a CSS var: these restate --background from src/lib/theme.css -->
 		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfd" />
 		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e1116" />

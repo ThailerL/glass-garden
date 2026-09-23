@@ -37,11 +37,13 @@ const features = [
 
 // Written for the search result, inside the ~60 characters shown before it is cut
 const title = 'Glass Garden: cloud architecture that runs in your browser';
+// The card prints og:site_name above this, so the name would land twice
+const shareTitle = 'Cloud architecture that runs in your browser';
 const description =
 	'Glass Garden runs servers, Postgres, and AWS services like Lambda and S3 in your browser, on a canvas you build by dragging. Free, open source, and self-hostable.';
 ---
 
-<Page {title} {description}>
+<Page {title} {shareTitle} {description}>
 	<!-- The canvas finishes the sentence the hero starts, so it sits closer than a section would -->
 	<div class="-mb-6 flex flex-col gap-4">
 		<h1 class="text-4xl font-semibold tracking-tight text-balance">

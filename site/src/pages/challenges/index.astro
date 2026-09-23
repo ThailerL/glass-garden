@@ -10,9 +10,10 @@ const all = challenges();
 const title = 'Cloud architecture challenges you run in the browser';
 const description =
 	'Practise cloud architecture on a canvas that really runs: load balancers, Node apps, queues, and Lambda functions, in a browser tab. Each challenge scores what your system does under traffic.';
+const trail = [{ name: 'Challenges' }];
 ---
 
-<Page {title} {description} narrow>
+<Page {title} {description} {trail} narrow>
 	<!-- "Each one" points at the list, so it sits closer than a section would -->
 	<div class="-mb-6 flex flex-col gap-4">
 		<h1 class="text-4xl font-semibold tracking-tight text-balance">

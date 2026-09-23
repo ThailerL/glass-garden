@@ -5,7 +5,7 @@ import ChallengeCard from '../../components/ChallengeCard.astro';
 import RunTimeline from '../../components/RunTimeline.astro';
 import StartingCanvas from '../../components/StartingCanvas.astro';
 import Page from '../../layouts/Page.astro';
-import { challenges, runSentence, stackNames, suggestionOf } from '../../challenges';
+import { challenges, pageMeta, runSentence, stackNames, suggestionOf } from '../../challenges';
 import { challengesPath, startPath } from '../../paths';
 import type { BuiltInChallenge } from '../../../../src/lib/challenges';
 import { goalsInOrder, spanLabels } from '../../../../src/lib/challenge-timeline';
@@ -34,10 +34,11 @@ const files = Object.entries(startingCanvas.nodeFiles ?? {}).flatMap(([nodeId, b
 		.map(([name, source]) => ({ label: `${nodeName.get(nodeId) ?? nodeId} / ${name}`, source }))
 );
 
-const title = `${document.title} · Challenges · Glass Garden`;
+const { title, shareTitle, description } = pageMeta(challenge);
+const trail = [{ name: 'Challenges', path: challengesPath }, { name: document.title }];
 ---
 
-<Page {title} description={document.description} narrow>
+<Page {title} {shareTitle} {description} {trail} narrow>
 	<div class="flex flex-col gap-4">
 		<p class="text-sm text-muted-foreground">
 			<a href={challengesPath} class="hover:text-foreground">
