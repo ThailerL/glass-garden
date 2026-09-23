@@ -58,15 +58,14 @@
 				"id": "app",
 				"type": "instanceGroup",
 				"position": { "x": 40, "y": 0 },
-				"config": { "name": "Web App", "instanceCount": 1 },
-				"chart": "requests"
+				"config": { "name": "Web App", "instanceCount": 1 }
 			}
 		],
 		"edges": [],
 		"nodeFiles": {
 			"app": {
-				"package.json": "{\n  \"name\": \"instance-group\",\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^5.1.0\",\n    \"@aws-lambda-powertools/metrics\": \"^2.35.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}\n",
-				"server.js": "import express from 'express';\nimport { Metrics, MetricUnit } from '@aws-lambda-powertools/metrics';\n\n// Glass Garden gives every instance its own PORT, because they all share one machine here.\n// In a real deployment they would each be on their own machine, and could all listen on the same port.\nconst port = Number(process.env.PORT);\nif (!port) {\n  throw new Error('PORT is not set');\n}\n\n// CloudWatch metrics, written the way a Lambda writes them: as a line on stdout that the\n// Metrics tab reads. Each addMetric is one observation, not a running total\nconst metrics = new Metrics();\n// What tells one instance's numbers from another's, here and in CloudWatch: a dimension the\n// code declares. Remove it and the instances' lines merge into one\nmetrics.setDefaultDimensions({ instance: String(port) });\n\nconst app = express();\n\napp.get('/', (req, res) => {\n  metrics.addMetric('requests', MetricUnit.Count, 1);\n  metrics.publishStoredMetrics();\n\n  // One name on the line below is not the one this file declares, so every request ends in a\n  // 500 instead of an answer. The Logs tab has the error and the line it came from, and the\n  // generator's Metrics tab has the failures it is counting\n  res.type('text/plain').send(`Hello from the instance on :${instancePort}\\n`);\n});\n\n// Express hands a failed request here, which is what puts one readable line in the Logs tab\n// instead of a raw stack trace. Browsers do not agree on what a stack even contains\napp.use((error, req, res, next) => {\n  console.error(`${error.name}: ${error.message}`);\n  res.status(500).type('text/plain').send('Something went wrong\\n');\n});\n\napp.listen(port, () => {\n  console.log(`Server running on http://localhost:${port}`);\n});\n"
+				"package.json": "{\n  \"name\": \"instance-group\",\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^5.1.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}\n",
+				"server.js": "import express from 'express';\n\n// Glass Garden gives every instance its own PORT, because they all share one machine here.\n// In a real deployment they would each be on their own machine, and could all listen on the same port.\nconst port = Number(process.env.PORT);\nif (!port) {\n  throw new Error('PORT is not set');\n}\n\nconst app = express();\n\napp.get('/', (req, res) => {\n  // One name on the line below is not the one this file declares, so every request ends in a\n  // 500 instead of an answer. The Logs tab has the error and the line it came from, and the\n  // generator's Metrics tab has the failures it is counting\n  res.type('text/plain').send(`Hello from the instance on :${instancePort}\\n`);\n});\n\napp.listen(port, () => {\n  console.log(`Server running on http://localhost:${port}`);\n});\n"
 			}
 		}
 	}
