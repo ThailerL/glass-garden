@@ -298,11 +298,32 @@ export function documentName(doc: GardenDocument): string {
 	return doc.format === CHALLENGE_FORMAT ? doc.title : doc.name;
 }
 
+// Tab-indented, so a document that lands in an editor reads the way the rest of the code does
+export function serializeDocument(doc: GardenDocument): string {
+	return JSON.stringify(doc, null, '\t');
+}
+
+export type DocumentKind = 'challenge' | 'project';
+
 // What to call it to the reader. Taken from the format tag, so a document too new to parse is
 // still called what it is
-export function documentKind(doc: GardenDocument | string): 'challenge' | 'project' {
+export function documentKind(doc: GardenDocument | string): DocumentKind {
 	const format = typeof doc === 'string' ? doc : doc.format;
 	return format.startsWith('gg:challenge/') ? 'challenge' : 'project';
+}
+
+export type ImportSource = 'link' | 'file';
+
+export function importOffer(
+	doc: GardenDocument,
+	source: ImportSource
+): { title: string; description: string } {
+	const kind = documentKind(doc);
+	const shared = source === 'link' ? `Someone shared this ${kind} with you. ` : '';
+	return {
+		title: `Import the ${kind} "${documentName(doc)}"?`,
+		description: `${shared}It will be added to your ${kind}s, and opened.`
+	};
 }
 
 export function buildProjectDocument(
@@ -310,8 +331,8 @@ export function buildProjectDocument(
 	nodes: Node[],
 	edges: Edge[],
 	nodeFiles: Record<string, NodeFiles>
-): string {
-	const doc: ProjectDocument = {
+): ProjectDocument {
+	return {
 		format: PROJECT_FORMAT,
 		name,
 		nodes: nodes.map((node) => ({
@@ -325,7 +346,6 @@ export function buildProjectDocument(
 		edges: edges.map(({ source, target }) => ({ source, target })),
 		nodeFiles
 	};
-	return JSON.stringify(doc, null, '\t');
 }
 
 // Whatever the author put there, under keys the document does not read as its own structure

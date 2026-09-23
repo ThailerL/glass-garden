@@ -60,8 +60,11 @@ export function listProjects(): readonly Project[] {
 	return projects.filter((project) => !project.challenge);
 }
 
-export function listChallenges(): readonly Project[] {
-	return projects.filter((project) => project.challenge);
+// The record of a started challenge, which always carries the document it was started from
+export type ChallengeProject = Project & { challenge: ChallengeDocument };
+
+export function listChallenges(): readonly ChallengeProject[] {
+	return projects.filter((project): project is ChallengeProject => !!project.challenge);
 }
 
 // A frame holds one reader's copy, so anything else carrying a link is left over from another
@@ -145,9 +148,9 @@ export function deleteProject(id: string) {
 
 // Read from storage rather than a GraphState, so any project exports, not just the open one.
 // Only files the user can edit travel; the rest are re-laid from the resource on start
-export async function exportProject(project: Project): Promise<string> {
+export async function exportProject(project: Project): Promise<GardenDocument> {
 	// The challenge as written, so passing it on never hands out the reader's progress
-	if (project.challenge) return JSON.stringify(project.challenge, null, '\t');
+	if (project.challenge) return project.challenge;
 	const prefix = graphKeyPrefix(project.id);
 	const nodes = readByPrefix<Node>(`${prefix}node:`).flatMap((node) => loadNode(node) ?? []);
 	const edges = readByPrefix<Edge>(`${prefix}edge:`);

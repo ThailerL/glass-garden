@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { LoadingButton } from '$lib/components/ui/button';
+	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
+	import { Button, LoadingButton } from '$lib/components/ui/button';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { getResourceDefinition, type ResourceType } from '$lib/resources';
 
 	const {
@@ -10,7 +12,8 @@
 		goals,
 		best,
 		action,
-		onstart
+		onstart,
+		actions
 	}: {
 		title: string;
 		description?: string;
@@ -21,6 +24,8 @@
 		best: number;
 		action: 'Start' | 'Continue';
 		onstart: () => Promise<void>;
+		// Absent on a built-in, which is shipped with the app rather than the reader's to pass on
+		actions?: { onExport: () => void; onShare: () => void; onDelete: () => void };
 	} = $props();
 </script>
 
@@ -53,8 +58,26 @@
 		</div>
 	</div>
 	<div class="flex shrink-0 flex-col items-end justify-between gap-4">
-		<!-- Starting one mounts its files and then loads the canvas, so the button owns the wait -->
-		<LoadingButton size="sm" onClickPromise={onstart}>{action}</LoadingButton>
+		<div class="flex items-center gap-1">
+			{#if actions}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button {...props} variant="ghost" size="icon-sm" aria-label={`Actions for ${title}`}>
+								<EllipsisIcon />
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end">
+						<DropdownMenu.Item onSelect={actions.onExport}>Export</DropdownMenu.Item>
+						<DropdownMenu.Item onSelect={actions.onShare}>Copy link</DropdownMenu.Item>
+						<DropdownMenu.Item onSelect={actions.onDelete}>Delete</DropdownMenu.Item>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+			{/if}
+			<!-- Starting one mounts its files and then loads the canvas, so the button owns the wait -->
+			<LoadingButton size="sm" onClickPromise={onstart}>{action}</LoadingButton>
+		</div>
 		<span class="text-xs whitespace-nowrap text-muted-foreground">
 			Best run: {best} of {goals} goals
 		</span>

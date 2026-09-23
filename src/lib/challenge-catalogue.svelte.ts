@@ -10,6 +10,7 @@ import {
 	getLastProjectId,
 	getProject,
 	listChallenges,
+	type ChallengeProject,
 	type Project
 } from './projects.svelte';
 
@@ -52,7 +53,7 @@ export async function adoptOpenChallenge(projectId: string): Promise<void> {
 // One walk, so every started challenge falls on exactly one side: ours to describe, or theirs
 export function challengeCatalogue(): {
 	builtIn: CatalogueEntry[];
-	imported: readonly Project[];
+	imported: readonly ChallengeProject[];
 	unread: readonly UnreadChallenge[];
 	ready: boolean;
 } {

@@ -13,6 +13,7 @@ import {
 	applyCanvasDocument,
 	buildProjectDocument,
 	documentName,
+	importOffer,
 	parseDocument,
 	goalsJudgedAlike,
 	readNodeFiles,
@@ -97,11 +98,13 @@ const document = (): { nodes: Record<string, unknown>[]; [key: string]: unknown 
 describe('buildProjectDocument', () => {
 	it('keeps the definition and drops runtime and canvas state', () => {
 		const doc = parseProject(
-			buildProjectDocument(
-				'Lab',
-				[node('a'), node('b')],
-				[{ id: 'e', source: 'a', target: 'b', selected: true }],
-				{ a: { 'server.js': 'hi' } }
+			JSON.stringify(
+				buildProjectDocument(
+					'Lab',
+					[node('a'), node('b')],
+					[{ id: 'e', source: 'a', target: 'b', selected: true }],
+					{ a: { 'server.js': 'hi' } }
+				)
 			)
 		);
 		expect(doc.nodes[0]).toEqual({
@@ -396,6 +399,27 @@ describe('readNodeFiles', () => {
 			}
 		};
 		expect(await readNodeFiles(fs, '/n')).toEqual({ 'server.js': 'hi', 'lib/util.js': 'util' });
+	});
+});
+
+describe('importOffer', () => {
+	const project = parseDocument(JSON.stringify(document()));
+
+	it('names what is being imported, and says where it lands', () => {
+		expect(importOffer(shipped, 'file')).toEqual({
+			title: 'Import the challenge "Survive a lost app"?',
+			description: 'It will be added to your challenges, and opened.'
+		});
+		expect(importOffer(project, 'file')).toEqual({
+			title: 'Import the project "Lab"?',
+			description: 'It will be added to your projects, and opened.'
+		});
+	});
+
+	it('says a link came from someone else', () => {
+		expect(importOffer(project, 'link').description).toBe(
+			'Someone shared this project with you. It will be added to your projects, and opened.'
+		);
 	});
 });
 

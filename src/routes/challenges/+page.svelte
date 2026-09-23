@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import ImportIcon from '@lucide/svelte/icons/import';
 	import { toast } from 'svelte-sonner';
 	import { messageOf } from '$lib/errors';
 	import { goalIds } from '$lib/challenge';
@@ -13,7 +14,15 @@
 		loadCatalogue,
 		type CatalogueEntry
 	} from '$lib/challenge-catalogue.svelte';
-	import { importProject, openProject } from '$lib/projects.svelte';
+	import { downloadDocument, offerFileImport, shareDocument } from '$lib/document-transfer';
+	import {
+		deleteProject,
+		importProject,
+		openProject,
+		type ChallengeProject
+	} from '$lib/projects.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import AppSidebar from '$lib/components/AppSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
 	import ChallengeCard from './ChallengeCard.svelte';
@@ -22,9 +31,8 @@
 	const { builtIn, imported, unread, ready } = $derived(challengeCatalogue());
 
 	// What a card draws of the system, from the canvas the challenge starts on rather than from
-	// anything an author wrote out. An imported project may predate its challenge being stored
-	function describe(document: ChallengeDocument | undefined) {
-		if (!document) return {};
+	// anything an author wrote out
+	function describe(document: ChallengeDocument) {
 		return {
 			starting: startingResources(document),
 			suggested: suggestedResources(document)
@@ -39,6 +47,14 @@
 		} catch (error) {
 			toast.error(`Could not start the challenge: ${messageOf(error)}`);
 		}
+	}
+
+	function confirmDeleteChallenge(project: ChallengeProject) {
+		confirmDelete({
+			title: `Delete "${project.challenge.title}"?`,
+			description: 'Your runs on it are deleted too, and cannot be recovered.',
+			onConfirm: async () => deleteProject(project.id)
+		});
 	}
 
 	// A link from outside names the challenge it is about, so the reader lands in it rather than
@@ -79,7 +95,13 @@
 					<ArrowLeftIcon class="size-4" />
 					Back to canvas
 				</a>
-				<h1 class="text-2xl font-semibold">Challenges</h1>
+				<div class="flex items-center justify-between gap-4">
+					<h1 class="text-2xl font-semibold">Challenges</h1>
+					<Button variant="outline" size="sm" onclick={offerFileImport}>
+						<ImportIcon />
+						Import
+					</Button>
+				</div>
 				<p class="text-sm text-muted-foreground">
 					Each one gives you a canvas and a run to survive. Get the system ready, then press Run and
 					watch it score what happens.
@@ -93,13 +115,18 @@
 					</h2>
 					{#each imported as project (project.id)}
 						<ChallengeCard
-							title={project.challenge?.title ?? project.name}
-							description={project.challenge?.description}
+							title={project.challenge.title}
+							description={project.challenge.description}
 							{...describe(project.challenge)}
-							goals={project.challenge ? goalIds(project.challenge).length : 0}
+							goals={goalIds(project.challenge).length}
 							best={project.bestRun?.length ?? 0}
 							action="Continue"
 							onstart={async () => openProject(project.id)}
+							actions={{
+								onExport: () => downloadDocument(project.challenge),
+								onShare: () => shareDocument(project.challenge),
+								onDelete: () => confirmDeleteChallenge(project)
+							}}
 						/>
 					{/each}
 				</section>

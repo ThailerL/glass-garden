@@ -5,16 +5,12 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import ImportIcon from '@lucide/svelte/icons/import';
-	import { toast } from 'svelte-sonner';
-	import { messageOf } from '$lib/errors';
-	import { encodeShareLink } from '$lib/share-link';
-	import { parseDocument } from '$lib/project-document';
+	import { downloadDocument, offerFileImport, shareDocument } from '$lib/document-transfer';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import {
 		deleteProject,
 		ensureProject,
 		exportProject,
-		importProject,
 		listProjects,
 		openProject,
 		type Project
@@ -29,45 +25,6 @@
 	const projects = $derived(listProjects());
 
 	let creating = $state(false);
-	let fileInput = $state<HTMLInputElement>();
-
-	async function download(project: Project) {
-		try {
-			const url = URL.createObjectURL(
-				new Blob([await exportProject(project)], { type: 'application/json' })
-			);
-			const link = Object.assign(document.createElement('a'), {
-				href: url,
-				download: `${project.name}.gg.json`
-			});
-			link.click();
-			URL.revokeObjectURL(url);
-		} catch (error) {
-			toast.error(`Could not export the project: ${messageOf(error)}`);
-		}
-	}
-
-	async function share(project: Project) {
-		try {
-			const link = await encodeShareLink(await exportProject(project), location.origin);
-			await navigator.clipboard.writeText(link);
-			toast.success('Link copied');
-		} catch (error) {
-			toast.error(`Could not share the project: ${messageOf(error)}`);
-		}
-	}
-
-	async function importPicked(input: HTMLInputElement) {
-		const file = input.files?.[0];
-		// Cleared so picking the same file again fires change again
-		input.value = '';
-		if (!file) return;
-		try {
-			openProject(importProject(parseDocument(await file.text())).id);
-		} catch (error) {
-			toast.error(messageOf(error));
-		}
-	}
 
 	function confirmDeleteProject(project: Project) {
 		confirmDelete({
@@ -101,18 +58,11 @@
 		</Sidebar.GroupAction>
 		<Sidebar.GroupAction
 			class="top-1.5 right-9"
-			title="Import project"
-			onclick={() => fileInput?.click()}
+			title="Import project or challenge"
+			onclick={offerFileImport}
 		>
 			<ImportIcon />
 		</Sidebar.GroupAction>
-		<input
-			bind:this={fileInput}
-			type="file"
-			accept=".json,application/json"
-			hidden
-			onchange={(event) => importPicked(event.currentTarget)}
-		/>
 
 		<Collapsible.Content>
 			<Sidebar.GroupContent>
@@ -122,8 +72,8 @@
 							{project}
 							active={project.id === active}
 							onOpen={() => project.id !== active && openProject(project.id)}
-							onExport={() => download(project)}
-							onShare={() => share(project)}
+							onExport={() => downloadDocument(exportProject(project))}
+							onShare={() => shareDocument(exportProject(project))}
 							onDelete={() => confirmDeleteProject(project)}
 						/>
 					{/each}
