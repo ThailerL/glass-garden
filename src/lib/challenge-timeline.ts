@@ -39,40 +39,16 @@ export function conditionWindow(c: Condition, length: number): [number, number] 
 	return [at, at];
 }
 
-// When each of a goal's conditions is judged
-export function windowsOf(goal: Goal, length: number) {
-	const windows = goal.conditions.map((c) => conditionWindow(c, length));
-	return {
-		atStart: windows.some((window) => window === undefined),
-		judged: windows.filter((window) => window !== undefined)
-	};
-}
-
-// A goal is judged over the union of its conditions' windows, so a covered one says nothing
-export function mergeSpans(spans: [number, number][]): [number, number][] {
-	const merged: [number, number][] = [];
-	for (const [from, to] of spans.toSorted((a, b) => a[0] - b[0])) {
-		const last = merged.at(-1);
-		if (last && from <= last[1]) last[1] = Math.max(last[1], to);
-		else merged.push([from, to]);
-	}
-	return merged;
-}
-
-const startOf = (goal: Goal, length: number) => {
-	const { atStart, judged } = windowsOf(goal, length);
-	return atStart ? 0 : Math.min(...judged.map(([from]) => from));
-};
-
-const endOf = (goal: Goal, length: number) =>
-	Math.max(0, ...windowsOf(goal, length).judged.map(([, to]) => to));
+// A goal settled as the run starts is a moment at zero: it sorts to the front, shades nothing
+const spanOf = (goal: Goal, length: number): [number, number] => goalSpan(goal, length) ?? [0, 0];
 
 // In the order they are judged, which is also the order the marks strip shows them, so the
 // two views of one set of goals never disagree. Goals starting together go in the order they
 // are decided, which lands ones sharing a window side by side to share a label
 export function goalsInOrder({ goals, length }: Challenge): Goal[] {
 	return goals.toSorted(
-		(a, b) => startOf(a, length) - startOf(b, length) || endOf(a, length) - endOf(b, length)
+		(a, b) =>
+			spanOf(a, length)[0] - spanOf(b, length)[0] || spanOf(a, length)[1] - spanOf(b, length)[1]
 	);
 }
 
@@ -84,12 +60,21 @@ export function spanLabel([from, to]: [number, number], length: number): string 
 	return to >= length ? `${from} s–end` : `${from}–${to} s`;
 }
 
-// When a goal is judged, in words: its merged windows, after the start where it has one
-export function spanLabels(goal: Goal, length: number): string[] {
-	const { atStart, judged } = windowsOf(goal, length);
-	const spans = mergeSpans(judged).map((span) => spanLabel(span, length));
+// From a goal's first window to its last, or nothing for one the canvas already answers. A gap
+// between two of its windows says nothing the reader can act on, so it is not drawn as one
+export function goalSpan(goal: Goal, length: number): [number, number] | undefined {
+	const windows = goal.conditions
+		.map((c) => conditionWindow(c, length))
+		.filter((window) => window !== undefined);
+	if (windows.length === 0) return undefined;
+	return [Math.min(...windows.map(([from]) => from)), Math.max(...windows.map(([, to]) => to))];
+}
+
+// When a goal is judged, in words
+export function goalSpanLabel(goal: Goal, length: number): string {
+	const span = goalSpan(goal, length);
 	// Not "0 s", which on an event row means something that happens then
-	return atStart ? ['At the start', ...spans] : spans;
+	return span ? spanLabel(span, length) : 'At the start';
 }
 
 export type Row = { at: number; time: string } & (
@@ -105,8 +90,8 @@ export function timelineRows(challenge: Challenge): Row[] {
 		event
 	}));
 	const goalRows: Row[] = goalsInOrder(challenge).map((goal) => ({
-		at: startOf(goal, length),
-		time: spanLabels(goal, length).join(', '),
+		at: spanOf(goal, length)[0],
+		time: goalSpanLabel(goal, length),
 		goal
 	}));
 	// Sorting is stable and the events went in first, so they keep their place within a second
@@ -118,8 +103,6 @@ export function timelineRows(challenge: Challenge): Row[] {
 // Every stretch any goal is judged over, once each, shaded on the bar. A moment shades
 // nothing, since a zero-width band would be a line the bar already has for events
 export function shadedSpans({ goals, length }: Challenge): [number, number][] {
-	const spans = goals
-		.flatMap((goal) => windowsOf(goal, length).judged)
-		.filter(([from, to]) => from !== to);
+	const spans = goals.map((goal) => spanOf(goal, length)).filter(([from, to]) => from !== to);
 	return [...new Map(spans.map((span) => [`${span[0]}-${span[1]}`, span])).values()];
 }

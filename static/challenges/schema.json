@@ -186,466 +186,478 @@
 						"minLength": 1
 					},
 					"conditions": {
-						"minItems": 1,
-						"type": "array",
-						"items": {
-							"anyOf": [
-								{
-									"type": "object",
-									"properties": {
-										"exists": {
+						"anyOf": [
+							{
+								"minItems": 1,
+								"type": "array",
+								"items": {
+									"anyOf": [
+										{
 											"type": "object",
 											"properties": {
-												"node": {
-													"anyOf": [
-														{
-															"type": "object",
-															"properties": {
-																"name": {
-																	"type": "string",
-																	"minLength": 1
-																}
-															},
-															"required": [
-																"name"
-															],
-															"additionalProperties": false
-														},
-														{
-															"type": "object",
-															"properties": {
-																"type": {
-																	"type": "string",
-																	"enum": [
-																		"instanceGroup",
-																		"lambdaFunction",
-																		"httpLoadBalancer",
-																		"requestGenerator",
-																		"postgres",
-																		"s3Bucket",
-																		"sqsQueue",
-																		"dynamodbTable"
-																	]
-																}
-															},
-															"required": [
-																"type"
-															],
-															"additionalProperties": false
-														}
-													]
-												},
-												"config": {
+												"exists": {
 													"type": "object",
-													"propertyNames": {
-														"type": "string"
-													},
-													"additionalProperties": {
-														"type": "object",
-														"properties": {
-															"eq": {
-																"anyOf": [
-																	{
-																		"type": "string"
-																	},
-																	{
-																		"type": "number"
-																	},
-																	{
-																		"type": "boolean"
-																	}
-																]
-															},
-															"gte": {
-																"type": "number"
-															},
-															"lte": {
-																"type": "number"
-															}
-														},
-														"additionalProperties": false
-													}
-												}
-											},
-											"required": [
-												"node"
-											],
-											"additionalProperties": false
-										}
-									},
-									"required": [
-										"exists"
-									],
-									"additionalProperties": false
-								},
-								{
-									"type": "object",
-									"properties": {
-										"edge": {
-											"type": "object",
-											"properties": {
-												"from": {
-													"anyOf": [
-														{
-															"type": "object",
-															"properties": {
-																"name": {
-																	"type": "string",
-																	"minLength": 1
-																}
-															},
-															"required": [
-																"name"
-															],
-															"additionalProperties": false
-														},
-														{
-															"type": "object",
-															"properties": {
-																"type": {
-																	"type": "string",
-																	"enum": [
-																		"instanceGroup",
-																		"lambdaFunction",
-																		"httpLoadBalancer",
-																		"requestGenerator",
-																		"postgres",
-																		"s3Bucket",
-																		"sqsQueue",
-																		"dynamodbTable"
-																	]
-																}
-															},
-															"required": [
-																"type"
-															],
-															"additionalProperties": false
-														}
-													]
-												},
-												"to": {
-													"anyOf": [
-														{
-															"type": "object",
-															"properties": {
-																"name": {
-																	"type": "string",
-																	"minLength": 1
-																}
-															},
-															"required": [
-																"name"
-															],
-															"additionalProperties": false
-														},
-														{
-															"type": "object",
-															"properties": {
-																"type": {
-																	"type": "string",
-																	"enum": [
-																		"instanceGroup",
-																		"lambdaFunction",
-																		"httpLoadBalancer",
-																		"requestGenerator",
-																		"postgres",
-																		"s3Bucket",
-																		"sqsQueue",
-																		"dynamodbTable"
-																	]
-																}
-															},
-															"required": [
-																"type"
-															],
-															"additionalProperties": false
-														}
-													]
-												}
-											},
-											"required": [
-												"from",
-												"to"
-											],
-											"additionalProperties": false
-										}
-									},
-									"required": [
-										"edge"
-									],
-									"additionalProperties": false
-								},
-								{
-									"type": "object",
-									"properties": {
-										"metric": {
-											"type": "object",
-											"properties": {
-												"node": {
-													"anyOf": [
-														{
-															"type": "object",
-															"properties": {
-																"name": {
-																	"type": "string",
-																	"minLength": 1
-																}
-															},
-															"required": [
-																"name"
-															],
-															"additionalProperties": false
-														},
-														{
-															"type": "object",
-															"properties": {
-																"type": {
-																	"type": "string",
-																	"enum": [
-																		"instanceGroup",
-																		"lambdaFunction",
-																		"httpLoadBalancer",
-																		"requestGenerator",
-																		"postgres",
-																		"s3Bucket",
-																		"sqsQueue",
-																		"dynamodbTable"
-																	]
-																}
-															},
-															"required": [
-																"type"
-															],
-															"additionalProperties": false
-														}
-													]
-												},
-												"metricName": {
-													"type": "string",
-													"minLength": 1
-												},
-												"dimensions": {
-													"type": "object",
-													"propertyNames": {
-														"type": "string"
-													},
-													"additionalProperties": {
-														"type": "string"
-													}
-												},
-												"statistic": {
-													"type": "string",
-													"enum": [
-														"Average",
-														"SampleCount",
-														"Sum",
-														"Minimum",
-														"Maximum"
-													]
-												},
-												"over": {
-													"default": "whole window",
-													"type": "string",
-													"enum": [
-														"whole window",
-														"every datapoint",
-														"any datapoint"
-													]
-												},
-												"period": {
-													"type": "integer",
-													"exclusiveMinimum": 0,
-													"maximum": 9007199254740991
-												},
-												"from": {
-													"type": "number",
-													"minimum": 0
-												},
-												"to": {
-													"type": "number",
-													"exclusiveMinimum": 0
-												},
-												"eq": {
-													"type": "number"
-												},
-												"lte": {
-													"type": "number"
-												},
-												"gte": {
-													"type": "number"
-												}
-											},
-											"required": [
-												"node",
-												"metricName",
-												"statistic"
-											],
-											"additionalProperties": false
-										}
-									},
-									"required": [
-										"metric"
-									],
-									"additionalProperties": false
-								},
-								{
-									"type": "object",
-									"properties": {
-										"data": {
-											"type": "object",
-											"properties": {
-												"node": {
-													"anyOf": [
-														{
-															"type": "object",
-															"properties": {
-																"name": {
-																	"type": "string",
-																	"minLength": 1
-																}
-															},
-															"required": [
-																"name"
-															],
-															"additionalProperties": false
-														},
-														{
-															"type": "object",
-															"properties": {
-																"type": {
-																	"type": "string",
-																	"enum": [
-																		"instanceGroup",
-																		"lambdaFunction",
-																		"httpLoadBalancer",
-																		"requestGenerator",
-																		"postgres",
-																		"s3Bucket",
-																		"sqsQueue",
-																		"dynamodbTable"
-																	]
-																}
-															},
-															"required": [
-																"type"
-															],
-															"additionalProperties": false
-														}
-													]
-												},
-												"read": {
-													"type": "string",
-													"minLength": 1,
-													"enum": [
-														"objects",
-														"item"
-													]
-												},
-												"args": {
-													"default": {},
-													"type": "object",
-													"propertyNames": {
-														"type": "string"
-													},
-													"additionalProperties": {}
-												},
-												"at": {
-													"type": "number",
-													"minimum": 0
-												},
-												"has": {
-													"default": {},
-													"type": "object",
-													"propertyNames": {
-														"type": "string"
-													},
-													"additionalProperties": {
-														"type": "object",
-														"properties": {
-															"eq": {
-																"anyOf": [
-																	{
-																		"type": "string"
-																	},
-																	{
-																		"type": "number"
-																	},
-																	{
-																		"type": "boolean"
-																	}
-																]
-															},
-															"gte": {
-																"type": "number"
-															},
-															"lte": {
-																"type": "number"
-															}
-														},
-														"additionalProperties": false
-													}
-												}
-											},
-											"required": [
-												"node",
-												"read"
-											],
-											"additionalProperties": false,
-											"anyOf": [
-												{
 													"properties": {
-														"read": {
-															"const": "objects"
-														},
-														"args": {
-															"type": "object",
-															"properties": {
-																"prefix": {
-																	"default": "",
-																	"type": "string"
+														"node": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"name": {
+																			"type": "string",
+																			"minLength": 1
+																		}
+																	},
+																	"required": [
+																		"name"
+																	],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"type": {
+																			"type": "string",
+																			"enum": [
+																				"instanceGroup",
+																				"lambdaFunction",
+																				"httpLoadBalancer",
+																				"requestGenerator",
+																				"postgres",
+																				"s3Bucket",
+																				"sqsQueue",
+																				"dynamodbTable"
+																			]
+																		}
+																	},
+																	"required": [
+																		"type"
+																	],
+																	"additionalProperties": false
 																}
+															]
+														},
+														"config": {
+															"type": "object",
+															"propertyNames": {
+																"type": "string"
 															},
-															"additionalProperties": false
+															"additionalProperties": {
+																"type": "object",
+																"properties": {
+																	"eq": {
+																		"anyOf": [
+																			{
+																				"type": "string"
+																			},
+																			{
+																				"type": "number"
+																			},
+																			{
+																				"type": "boolean"
+																			}
+																		]
+																	},
+																	"gte": {
+																		"type": "number"
+																	},
+																	"lte": {
+																		"type": "number"
+																	}
+																},
+																"additionalProperties": false
+															}
 														}
 													},
 													"required": [
-														"read"
-													]
-												},
-												{
+														"node"
+													],
+													"additionalProperties": false
+												}
+											},
+											"required": [
+												"exists"
+											],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"edge": {
+													"type": "object",
 													"properties": {
-														"read": {
-															"const": "item"
-														},
-														"args": {
-															"type": "object",
-															"properties": {
-																"key": {
-																	"type": "string",
-																	"minLength": 1
+														"from": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"name": {
+																			"type": "string",
+																			"minLength": 1
+																		}
+																	},
+																	"required": [
+																		"name"
+																	],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"type": {
+																			"type": "string",
+																			"enum": [
+																				"instanceGroup",
+																				"lambdaFunction",
+																				"httpLoadBalancer",
+																				"requestGenerator",
+																				"postgres",
+																				"s3Bucket",
+																				"sqsQueue",
+																				"dynamodbTable"
+																			]
+																		}
+																	},
+																	"required": [
+																		"type"
+																	],
+																	"additionalProperties": false
 																}
-															},
-															"required": [
-																"key"
-															],
-															"additionalProperties": false
+															]
+														},
+														"to": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"name": {
+																			"type": "string",
+																			"minLength": 1
+																		}
+																	},
+																	"required": [
+																		"name"
+																	],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"type": {
+																			"type": "string",
+																			"enum": [
+																				"instanceGroup",
+																				"lambdaFunction",
+																				"httpLoadBalancer",
+																				"requestGenerator",
+																				"postgres",
+																				"s3Bucket",
+																				"sqsQueue",
+																				"dynamodbTable"
+																			]
+																		}
+																	},
+																	"required": [
+																		"type"
+																	],
+																	"additionalProperties": false
+																}
+															]
 														}
 													},
 													"required": [
-														"read",
-														"args"
-													]
+														"from",
+														"to"
+													],
+													"additionalProperties": false
 												}
-											]
+											},
+											"required": [
+												"edge"
+											],
+											"additionalProperties": false
 										}
-									},
-									"required": [
-										"data"
-									],
-									"additionalProperties": false
+									]
 								}
-							]
-						}
+							},
+							{
+								"minItems": 1,
+								"type": "array",
+								"items": {
+									"anyOf": [
+										{
+											"type": "object",
+											"properties": {
+												"metric": {
+													"type": "object",
+													"properties": {
+														"node": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"name": {
+																			"type": "string",
+																			"minLength": 1
+																		}
+																	},
+																	"required": [
+																		"name"
+																	],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"type": {
+																			"type": "string",
+																			"enum": [
+																				"instanceGroup",
+																				"lambdaFunction",
+																				"httpLoadBalancer",
+																				"requestGenerator",
+																				"postgres",
+																				"s3Bucket",
+																				"sqsQueue",
+																				"dynamodbTable"
+																			]
+																		}
+																	},
+																	"required": [
+																		"type"
+																	],
+																	"additionalProperties": false
+																}
+															]
+														},
+														"metricName": {
+															"type": "string",
+															"minLength": 1
+														},
+														"dimensions": {
+															"type": "object",
+															"propertyNames": {
+																"type": "string"
+															},
+															"additionalProperties": {
+																"type": "string"
+															}
+														},
+														"statistic": {
+															"type": "string",
+															"enum": [
+																"Average",
+																"SampleCount",
+																"Sum",
+																"Minimum",
+																"Maximum"
+															]
+														},
+														"over": {
+															"default": "whole window",
+															"type": "string",
+															"enum": [
+																"whole window",
+																"every datapoint",
+																"any datapoint"
+															]
+														},
+														"period": {
+															"type": "integer",
+															"exclusiveMinimum": 0,
+															"maximum": 9007199254740991
+														},
+														"from": {
+															"type": "number",
+															"minimum": 0
+														},
+														"to": {
+															"type": "number",
+															"exclusiveMinimum": 0
+														},
+														"eq": {
+															"type": "number"
+														},
+														"lte": {
+															"type": "number"
+														},
+														"gte": {
+															"type": "number"
+														}
+													},
+													"required": [
+														"node",
+														"metricName",
+														"statistic"
+													],
+													"additionalProperties": false
+												}
+											},
+											"required": [
+												"metric"
+											],
+											"additionalProperties": false
+										},
+										{
+											"type": "object",
+											"properties": {
+												"data": {
+													"type": "object",
+													"properties": {
+														"node": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"name": {
+																			"type": "string",
+																			"minLength": 1
+																		}
+																	},
+																	"required": [
+																		"name"
+																	],
+																	"additionalProperties": false
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"type": {
+																			"type": "string",
+																			"enum": [
+																				"instanceGroup",
+																				"lambdaFunction",
+																				"httpLoadBalancer",
+																				"requestGenerator",
+																				"postgres",
+																				"s3Bucket",
+																				"sqsQueue",
+																				"dynamodbTable"
+																			]
+																		}
+																	},
+																	"required": [
+																		"type"
+																	],
+																	"additionalProperties": false
+																}
+															]
+														},
+														"read": {
+															"type": "string",
+															"minLength": 1,
+															"enum": [
+																"objects",
+																"item"
+															]
+														},
+														"args": {
+															"default": {},
+															"type": "object",
+															"propertyNames": {
+																"type": "string"
+															},
+															"additionalProperties": {}
+														},
+														"at": {
+															"type": "number",
+															"minimum": 0
+														},
+														"has": {
+															"default": {},
+															"type": "object",
+															"propertyNames": {
+																"type": "string"
+															},
+															"additionalProperties": {
+																"type": "object",
+																"properties": {
+																	"eq": {
+																		"anyOf": [
+																			{
+																				"type": "string"
+																			},
+																			{
+																				"type": "number"
+																			},
+																			{
+																				"type": "boolean"
+																			}
+																		]
+																	},
+																	"gte": {
+																		"type": "number"
+																	},
+																	"lte": {
+																		"type": "number"
+																	}
+																},
+																"additionalProperties": false
+															}
+														}
+													},
+													"required": [
+														"node",
+														"read"
+													],
+													"additionalProperties": false,
+													"anyOf": [
+														{
+															"properties": {
+																"read": {
+																	"const": "objects"
+																},
+																"args": {
+																	"type": "object",
+																	"properties": {
+																		"prefix": {
+																			"default": "",
+																			"type": "string"
+																		}
+																	},
+																	"additionalProperties": false
+																}
+															},
+															"required": [
+																"read"
+															]
+														},
+														{
+															"properties": {
+																"read": {
+																	"const": "item"
+																},
+																"args": {
+																	"type": "object",
+																	"properties": {
+																		"key": {
+																			"type": "string",
+																			"minLength": 1
+																		}
+																	},
+																	"required": [
+																		"key"
+																	],
+																	"additionalProperties": false
+																}
+															},
+															"required": [
+																"read",
+																"args"
+															]
+														}
+													]
+												}
+											},
+											"required": [
+												"data"
+											],
+											"additionalProperties": false
+										}
+									]
+								}
+							}
+						]
 					}
 				},
 				"required": [

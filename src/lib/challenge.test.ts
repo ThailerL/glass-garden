@@ -118,11 +118,17 @@ describe('challengeSchema', () => {
 			events: [{ at: 20, stop: { name: 'App' } }],
 			goals: [
 				{
+					id: 'canvas',
+					title: 'Wired up',
+					conditions: [
+						{ exists: { node: { name: 'App' }, config: { instanceCount: { gte: 2 } } } },
+						{ edge: { from: { name: 'LB' }, to: { type: 'instanceGroup' } } }
+					]
+				},
+				{
 					id: 'g',
 					title: 'All of it',
 					conditions: [
-						{ exists: { node: { name: 'App' }, config: { instanceCount: { gte: 2 } } } },
-						{ edge: { from: { name: 'LB' }, to: { type: 'instanceGroup' } } },
 						{
 							metric: {
 								node: { name: 'Jobs' },
@@ -146,10 +152,10 @@ describe('challengeSchema', () => {
 				}
 			]
 		});
-		expect(parsed.goals[0].conditions).toHaveLength(4);
+		expect(parsed.goals.map((goal) => goal.conditions.length)).toEqual([2, 2]);
 		expect(parsed.events).toEqual([{ at: 20, stop: { name: 'App' } }]);
 		// A metric condition that says nothing is read as one number for its whole window
-		expect(parsed.goals[0].conditions[2]).toMatchObject({ metric: { over: 'whole window' } });
+		expect(parsed.goals[1].conditions[0]).toMatchObject({ metric: { over: 'whole window' } });
 	});
 
 	it('defaults to no events', () => {
@@ -654,17 +660,12 @@ describe('judge', () => {
 	});
 
 	it('meets a goal only when every condition does, and fails it when any does', () => {
-		const both = challengeOf(
-			{ edge: { from: { name: 'LB' }, to: { name: 'App' } } },
-			{ metric: errorRate(0) }
-		);
+		const both = challengeOf({ metric: errorRate(0) }, { metric: errorRate(0.5) });
 		const clean = run({ metrics: () => outcomes(10, 0) });
 		expect(stateAt(both, clean, 30)).toBe('judging');
 		expect(stateAt(both, clean, 60)).toBe('met');
-		const unwired = challengeOf(
-			{ edge: { from: { name: 'App' }, to: { name: 'LB' } } },
-			{ metric: errorRate(0) }
-		);
+		// A canvas check is decided the moment the run starts
+		const unwired = challengeOf({ edge: { from: { name: 'App' }, to: { name: 'LB' } } });
 		expect(stateAt(unwired, clean, 0)).toBe('failed');
 	});
 });

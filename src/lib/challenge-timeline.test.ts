@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { challengeSchema } from '$lib/challenge';
 import {
 	eventSentence,
+	goalSpan,
 	goalsInOrder,
 	shadedSpans,
-	timelineRows,
-	windowsOf
+	timelineRows
 } from '$lib/challenge-timeline';
 
 const errorRate = (lte: number, from: number, to?: number) => ({
@@ -38,11 +38,7 @@ const challenge = challengeSchema.parse({
 		},
 		{ id: 'outage', title: 'Outage', conditions: [errorRate(0.05, 22, 35)] },
 		{ id: 'after', title: 'After', conditions: [errorRate(0, 40)] },
-		{
-			id: 'both',
-			title: 'Both',
-			conditions: [{ exists: { node: { name: 'App A' } } }, errorRate(0.1, 22, 35)]
-		}
+		{ id: 'present', title: 'Present', conditions: [{ exists: { node: { name: 'App A' } } }] }
 	]
 });
 const goal = (id: string) => challenge.goals.find((one) => one.id === id)!;
@@ -55,7 +51,8 @@ describe('timelineRows', () => {
 			['0 s', 'event'],
 			// Not "0 s": the canvas check reads the canvas the clock started on
 			['At the start', 'wired'],
-			['At the start, 22–35 s', 'both'],
+			// Sharing a label with the row above it, which is why this one is blank
+			['', 'present'],
 			['10 s', 'event'],
 			['22–35 s', 'outage'],
 			['35 s', 'event'],
@@ -88,7 +85,7 @@ describe('timelineRows', () => {
 		]);
 	});
 
-	it('labels a goal by the union of its windows, once', () => {
+	it('labels a goal from its first window to its last, once', () => {
 		const read = (key: string) => ({
 			data: { node: { name: 'Table' }, read: 'item', args: { key } }
 		});
@@ -102,7 +99,8 @@ describe('timelineRows', () => {
 		});
 		expect(timelineRows(overlapping).map((row) => [row.time, row.goal?.id])).toEqual([
 			['0 s–end', 'covered'],
-			['5–10 s, 20–30 s', 'apart'],
+			// The gap between the two windows is not something a reader can act on
+			['5–30 s', 'apart'],
 			['At the end', 'reads']
 		]);
 	});
@@ -121,13 +119,13 @@ describe('goalsInOrder', () => {
 	});
 });
 
-describe('windowsOf and shadedSpans', () => {
-	it('reads a canvas check as the start and a window as its stretch', () => {
-		expect(windowsOf(goal('both'), 55)).toEqual({ atStart: true, judged: [[22, 35]] });
-		expect(windowsOf(goal('after'), 55)).toEqual({ atStart: false, judged: [[40, 55]] });
+describe('goalSpan and shadedSpans', () => {
+	it('gives a canvas check no span at all, and a window its stretch', () => {
+		expect(goalSpan(goal('present'), 55)).toBeUndefined();
+		expect(goalSpan(goal('after'), 55)).toEqual([40, 55]);
 	});
 
-	it('shades each judged stretch once', () => {
+	it('shades each goal once, over the stretch its row names', () => {
 		expect(shadedSpans(challenge)).toEqual([
 			[22, 35],
 			[40, 55]

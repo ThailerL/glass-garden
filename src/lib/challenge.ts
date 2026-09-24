@@ -109,19 +109,25 @@ export function readProblem(type: string, c: DataCondition): string | undefined 
 // Declarative only: a challenge arrives in a share link, which is anyone's text. Every object
 // is strict, since hand-editing is the only way to author one and a key the schema ignored
 // would leave a goal quietly meaning something other than what it says
-const condition = z.union([
+// What the canvas already answers before the clock starts
+const canvasCondition = z.union([
 	z.strictObject({
 		exists: z.strictObject({
 			node: nodeRef,
 			config: z.record(z.string(), comparison).optional()
 		})
 	}),
-	z.strictObject({ edge: z.strictObject({ from: nodeRef, to: nodeRef }) }),
+	z.strictObject({ edge: z.strictObject({ from: nodeRef, to: nodeRef }) })
+]);
+
+// What only a run can answer, over a window inside it
+const judgedCondition = z.union([
 	z.strictObject({ metric: metricCondition }),
 	z.strictObject({ data: dataCondition })
 ]);
-export type Condition = z.infer<typeof condition>;
-export type ConditionInput = z.input<typeof condition>;
+
+export type Condition = z.infer<typeof canvasCondition> | z.infer<typeof judgedCondition>;
+export type ConditionInput = z.input<typeof canvasCondition> | z.input<typeof judgedCondition>;
 
 // Every condition has to hold for the goal to be met
 const goal = z.strictObject({
@@ -129,7 +135,10 @@ const goal = z.strictObject({
 	id: z.string().min(1),
 	title: z.string().min(1),
 	hint: z.string().min(1).optional(),
-	conditions: z.array(condition).min(1)
+	// One kind or the other: a goal holding both has no one stretch it is decided over, and no
+	// title that can say when. The split is the schema's rather than a refinement's so the
+	// generated JSON Schema carries it and an author's editor says so before the file is imported
+	conditions: z.union([z.array(canvasCondition).min(1), z.array(judgedCondition).min(1)])
 });
 export type Goal = z.infer<typeof goal>;
 
