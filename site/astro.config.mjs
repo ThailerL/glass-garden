@@ -2,9 +2,9 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 
 // Builds into the app's static/ folder, so one Worker and one image serve these at /about.
-// Nothing here reads the deployment's address: only the running app knows it, so canonicals
-// are relative, the app's own sitemap lists these pages, and the embed resolves its origin
-// in the page
+// Canonicals stay relative and the app's own sitemap lists these pages, since a build that was
+// given no PUBLIC_ORIGIN still has to serve. The parts that cannot be relative, link cards and
+// breadcrumb items, are written only when that address was given at build time
 export default defineConfig({
 	base: '/about',
 	outDir: '../static/about',

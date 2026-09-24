@@ -110,6 +110,9 @@ jobs:
       - run: npm run build
         env:
           ADAPTER: cloudflare
+          # The app reads wrangler.jsonc's var per request, but the site under site/ is static
+          # and needs the address while building, for its link cards and its breadcrumb trails
+          PUBLIC_ORIGIN: https://glass.garden
 
       - run: npx wrangler deploy
         env:

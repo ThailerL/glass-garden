@@ -37,7 +37,7 @@ const canonical = Astro.url.pathname;
 
 // Without this Google builds the trail from the URL, where "about" is only the mount segment.
 // Every page sits under the site root, so the layout supplies that crumb rather than each page
-function breadcrumbScript(crumbs: Crumb[]): string {
+function breadcrumbScript(crumbs: Crumb[], crumbOrigin: string): string {
 	return jsonLd({
 		'@context': 'https://schema.org',
 		'@type': 'BreadcrumbList',
@@ -46,7 +46,8 @@ function breadcrumbScript(crumbs: Crumb[]): string {
 				'@type': 'ListItem',
 				position: index + 1,
 				name,
-				...(path ? { item: path } : {})
+				// Absolute, since Google reads a string `item` as an @id and rejects a relative one
+				...(path ? { item: `${crumbOrigin}${path}` } : {})
 			})
 		)
 	});
@@ -66,13 +67,14 @@ function breadcrumbScript(crumbs: Crumb[]): string {
 		<meta property="og:site_name" content="Glass Garden" />
 		<meta property="og:title" content={shareTitle} />
 		<meta property="og:description" content={description} />
+		<!-- Everything that needs an absolute URL, so a build given no address writes none of it -->
 		{origin && (
 			<Fragment>
 				<meta property="og:image" content={`${origin}${image}`} />
 				<meta name="twitter:card" content="summary_large_image" />
+				{trail && <Fragment set:html={breadcrumbScript(trail, origin)} />}
 			</Fragment>
 		)}
-		{trail && <Fragment set:html={breadcrumbScript(trail)} />}
 		<!-- A meta cannot read a CSS var: these restate --background from src/lib/theme.css -->
 		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfd" />
 		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e1116" />
