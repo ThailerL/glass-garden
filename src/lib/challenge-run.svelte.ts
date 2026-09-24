@@ -1,4 +1,4 @@
-import { eventTarget, momentOf } from './challenge-timeline';
+import { eventTarget, goalSpan, momentOf } from './challenge-timeline';
 import {
 	dataConditions,
 	goalIds,
@@ -192,6 +192,10 @@ export class ChallengeRun {
 		if (!sameStates(this.goals, goals)) {
 			for (const [id, state] of Object.entries(goals)) {
 				if (state !== 'failed' || this.goals[id] === 'failed') continue;
+				// A goal the canvas answers is decided before the clock starts, so there is no
+				// second to record and the panel says nothing the mark and its row have not
+				const goal = this.challenge.goals.find((one) => one.id === id);
+				if (!goal || !goalSpan(goal, length)) continue;
 				this.failedAt = { ...this.failedAt, [id]: Math.floor(this.elapsed) };
 			}
 			this.goals = goals;

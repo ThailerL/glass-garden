@@ -54,9 +54,15 @@ export function goalsInOrder({ goals, length }: Challenge): Goal[] {
 
 // One stretch of a run, in words. The one wording, so nothing showing a window has to invent
 // its own
+// A second of a run, in words, for a sentence to lead with. The clock stops at the run's own
+// length, so the last of them is the end rather than a number
+export function momentWords(at: number, length: number): string {
+	return at >= length ? 'the end' : `${at} s`;
+}
+
 export function spanLabel([from, to]: [number, number], length: number): string {
 	// A read is taken at a moment, where the two ends of its window meet
-	if (from === to) return to >= length ? 'At the end' : `At ${from} s`;
+	if (from === to) return `At ${momentWords(to, length)}`;
 	return to >= length ? `${from} s–end` : `${from}–${to} s`;
 }
 

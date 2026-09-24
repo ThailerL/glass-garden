@@ -57,10 +57,15 @@ describe('endSentence', () => {
 
 describe('stateNote', () => {
 	it('says only what the mark cannot: the second a goal broke', () => {
-		expect(stateNote('failed', 28)).toBe('Failed at 28 s');
-		expect(stateNote('waiting', undefined)).toBe('');
-		expect(stateNote('judging', undefined)).toBe('');
-		expect(stateNote('met', undefined)).toBe('');
-		expect(stateNote('failed', undefined)).toBe('');
+		expect(stateNote('failed', 28, 45)).toBe('Failed at 28 s');
+		expect(stateNote('waiting', undefined, 45)).toBe('');
+		expect(stateNote('judging', undefined, 45)).toBe('');
+		expect(stateNote('met', undefined, 45)).toBe('');
+		expect(stateNote('failed', undefined, 45)).toBe('');
+	});
+
+	// The clock stops at the run's length, so its last second is worded as the timeline words it
+	it('calls the last second the end, as the rows do', () => {
+		expect(stateNote('failed', 45, 45)).toBe('Failed at the end');
 	});
 });

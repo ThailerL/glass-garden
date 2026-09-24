@@ -171,6 +171,19 @@ describe('ChallengeRun', () => {
 		run.dispose();
 	});
 
+	// Its row already says "At the start", and Math.floor(0) would have the panel say "0 s"
+	it('records no second for a goal the canvas answers', async () => {
+		const fake = fakeCanvas();
+		fake.edit({ nodes: fake.canvas().nodes, edges: [] });
+		const run = new ChallengeRun(challenge, fake.services);
+		await run.start();
+		fake.setStatuses({ gen: 'running', app: 'running' });
+		advance(10);
+		expect(run.goals.wired).toBe('failed');
+		expect(run.failedAt).not.toHaveProperty('wired');
+		run.dispose();
+	});
+
 	it('judges the canvas the clock started on, and the settings its own events change', async () => {
 		const { fake, run } = await running();
 		advance(1);

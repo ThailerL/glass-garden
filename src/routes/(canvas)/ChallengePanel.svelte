@@ -1,10 +1,13 @@
 <script module lang="ts">
 	import type { Goal, GoalState } from '$lib/challenge';
 	import type { RunEnd, RunPhase } from '$lib/challenge-run.svelte';
+	import { momentWords } from '$lib/challenge-timeline';
 
-	// The mark carries the state, so the line says the one thing it cannot: where a goal broke
-	export function stateNote(state: GoalState, failedAt: number | undefined) {
-		return state === 'failed' && failedAt !== undefined ? `Failed at ${failedAt} s` : '';
+	// The mark carries the state, so the line says the one thing it cannot: where a goal broke.
+	// A goal the canvas answers has no second to name, and the run records none for it
+	export function stateNote(state: GoalState, failedAt: number | undefined, length: number) {
+		if (state !== 'failed' || failedAt === undefined) return '';
+		return `Failed at ${momentWords(failedAt, length)}`;
 	}
 
 	// Only after a scored run failed the goal: before then a hint would give away the answer
@@ -83,7 +86,7 @@
 	const metCount = $derived(Object.values(run.goals).filter((state) => state === 'met').length);
 
 	function note(id: string) {
-		return stateNote(run.goals[id], run.failedAt[id]);
+		return stateNote(run.goals[id], run.failedAt[id], challenge.length);
 	}
 
 	function confirmReset() {
