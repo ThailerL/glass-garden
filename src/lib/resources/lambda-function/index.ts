@@ -87,7 +87,7 @@ export const lambdaFunction = {
 	hasPreview: true,
 	// Invoked through the region like any AWS resource, so a caller uses it under 'aws'
 	provides: ['http', 'invoke', 'aws'],
-	consumes: ['sql', 'aws'],
+	consumes: ['sql', 'aws', 'api'],
 	aws: { service: 'lambda', resourceKey: 'functionName' },
 	configComponent: FunctionConfig,
 	loadTestTab: () => import('./TestTab.svelte'),

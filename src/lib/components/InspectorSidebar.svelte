@@ -67,14 +67,14 @@
 
 	// A resource that lacks the selected tab falls back, rather than showing an empty panel
 	const tabs = $derived([
-		'config',
+		...(definition?.configComponent ? ['config'] : []),
 		...(definition?.hasPreview ? ['preview'] : []),
 		...(loadTestTab ? ['test'] : []),
 		'metrics',
 		'logs'
 	]);
 	$effect(() => {
-		if (!tabs.includes(inspectorState.tab)) inspectorState.tab = 'config';
+		if (!tabs.includes(inspectorState.tab)) inspectorState.tab = tabs[0];
 	});
 </script>
 
@@ -99,7 +99,9 @@
 			<Sidebar.GroupContent class="h-full">
 				<UnderlineTabs.Root bind:value={inspectorState.tab} class="h-full">
 					<UnderlineTabs.List>
-						<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
+						{#if definition?.configComponent}
+							<UnderlineTabs.Trigger value="config">Config</UnderlineTabs.Trigger>
+						{/if}
 						{#if definition?.hasPreview}
 							<UnderlineTabs.Trigger value="preview" data-tour="preview-tab">
 								Preview
@@ -113,9 +115,11 @@
 						</UnderlineTabs.Trigger>
 						<UnderlineTabs.Trigger value="logs">Logs</UnderlineTabs.Trigger>
 					</UnderlineTabs.List>
-					<UnderlineTabs.Content value="config" class="flex flex-col">
-						<ConfigTab {nodeId} />
-					</UnderlineTabs.Content>
+					{#if definition?.configComponent}
+						<UnderlineTabs.Content value="config" class="flex flex-col">
+							<ConfigTab {nodeId} />
+						</UnderlineTabs.Content>
+					{/if}
 					{#if definition?.hasPreview}
 						<UnderlineTabs.Content value="preview">
 							{#if previewOpened}
@@ -176,7 +180,9 @@
 				{#if definition?.alwaysOn}
 					<span
 						class="text-sm text-muted-foreground"
-						title="The local AWS region provides this resource and keeps it available whenever the region is up, so there is nothing to start or stop. To see a caller fail, remove the edge that grants it access."
+						title={definition.aws
+							? 'The local AWS region provides this resource and keeps it available whenever the region is up, so there is nothing to start or stop. To see a caller fail, remove the edge that grants it access.'
+							: 'Someone outside your system runs this service, so it is not yours to start or stop.'}
 					>
 						Always on
 					</span>

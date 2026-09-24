@@ -34,7 +34,7 @@ export const instanceGroup = {
 	hasEditableFiles: true,
 	hasPreview: true,
 	provides: ['http'],
-	consumes: ['sql', 'aws'],
+	consumes: ['sql', 'aws', 'api'],
 	configComponent: InstanceGroupConfig,
 	configSchema,
 	instanceCount: (node: Node) => nodeConfig<Config>(node).instanceCount,

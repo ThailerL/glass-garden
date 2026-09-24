@@ -9,7 +9,12 @@ import type { ResourceType } from '$lib/resources';
 // Reservation logic is tested against a real GraphState (persistence and node
 // replacement are part of the contract) and real controllers for live-instance state;
 // only the container, the resource registry and the toaster are faked
-const fake = vi.hoisted(() => ({ stopFails: false, alwaysOn: false, aws: false }));
+const fake = vi.hoisted(() => ({
+	stopFails: false,
+	alwaysOn: false,
+	aws: false,
+	clearByRestart: false
+}));
 
 vi.mock('$lib/container', () => ({
 	getContainer: vi.fn(async () => ({ on: vi.fn() })),
@@ -45,6 +50,9 @@ vi.mock('$lib/resources', async () => {
 		readyOnStart: true,
 		get alwaysOn() {
 			return fake.alwaysOn;
+		},
+		get clear() {
+			return fake.clearByRestart ? 'restart' : undefined;
 		},
 		// Only a resource the region answers for declares this, and it is what warming keys off
 		get aws() {
@@ -111,6 +119,7 @@ beforeEach(() => {
 	fake.stopFails = false;
 	fake.alwaysOn = false;
 	fake.aws = false;
+	fake.clearByRestart = false;
 	vi.mocked(ensureRegion).mockClear();
 });
 
@@ -193,6 +202,22 @@ describe('Orchestrator always-on resources', () => {
 
 		orchestrator.stopAll();
 		await settle();
+		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
+	});
+
+	// Its state lives only in the process, and nothing else ever stops that process
+	it('is cleared by a restart onto the same port', async () => {
+		fake.alwaysOn = true;
+		fake.clearByRestart = true;
+		const { orchestrator, nodeIds } = setup([1]);
+		await settle();
+		const [before] = orchestrator.getInstances(nodeIds[0]);
+
+		expect(await orchestrator.clearNodeData(nodeIds[0])).toBe(true);
+		await settle();
+		const [after] = orchestrator.getInstances(nodeIds[0]);
+		expect(after.handle).not.toBe(before.handle);
+		expect(after.port).toBe(before.port);
 		expect(orchestrator.getStatus(nodeIds[0])).toBe('running');
 	});
 });

@@ -52,6 +52,14 @@ describe('consumerEnv', () => {
 		);
 	});
 
+	it('hands each consumer of an external API an address of its own, so calls name their caller', () => {
+		const api = [neighbour(node('x1', 'externalApi', { name: 'Card Company', code: '' }), 5100)];
+		expect(consumerEnv(web, api).CARD_COMPANY_URL).toBe('http://localhost:5100/from/a');
+		expect(consumerEnv(fn('f', 'Worker', 'worker'), api).CARD_COMPANY_URL).toBe(
+			'http://localhost:5100/from/f'
+		);
+	});
+
 	it('supplies the name a caller passes to Invoke', () => {
 		const env = consumerEnv(web, [neighbour(fn('f1', 'Resize Images', 'resize-images'))]);
 		expect(env.RESIZE_IMAGES_FUNCTION_NAME).toBe('resize-images');

@@ -9,6 +9,7 @@ import { s3Bucket } from './s3-bucket';
 import { sqsQueue } from './sqs-queue';
 import { dynamodbTable } from './dynamodb-table';
 import { lambdaFunction } from './lambda-function';
+import { externalApi } from './external-api';
 
 export * from './types';
 
@@ -20,7 +21,8 @@ export const resourceDefinitions = {
 	postgres,
 	s3Bucket,
 	sqsQueue,
-	dynamodbTable
+	dynamodbTable,
+	externalApi
 } satisfies Record<string, ResourceDefinition>;
 
 export type ResourceType = keyof typeof resourceDefinitions;
@@ -59,6 +61,13 @@ export function declaredReads(): { name: string; read: ResourceRead }[] {
 // hook is the one declaration of both
 export function ownsStoredData(type: string | undefined): boolean {
 	return getResourceDefinition(type).clear !== undefined;
+}
+
+// In the registry's order
+export function paletteTypes(): ResourceType[] {
+	return (Object.keys(resourceDefinitions) as ResourceType[]).filter(
+		(type) => !getResourceDefinition(type).authorOnly
+	);
 }
 
 export function startsLast(type: string | undefined): boolean {

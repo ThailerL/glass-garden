@@ -140,8 +140,10 @@
 		<ConfigComponent {form} {nodeId} />
 	</form>
 </div>
-<div class="-mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">
-	<Form.Button type="submit" disabled={!isDirty || lock.current} onclick={handleSubmit}>
-		{saveLabel}
-	</Form.Button>
-</div>
+{#if !definition.readOnlyConfig}
+	<div class="-mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">
+		<Form.Button type="submit" disabled={!isDirty || lock.current} onclick={handleSubmit}>
+			{saveLabel}
+		</Form.Button>
+	</div>
+{/if}

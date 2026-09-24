@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/svelte';
-import { canAddEdge } from './index';
+import { canAddEdge, paletteTypes } from './index';
 
 const node = (id: string, type: string): Node =>
 	({ id, type, position: { x: 0, y: 0 }, data: { config: {} } }) as unknown as Node;
@@ -28,6 +28,21 @@ describe('canAddEdge', () => {
 		expect(canAddEdge(app, fn, [])).toBe(true);
 		expect(canAddEdge(fn, other, [])).toBe(true);
 		expect(canAddEdge(fn, app, [])).toBe(false);
+	});
+
+	// Outside parties are called by code, never sent traffic
+	it('lets code call an external API, and nothing send it traffic', () => {
+		const api = node('api', 'externalApi');
+		expect(canAddEdge(app, api, [])).toBe(true);
+		expect(canAddEdge(fn, api, [])).toBe(true);
+		expect(canAddEdge(generator, api, [])).toBe(false);
+		expect(canAddEdge(balancer, api, [])).toBe(false);
+		expect(canAddEdge(api, app, [])).toBe(false);
+	});
+
+	it('leaves an external API out of the palette, since only an author puts one down', () => {
+		expect(paletteTypes()).not.toContain('externalApi');
+		expect(paletteTypes()).toContain('instanceGroup');
 	});
 
 	it('refuses a second target for a source that acts on one', () => {

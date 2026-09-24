@@ -19,19 +19,23 @@
 	const definition = $derived(node ? getResourceDefinition(node.type) : undefined);
 	const status = $derived(orchestrator.getStatus(nodeId));
 
-	// A resource with a process of its own holds its data open while it runs; the region's hold
-	// nothing open, so those clear where they stand
-	const held = $derived(definition?.runsProcesses === true && status !== 'stopped');
+	// A running process holds its data open, unless clearing it is restarting it
+	const held = $derived(
+		definition?.runsProcesses === true && definition.clear !== 'restart' && status !== 'stopped'
+	);
+	const words = $derived(
+		definition?.clearWords ?? { action: 'Clear data', title: 'Clear stored data?', done: 'Cleared' }
+	);
 	const why = $derived(lock.current ? 'Wait for the run to end' : held ? 'Stop it first' : '');
 
 	function confirmClear() {
 		const name = node ? nodeName(node) : 'this resource';
 		confirmDelete({
-			title: 'Clear stored data?',
+			title: words.title,
 			description: `Deletes everything ${name} is holding.`,
-			confirm: { text: 'Clear data' },
+			confirm: { text: words.action },
 			onConfirm: async () => {
-				if (await orchestrator.clearNodeData(nodeId)) toast.success(`Cleared ${name}`);
+				if (await orchestrator.clearNodeData(nodeId)) toast.success(`${words.done} ${name}`);
 			}
 		});
 	}
@@ -44,7 +48,7 @@
 			<div {...props} class="w-fit">
 				<Button
 					variant="outline"
-					aria-label="Clear data"
+					aria-label={words.action}
 					disabled={why !== ''}
 					onclick={confirmClear}
 				>
@@ -53,5 +57,5 @@
 			</div>
 		{/snippet}
 	</Tooltip.Trigger>
-	<Tooltip.Content>{why || 'Clear data'}</Tooltip.Content>
+	<Tooltip.Content>{why || words.action}</Tooltip.Content>
 </Tooltip.Root>

@@ -10,7 +10,8 @@ import type { Service } from '$lib/aws-region';
 // What a resource offers and what it needs from what it points at. An edge is legal when
 // its source consumes something its target provides. 'invoke' runs against the traffic of
 // the others: a resource that consumes it points at the code it triggers
-export type Capability = 'http' | 'sql' | 'aws' | 'invoke';
+// 'api': a party outside the reader's system, called by code rather than sent traffic
+export type Capability = 'http' | 'sql' | 'aws' | 'invoke' | 'api';
 
 // A challenge's comparison is built from this, so the two cannot drift apart
 export const scalar = z.union([z.string(), z.number(), z.boolean()]);
@@ -119,7 +120,8 @@ export type ResourceDefinition = {
 	// holding the name the region enforces grants on. Not always the value a consumer's code
 	// wants - a queue is enforced by name but addressed by URL - so `supplies` stays separate
 	aws?: { service: Service; resourceKey: string };
-	configComponent: Component<{ form: never; nodeId: string }>;
+	// Omitted when the reader can set nothing, leaving no Config tab
+	configComponent?: Component<{ form: never; nodeId: string }>;
 	// A tab of the resource's own, imported when it is first opened so whatever it depends on
 	// stays out of the bundle the canvas loads
 	loadTestTab?: () => Promise<{ default: Component<{ nodeId: string }> }>;
@@ -137,14 +139,17 @@ export type ResourceDefinition = {
 	// slot, but no process of its own, so a per-instance breakdown names nothing the user
 	// could act on
 	runsProcesses: boolean;
-	// Provisioned rather than run: up from the moment the node exists, with no start or stop,
-	// because the region serves it and nothing spawned for it could be killed
+	// Up from creation and never stopped, not even by a run: region-served or someone else's
 	alwaysOn: boolean;
 	// For resources that don't host a server: start() resolving is being fully up, so
 	// instances go straight to 'running' instead of waiting for a port that never opens
 	readyOnStart?: boolean;
 	// A challenge run starts this once the rest are up and settled: its first act is sending them traffic
 	startsLast?: boolean;
+	// Placed only by a challenge or an imported document
+	authorOnly?: boolean;
+	// Its Config tab only shows values, so it has no Save
+	readOnlyConfig?: boolean;
 	// What the log calls this resource's one instance when its port would say nothing: a
 	// manager whose output is mostly the execution environments it forwards
 	instanceLabel?: string;
@@ -184,7 +189,10 @@ export type ResourceDefinition = {
 	// Called when the node is deleted. For data that lives outside the node's directory
 	remove?: (node: Node, container: Vivari) => Promise<void>;
 	// Called as a challenge run starts, so it is judged on what it wrote. The node may be stopping
-	clear?: (node: Node, container: Vivari) => Promise<void>;
+	// 'restart': the state lives only in a process's memory
+	clear?: ((node: Node, container: Vivari) => Promise<void>) | 'restart';
+	// The Clear button's label, dialog title and toast verb
+	clearWords?: { action: string; title: string; done: string };
 	reads?: Record<string, ResourceRead>;
 	// Called after the editor saves one of the node's files. For a resource whose running
 	// code is deployed from its directory rather than read from it

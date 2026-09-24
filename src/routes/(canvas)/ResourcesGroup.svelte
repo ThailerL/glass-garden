@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
-	import { resourceDefinitions, type ResourceType } from '$lib/resources';
+	import { paletteTypes, resourceDefinitions, type ResourceType } from '$lib/resources';
 	import { IsCompact } from '$lib/hooks/is-compact.svelte';
 	import { draggable } from '@thisux/sveltednd';
 	import { getEditingLock } from '$lib/challenge-run.svelte';
@@ -11,6 +11,8 @@
 	// Where the palette opens as a sheet, a drag cannot reach the canvas behind it
 	const isCompact = new IsCompact();
 	const lock = getEditingLock();
+
+	const offered = paletteTypes().map((type) => [type, resourceDefinitions[type]] as const);
 </script>
 
 <Sidebar.Group class="py-0">
@@ -19,7 +21,7 @@
 	</Sidebar.GroupLabel>
 	<Sidebar.GroupContent>
 		<Sidebar.Menu>
-			{#each Object.entries(resourceDefinitions) as [resource, definition] (resource)}
+			{#each offered as [resource, definition] (resource)}
 				<Sidebar.MenuItem>
 					<div
 						use:draggable={{

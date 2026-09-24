@@ -226,7 +226,8 @@
 																				"postgres",
 																				"s3Bucket",
 																				"sqsQueue",
-																				"dynamodbTable"
+																				"dynamodbTable",
+																				"externalApi"
 																			]
 																		}
 																	},
@@ -314,7 +315,8 @@
 																				"postgres",
 																				"s3Bucket",
 																				"sqsQueue",
-																				"dynamodbTable"
+																				"dynamodbTable",
+																				"externalApi"
 																			]
 																		}
 																	},
@@ -353,7 +355,8 @@
 																				"postgres",
 																				"s3Bucket",
 																				"sqsQueue",
-																				"dynamodbTable"
+																				"dynamodbTable",
+																				"externalApi"
 																			]
 																		}
 																	},
@@ -419,7 +422,8 @@
 																				"postgres",
 																				"s3Bucket",
 																				"sqsQueue",
-																				"dynamodbTable"
+																				"dynamodbTable",
+																				"externalApi"
 																			]
 																		}
 																	},
@@ -532,7 +536,8 @@
 																				"postgres",
 																				"s3Bucket",
 																				"sqsQueue",
-																				"dynamodbTable"
+																				"dynamodbTable",
+																				"externalApi"
 																			]
 																		}
 																	},
@@ -696,7 +701,8 @@
 					"postgres",
 					"s3Bucket",
 					"sqsQueue",
-					"dynamodbTable"
+					"dynamodbTable",
+					"externalApi"
 				]
 			}
 		},
@@ -733,7 +739,8 @@
 									"postgres",
 									"s3Bucket",
 									"sqsQueue",
-									"dynamodbTable"
+									"dynamodbTable",
+									"externalApi"
 								]
 							},
 							"position": {

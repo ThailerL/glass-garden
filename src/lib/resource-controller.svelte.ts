@@ -86,6 +86,8 @@ export class ResourceController {
 	#lastCrashAt = 0;
 	#restartTimer = $state<ReturnType<typeof setTimeout> | undefined>(undefined);
 	#forgotten = false;
+	// Asked for by restart and spent by the next pass
+	#restarting = false;
 
 	constructor(nodeId: string, definition: ResourceDefinition, services: ControllerServices) {
 		this.nodeId = nodeId;
@@ -152,6 +154,12 @@ export class ResourceController {
 		this.schedule();
 	}
 
+	// Bounces every instance: the only way to stop an always-on node
+	restart() {
+		this.#restarting = true;
+		this.schedule();
+	}
+
 	stop() {
 		if (this.#definition.alwaysOn) return;
 		this.#standDown();
@@ -210,22 +218,23 @@ export class ResourceController {
 		// than a first start
 		const replacing = this.#freeCrashedSlots(desired);
 
+		const restarting = this.#restarting;
+		this.#restarting = false;
 		// Surplus from a scale-down, plus stale instances bounced to pick up new launch config
 		const doomed = this.instances.filter(
-			(instance, index) => index >= desired || instance.configStamp !== launch.stamp
+			(instance, index) => restarting || index >= desired || instance.configStamp !== launch.stamp
 		);
 		if (doomed.length > 0) {
 			// Otherwise the stops and starts that follow read exactly like a crash and restart
 			const stale = doomed.filter((instance) => instance.configStamp !== launch.stamp).length;
-			this.log.event(
-				'resource',
-				'info',
-				stale === 0
+			const reason = restarting
+				? 'Restarting'
+				: stale === 0
 					? `Scaling down to ${desired} instance${desired === 1 ? '' : 's'}`
 					: this.#definition.alwaysOn
 						? 'Config changed, applying it'
-						: `Config changed, replacing ${stale} instance${stale === 1 ? '' : 's'}`
-			);
+						: `Config changed, replacing ${stale} instance${stale === 1 ? '' : 's'}`;
+			this.log.event('resource', 'info', reason);
 		}
 		await Promise.all(doomed.map((instance) => this.#stopInstance(instance)));
 

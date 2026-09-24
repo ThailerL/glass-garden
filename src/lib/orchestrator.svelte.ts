@@ -303,6 +303,11 @@ export class Orchestrator {
 		const node = this.#graphState.getNode(nodeId);
 		const clear = node && getResourceDefinition(node.type).clear;
 		if (!node || !clear) return true;
+		// A run waits for every node to be running again before its clock starts
+		if (clear === 'restart') {
+			this.#controllers.get(nodeId)?.restart();
+			return true;
+		}
 		try {
 			await clear(node, await this.#getContainer());
 			return true;
