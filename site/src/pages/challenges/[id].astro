@@ -8,7 +8,7 @@ import Page from '../../layouts/Page.astro';
 import { challenges, pageMeta, runSentence, stackNames, suggestionOf } from '../../challenges';
 import { challengePath, challengesPath, startPath } from '../../paths';
 import type { BuiltInChallenge } from '../../../../src/lib/challenges';
-import { goalsInOrder, spanLabels } from '../../../../src/lib/challenge-timeline';
+import { goalSpanLabel, goalsInOrder } from '../../../../src/lib/challenge-timeline';
 
 export function getStaticPaths() {
 	return challenges().map((challenge) => ({ params: { id: challenge.id }, props: { challenge } }));
@@ -82,7 +82,7 @@ const trail = [{ name: 'Challenges', path: challengesPath }, { name: document.ti
 				<li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b py-3">
 					<span>{goal.title}</span>
 					<span class="text-sm whitespace-nowrap text-muted-foreground">
-						{spanLabels(goal, document.length).join(', ')}
+						{goalSpanLabel(goal, document.length)}
 					</span>
 				</li>
 			))}
