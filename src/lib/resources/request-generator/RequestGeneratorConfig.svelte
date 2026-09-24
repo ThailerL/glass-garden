@@ -51,6 +51,14 @@
 />
 <ConfigField
 	{form}
+	name="stopAfter"
+	label="Stop after"
+	type="number"
+	description="Requests to send before going quiet. Zero keeps sending for as long as the generator runs."
+	bind:value={$formData.stopAfter}
+/>
+<ConfigField
+	{form}
 	name="maxInFlight"
 	label="Max in flight"
 	type="number"

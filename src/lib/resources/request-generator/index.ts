@@ -18,7 +18,9 @@ const configSchema = z.object({
 	// A guard rail rather than a limit: measured headroom is far above this, so the cap is only
 	// here to keep a typo from wedging a slower machine than the one it was measured on
 	requestsPerSecond: z.coerce.number().positive().max(2000).default(10),
-	maxInFlight: z.coerce.number().int().min(1).max(1000).default(50)
+	maxInFlight: z.coerce.number().int().min(1).max(1000).default(50),
+	// 0 is no limit
+	stopAfter: z.coerce.number().int().min(0).default(0)
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -36,7 +38,8 @@ export function targetPort(connected: readonly ConnectedNode[]): number | null {
 // The knobs travel with the target rather than in launchConfig, so a rate change or a
 // scale-up reaches the running process without restarting it and zeroing the run
 async function writeConfig(node: Node, container: Vivari, targets: readonly ConnectedNode[]) {
-	const { method, path, body, requestsPerSecond, maxInFlight } = nodeConfig<Config>(node);
+	const { method, path, body, requestsPerSecond, maxInFlight, stopAfter } =
+		nodeConfig<Config>(node);
 	// An update can reach a generator whose start has not mounted it yet
 	await container.fs.mkdir(nodeDirectory(node.id), { recursive: true });
 	await container.fs.writeFile(
@@ -47,6 +50,7 @@ async function writeConfig(node: Node, container: Vivari, targets: readonly Conn
 			body,
 			requestsPerSecond,
 			maxInFlight,
+			stopAfter,
 			target: targetPort(targets)
 		})
 	);

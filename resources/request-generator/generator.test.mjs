@@ -79,6 +79,7 @@ const baseConfig = {
   body: '',
   requestsPerSecond: 50,
   maxInFlight: 50,
+  stopAfter: 0,
   target: null
 };
 
@@ -172,6 +173,25 @@ describe('sending', () => {
       '{"email":"2@example.com","password":"pw-2"}',
       '{"email":"3@example.com","password":"pw-3"}'
     ]);
+  });
+
+  it('sends the number it is told to and then goes quiet', async () => {
+    const app = target();
+    await generator({
+      method: 'POST',
+      path: '/payments',
+      body: 'pay',
+      requestsPerSecond: 50,
+      stopAfter: 5,
+      target: app.port
+    });
+    await waitUntil(
+      () => app.requests.length >= 5,
+      () => `Never sent five requests; sent ${app.requests.length}`
+    );
+    // Long enough for a rate of 50/s to have sent many more, had it kept going
+    await sleep(500);
+    expect(app.requests.length).toBe(5);
   });
 
   it('spends no number on a request it never sent', async () => {

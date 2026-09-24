@@ -90,11 +90,12 @@ async function refreshConfig() {
     complainAboutConfig(error.message);
   }
   contentType = isJson(config.body) ? 'application/json' : 'text/plain';
-  const { method, path, requestsPerSecond, target } = config;
+  const { method, path, requestsPerSecond, stopAfter, target } = config;
+  const allowance = stopAfter > 0 ? `, ${stopAfter} in all` : '';
   announce(
     target === null
       ? 'Nothing to send to: nothing running is wired to this generator'
-      : `Sending ${method} ${path} to :${target} at ${requestsPerSecond}/s`
+      : `Sending ${method} ${path} to :${target} at ${requestsPerSecond}/s${allowance}`
   );
 }
 
@@ -111,10 +112,17 @@ let sent = 0;
 // address tried, so the code is the only thing that names the failure
 const reasonOf = (error) => error.message || error.code || String(error);
 
+// Sent everything it was asked for. Read again every tick, so raising the allowance resumes it
+function exhausted() {
+  return config.stopAfter > 0 && sent >= config.stopAfter;
+}
+
 // One target, chosen by the canvas. Splitting traffic across several is a load balancer's job
 function send() {
   const { target } = config;
   if (target === null) return;
+  // Caught here as well as in the loop, since one tick can be due several requests
+  if (exhausted()) return;
   if (inFlight >= config.maxInFlight) {
     observed.skipped++;
     return;
@@ -182,6 +190,13 @@ function publish() {
 async function run() {
   let next = Date.now();
   for (;;) {
+    // Quiet rather than exited: the node stays up and keeps reporting, at the poll rate
+    // rather than the send rate
+    if (exhausted()) {
+      await sleep(CONFIG_POLL_MS);
+      next = Date.now();
+      continue;
+    }
     const now = Date.now();
     if (now - next > MAX_CATCH_UP_MS) next = now;
     const interval = METRIC_PERIOD_MS / config.requestsPerSecond;
