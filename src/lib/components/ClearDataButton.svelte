@@ -2,7 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { Button } from '$lib/components/ui/button';
-	import { Label } from '$lib/components/ui/label';
+	import EraserIcon from '@lucide/svelte/icons/eraser';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getEditingLock } from '$lib/challenge-run.svelte';
@@ -37,21 +37,21 @@
 	}
 </script>
 
-<div class="space-y-2">
-	<Label>Data</Label>
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<!-- Wrapped because a disabled button emits no pointer events for the tooltip -->
-				<div {...props} class="w-fit">
-					<Button variant="destructive" disabled={why !== ''} onclick={confirmClear}>
-						Clear data
-					</Button>
-				</div>
-			{/snippet}
-		</Tooltip.Trigger>
-		{#if why}
-			<Tooltip.Content>{why}</Tooltip.Content>
-		{/if}
-	</Tooltip.Root>
-</div>
+<Tooltip.Root>
+	<Tooltip.Trigger>
+		{#snippet child({ props })}
+			<!-- Wrapped because a disabled button emits no pointer events for the tooltip -->
+			<div {...props} class="w-fit">
+				<Button
+					variant="outline"
+					aria-label="Clear data"
+					disabled={why !== ''}
+					onclick={confirmClear}
+				>
+					<EraserIcon />
+				</Button>
+			</div>
+		{/snippet}
+	</Tooltip.Trigger>
+	<Tooltip.Content>{why || 'Clear data'}</Tooltip.Content>
+</Tooltip.Root>

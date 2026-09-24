@@ -20,7 +20,6 @@
 	import { toast } from 'svelte-sonner';
 	import { getResourceDefinition } from '$lib/resources';
 	import * as Form from '$lib/components/ui/form';
-	import ClearDataButton from '$lib/components/ClearDataButton.svelte';
 	import {
 		getGraphState,
 		nameTakenByChallenge,
@@ -139,9 +138,6 @@
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<form method="POST" onsubmit={handleSubmit} onkeydown={handleKeydown} class="space-y-4 py-1">
 		<ConfigComponent {form} {nodeId} />
-		{#if definition.clear}
-			<ClearDataButton {nodeId} />
-		{/if}
 	</form>
 </div>
 <div class="-mx-2 -mb-2 border-t border-sidebar-border bg-sidebar p-2">

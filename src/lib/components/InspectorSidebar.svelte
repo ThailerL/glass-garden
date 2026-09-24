@@ -19,6 +19,7 @@
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
 	import StatusDot from '$lib/components/StatusDot.svelte';
+	import ClearDataButton from '$lib/components/ClearDataButton.svelte';
 	import { statusText } from '$lib/status';
 	import ConfigTab from './ConfigTab.svelte';
 	import PreviewTab from './PreviewTab.svelte';
@@ -168,54 +169,59 @@
 				{/if}
 			</div>
 
-			{#if definition?.alwaysOn}
-				<span
-					class="text-sm text-muted-foreground"
-					title="The local AWS region provides this resource and keeps it available whenever the region is up, so there is nothing to start or stop. To see a caller fail, remove the edge that grants it access."
-				>
-					Always on
-				</span>
-			{:else if lock.current}
-				<span class="text-sm text-muted-foreground" title={RUN_DRIVES_THE_CANVAS}>
-					Run in progress
-				</span>
-			{:else}
-				<ButtonGroup.Root>
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									disabled={!orchestrator.canStart(nodeId)}
-									aria-label="Start"
-									onclick={() => orchestrator.start(nodeId)}
-								>
-									<PlayIcon />
-								</Button>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content>Start</Tooltip.Content>
-					</Tooltip.Root>
+			<div class="flex items-center gap-2">
+				{#if definition?.clear}
+					<ClearDataButton {nodeId} />
+				{/if}
+				{#if definition?.alwaysOn}
+					<span
+						class="text-sm text-muted-foreground"
+						title="The local AWS region provides this resource and keeps it available whenever the region is up, so there is nothing to start or stop. To see a caller fail, remove the edge that grants it access."
+					>
+						Always on
+					</span>
+				{:else if lock.current}
+					<span class="text-sm text-muted-foreground" title={RUN_DRIVES_THE_CANVAS}>
+						Run in progress
+					</span>
+				{:else}
+					<ButtonGroup.Root>
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="outline"
+										disabled={!orchestrator.canStart(nodeId)}
+										aria-label="Start"
+										onclick={() => orchestrator.start(nodeId)}
+									>
+										<PlayIcon />
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>Start</Tooltip.Content>
+						</Tooltip.Root>
 
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									disabled={!orchestrator.canStop(nodeId)}
-									aria-label="Stop"
-									onclick={() => orchestrator.stop(nodeId)}
-								>
-									<SquareIcon />
-								</Button>
-							{/snippet}
-						</Tooltip.Trigger>
-						<Tooltip.Content>Stop</Tooltip.Content>
-					</Tooltip.Root>
-				</ButtonGroup.Root>
-			{/if}
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="outline"
+										disabled={!orchestrator.canStop(nodeId)}
+										aria-label="Stop"
+										onclick={() => orchestrator.stop(nodeId)}
+									>
+										<SquareIcon />
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>Stop</Tooltip.Content>
+						</Tooltip.Root>
+					</ButtonGroup.Root>
+				{/if}
+			</div>
 		</div>
 	</Sidebar.Footer>
 </Sidebar.Root>
