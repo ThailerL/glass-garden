@@ -1,4 +1,4 @@
-import index from '../../static/challenges/index.json';
+import index from '../../static/data/challenges/index.json';
 import {
 	startingResources,
 	suggestedResources,
@@ -18,9 +18,9 @@ import { resourceOf } from './resources';
 // rather than challenges, and the schema is the largest thing in it
 const documents = import.meta.glob(
 	[
-		'../../static/challenges/*.json',
-		'!../../static/challenges/index.json',
-		'!../../static/challenges/schema.json'
+		'../../static/data/challenges/*.json',
+		'!../../static/data/challenges/index.json',
+		'!../../static/data/challenges/schema.json'
 	],
 	{ eager: true, import: 'default' }
 ) as Record<string, ChallengeDocument>;
@@ -28,7 +28,7 @@ const documents = import.meta.glob(
 // The catalogue's order, from the same index file the app reads
 export function challenges(): BuiltInChallenge[] {
 	return index.challenges.map(({ id, file }) => {
-		const document = documents[`../../static/challenges/${file}`];
+		const document = documents[`../../static/data/challenges/${file}`];
 		if (!document) throw new Error(`${file} is listed in the challenge index but is not there`);
 		return { id, document };
 	});

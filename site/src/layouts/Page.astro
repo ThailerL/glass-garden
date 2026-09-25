@@ -35,8 +35,7 @@ const width = narrow ? 'max-w-3xl' : 'max-w-page';
 // Relative, since a static build cannot know the origin it will be served from
 const canonical = Astro.url.pathname;
 
-// Without this Google builds the trail from the URL, where "about" is only the mount segment.
-// Every page sits under the site root, so the layout supplies that crumb rather than each page
+// The URL's root is the app, so the About page is supplied as the root crumb
 function breadcrumbScript(crumbs: Crumb[], crumbOrigin: string): string {
 	return jsonLd({
 		'@context': 'https://schema.org',

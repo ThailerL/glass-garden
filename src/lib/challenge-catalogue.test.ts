@@ -47,8 +47,12 @@ vi.hoisted(() => {
 	};
 });
 
-import { challengeCatalogue, loadCatalogue } from '$lib/challenge-catalogue.svelte';
-import { createProject } from '$lib/projects.svelte';
+import {
+	challengeCatalogue,
+	linkedChallenge,
+	loadCatalogue
+} from '$lib/challenge-catalogue.svelte';
+import { createProject, deleteProject, getProject, listChallenges } from '$lib/projects.svelte';
 
 const challenge = (name: string, fields: Record<string, unknown>) =>
 	createProject(name, () => {}, {
@@ -138,5 +142,28 @@ describe('challengeCatalogue', () => {
 
 	it('passes on what the folder could not read, so the page can name it', () => {
 		expect(challengeCatalogue().unread).toEqual(folder.unread);
+	});
+});
+
+describe('linkedChallenge', () => {
+	beforeEach(() => {
+		for (const project of listChallenges()) deleteProject(project.id);
+	});
+
+	it('starts a copy the first time and resumes that same copy after', async () => {
+		const first = await linkedChallenge('spike');
+		expect(getProject(first!)?.builtIn).toBe('spike');
+		expect(await linkedChallenge('spike')).toBe(first);
+		expect(listChallenges()).toHaveLength(1);
+	});
+
+	it("opens the reader's copy of a challenge the folder has since dropped", async () => {
+		const retired = challenge('Retired', { builtIn: 'a-challenge-we-dropped' });
+		expect(await linkedChallenge('a-challenge-we-dropped')).toBe(retired.id);
+	});
+
+	it('finds nothing and starts nothing for an id this deployment does not have', async () => {
+		expect(await linkedChallenge('not-shipped-here')).toBeUndefined();
+		expect(listChallenges()).toHaveLength(0);
 	});
 });

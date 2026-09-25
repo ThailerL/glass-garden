@@ -14,7 +14,7 @@ describe('challengeJsonSchema', () => {
 	// hand. Regenerate it with `npm test -- -u` after changing the format
 	it('matches the schema shipped beside the challenges', async () => {
 		await expect(JSON.stringify(challengeJsonSchema(), null, '\t') + '\n').toMatchFileSnapshot(
-			'../../static/challenges/schema.json'
+			'../../static/data/challenges/schema.json'
 		);
 	});
 });

@@ -1,26 +1,14 @@
 <script lang="ts">
-	import { replaceState } from '$app/navigation';
-	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ImportIcon from '@lucide/svelte/icons/import';
-	import { toast } from 'svelte-sonner';
-	import { messageOf } from '$lib/errors';
+	import { challengeAddress } from '$lib/app-view';
 	import { goalIds } from '$lib/challenge';
 	import { startingResources, suggestedResources } from '$lib/challenge-stack';
 	import type { ChallengeDocument } from '$lib/project-document';
-	import {
-		challengeCatalogue,
-		loadCatalogue,
-		type CatalogueEntry
-	} from '$lib/challenge-catalogue.svelte';
+	import { challengeCatalogue, loadCatalogue } from '$lib/challenge-catalogue.svelte';
 	import { downloadDocument, offerFileImport, shareDocument } from '$lib/document-transfer';
-	import {
-		deleteProject,
-		importProject,
-		openProject,
-		type ChallengeProject
-	} from '$lib/projects.svelte';
+	import { deleteProject, openProject, type ChallengeProject } from '$lib/projects.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import AppSidebar from '$lib/components/AppSidebar.svelte';
@@ -28,7 +16,7 @@
 	import ChallengeCard from './ChallengeCard.svelte';
 
 	loadCatalogue();
-	const { builtIn, imported, unread, ready } = $derived(challengeCatalogue());
+	const { builtIn, imported, unread } = $derived(challengeCatalogue());
 
 	// What a card draws of the system, from the canvas the challenge starts on rather than from
 	// anything an author wrote out
@@ -39,16 +27,6 @@
 		};
 	}
 
-	// Continue where the reader left off, or start a fresh copy. One decision, so the card and a
-	// link from outside open a challenge the same way
-	function open({ entry, started }: CatalogueEntry) {
-		try {
-			openProject(started ? started.id : importProject(entry.document, { builtIn: entry.id }).id);
-		} catch (error) {
-			toast.error(`Could not start the challenge: ${messageOf(error)}`);
-		}
-	}
-
 	function confirmDeleteChallenge(project: ChallengeProject) {
 		confirmDelete({
 			title: `Delete "${project.challenge.title}"?`,
@@ -56,20 +34,6 @@
 			onConfirm: async () => deleteProject(project.id)
 		});
 	}
-
-	// A link from outside names the challenge it is about, so the reader lands in it rather than
-	// on the list with the card to find again. Acted on once, since opening reloads the page
-	let followed = false;
-	$effect(() => {
-		const id = page.url.searchParams.get('start');
-		if (!ready || followed || !id) return;
-		followed = true;
-		// Dropped before the canvas opens, so pressing Back lands on the list rather than here
-		replaceState(resolve('/challenges'), page.state);
-		const found = builtIn.find((one) => one.entry.id === id);
-		if (found) open(found);
-		else toast.error(`There is no challenge called "${id}" in this list.`);
-	});
 </script>
 
 <svelte:head><title>Challenges · Glass Garden</title></svelte:head>
@@ -144,7 +108,7 @@
 						description={one.entry.document.description}
 						{...describe(one.entry.document)}
 						action={one.started ? 'Continue' : 'Start'}
-						onstart={async () => open(one)}
+						onstart={async () => location.assign(resolve(challengeAddress(one.entry.id)))}
 					/>
 				{/each}
 				{#each unread as { file, problem } (file)}

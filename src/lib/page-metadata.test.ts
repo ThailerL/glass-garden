@@ -24,13 +24,7 @@ describe('headTags', () => {
 		]);
 	});
 
-	it('keeps the catalogue out of search, since arriving there cold boots the VM for a list', () => {
-		expect(headTags('https://glass.garden', '/challenges')).toBe(
-			'<meta name="robots" content="noindex" />'
-		);
-	});
-
-	it('keeps a page that is a view onto local projects out of search', () => {
+	it('keeps a path the app does not serve out of search', () => {
 		expect(headTags('https://glass.garden', '/edit/abc123')).toBe(
 			'<meta name="robots" content="noindex" />'
 		);
@@ -43,15 +37,8 @@ describe('sitemap', () => {
 		const xml = sitemap('https://glass.garden/');
 		expect(xml).toContain('<loc>https://glass.garden/</loc>');
 		expect(xml).toContain('<loc>https://glass.garden/about</loc>');
-		expect(xml).toContain('<loc>https://glass.garden/about/challenges</loc>');
-		expect(xml).toContain('<loc>https://glass.garden/about/challenges/slow-signups</loc>');
-	});
-
-	// It gives a crawler an empty shell, and the page meant to rank for it is /about/challenges
-	it("leaves out the app's own catalogue", () => {
-		expect(sitemap('https://glass.garden')).not.toContain(
-			'<loc>https://glass.garden/challenges</loc>'
-		);
+		expect(xml).toContain('<loc>https://glass.garden/challenges</loc>');
+		expect(xml).toContain('<loc>https://glass.garden/challenges/slow-signups</loc>');
 	});
 
 	it('does not exist without an address to put in it', () => {

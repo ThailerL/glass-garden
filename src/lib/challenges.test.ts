@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
 import { INDEX_FORMAT, readChallengeFolder } from '$lib/challenges';
 
-const FOLDER = 'static/challenges';
+const FOLDER = 'static/data/challenges';
 
 // The shipped folder, read the way the browser reads it, so what the catalogue would show is
 // what is asserted
 const serveFolder: typeof globalThis.fetch = async (input) => {
-	const file = String(input).replace('/challenges/', '');
+	const file = String(input).replace('/data/challenges/', '');
 	try {
 		return new Response(await readFile(`${FOLDER}/${file}`, 'utf8'));
 	} catch {
@@ -17,7 +17,7 @@ const serveFolder: typeof globalThis.fetch = async (input) => {
 
 const serve = (files: Record<string, string>): typeof globalThis.fetch => {
 	return async (input) => {
-		const body = files[String(input).replace('/challenges/', '')];
+		const body = files[String(input).replace('/data/challenges/', '')];
 		return body === undefined ? new Response('', { status: 404 }) : new Response(body);
 	};
 };

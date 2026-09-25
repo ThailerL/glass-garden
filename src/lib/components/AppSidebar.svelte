@@ -4,6 +4,7 @@
 	import { asset } from '$app/paths';
 	import { page } from '$app/state';
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import { appView } from '$lib/app-view';
 	import { embedded, mainAppUrl } from '$lib/embed';
 	import { getGraphState } from '$lib/graph-state.svelte';
 	import { getProject } from '$lib/projects.svelte';
@@ -15,7 +16,7 @@
 
 	const graphState = getGraphState();
 	// A project stays loaded wherever you are, so only the canvas highlights its row
-	const onCanvas = $derived(page.route.id === '/(canvas)');
+	const onCanvas = $derived(appView(page.url).name === 'canvas');
 </script>
 
 <Sidebar.Root collapsible="none" class="w-full!">

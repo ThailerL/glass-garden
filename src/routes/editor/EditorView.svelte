@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { PageProps } from './$types';
 	import Editor from './Editor.svelte';
 	import InspectorSidebar from '$lib/components/InspectorSidebar.svelte';
 	import Workspace from '$lib/components/Workspace.svelte';
@@ -15,7 +14,7 @@
 	import { resolve } from '$app/paths';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 
-	const { params }: PageProps = $props();
+	const props: { nodeId: string } = $props();
 
 	const orchestrator = getOrchestrator();
 
@@ -28,7 +27,7 @@
 	const inspector = $derived(!isCompact.current || infoOpen ? rightSidebar : undefined);
 	const closeInspector = () => (infoOpen = false);
 
-	const nodeId = untrack(() => params.nodeId);
+	const nodeId = untrack(() => props.nodeId);
 	// Undefined when the id in the URL isn't a real node
 	const node = getGraphState().getNode(nodeId);
 

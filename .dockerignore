@@ -19,5 +19,11 @@ package
 
 # Generated during the image build by scripts/vendor-assets.mjs
 static/vendor
-# Generated during the image build by the content site under site/
-static/about
+# Everything else at the root of static/ is generated during the image build by the content site
+static/*
+!static/data
+!static/favicon.svg
+!static/favicon-32.png
+!static/apple-touch-icon.png
+!static/og.png
+site/dist

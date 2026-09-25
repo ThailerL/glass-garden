@@ -15,6 +15,8 @@
 	import FilePenIcon from '@lucide/svelte/icons/file-pen';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { getEditingLock, RUN_DRIVES_THE_CANVAS } from '$lib/challenge-run.svelte';
+	import { appView } from '$lib/app-view';
+	import { loadEditor } from '$lib/load-editor';
 	import { getGraphState, nodeName } from '$lib/graph-state.svelte';
 	import { inspectorState } from '$lib/inspector-state.svelte';
 	import { getResourceDefinition } from '$lib/resources';
@@ -43,7 +45,7 @@
 	const up = $derived(orchestrator.getUpCount(nodeId));
 	const configured = $derived(orchestrator.getConfiguredCount(nodeId));
 	const restarts = $derived(orchestrator.getRestarts(nodeId));
-	const editing = $derived(page.route.id === '/edit/[nodeId]');
+	const editing = $derived(appView(page.url).name === 'edit');
 	const definition = $derived(node && getResourceDefinition(node.type));
 	const name = $derived(node && nodeName(node));
 	const editable = $derived(!!definition && definition.hasEditableFiles);
@@ -151,7 +153,13 @@
 				Back to Canvas
 			</Button>
 		{:else if editable}
-			<Button variant="outline" data-tour="edit-code" href={resolve('/edit/[nodeId]', { nodeId })}>
+			<Button
+				variant="outline"
+				data-tour="edit-code"
+				href={resolve(`/?edit=${nodeId}`)}
+				onpointerenter={loadEditor}
+				onfocus={loadEditor}
+			>
 				<FilePenIcon />
 				Edit Resource Code
 			</Button>

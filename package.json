@@ -12,7 +12,7 @@
 		"dev": "vite dev --port 3000",
 		"prebuild": "node scripts/check-no-runtime-deps.mjs && npm run vendor && npm run build:site",
 		"build": "vite build",
-		"build:site": "npm --prefix site run build --",
+		"build:site": "npm --prefix site run build && node scripts/copy-site.mjs",
 		"dev:site": "npm --prefix site run dev --",
 		"preview": "vite preview --host --port 3000",
 		"prepare": "svelte-kit sync || echo ''",

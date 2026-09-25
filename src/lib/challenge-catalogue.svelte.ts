@@ -9,6 +9,7 @@ import {
 	adoptNewVersion,
 	getLastProjectId,
 	getProject,
+	importProject,
 	listChallenges,
 	type ChallengeProject,
 	type Project
@@ -33,7 +34,7 @@ export function loadCatalogue(): void {
 		// date by the layout's load, before there was a canvas to write behind
 		const open = getLastProjectId();
 		for (const entry of read.challenges) {
-			const project = listChallenges().find((p) => p.builtIn === entry.id);
+			const project = startedCopy(entry.id);
 			if (project && project.id !== open) adoptNewVersion(project, entry.document);
 		}
 		folder = read;
@@ -48,6 +49,19 @@ export async function adoptOpenChallenge(projectId: string): Promise<void> {
 	const { challenges } = await loadChallengeFolder();
 	const entry = challenges.find((challenge) => challenge.id === project.builtIn);
 	if (entry) adoptNewVersion(project, entry.document);
+}
+
+function startedCopy(id: string): ChallengeProject | undefined {
+	return listChallenges().find((project) => project.builtIn === id);
+}
+
+// Copy first, so one whose challenge left the folder still opens
+export async function linkedChallenge(id: string): Promise<string | undefined> {
+	const started = startedCopy(id);
+	if (started) return started.id;
+	const { challenges } = await loadChallengeFolder();
+	const entry = challenges.find((challenge) => challenge.id === id);
+	return entry && importProject(entry.document, { builtIn: id }).id;
 }
 
 // One walk, so every started challenge falls on exactly one side: ours to describe, or theirs

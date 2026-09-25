@@ -3,7 +3,7 @@ import { messageOf } from './errors';
 import { CHALLENGE_FORMAT, parseDocument, type ChallengeDocument } from './project-document';
 
 // Files rather than code, so running your own is replacing a folder (README, "Your own challenges")
-const FOLDER = '/challenges';
+const FOLDER = '/data/challenges';
 const INDEX = 'index.json';
 
 export type BuiltInChallenge = {

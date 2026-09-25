@@ -185,13 +185,13 @@ To embed your instance of Glass Garden, point the wildcard `*.embed.garden.examp
 
 ### Your own built-in challenges
 
-The challenges in the catalogue are files the container serves from `/app/build/client/challenges`. Mount your own folder over it to replace them:
+The challenges in the catalogue are files the container serves from `/app/build/client/data/challenges`. Mount your own folder over it to replace them:
 
 ```yaml
 services:
   glass-garden:
     volumes:
-      - ./challenges:/app/build/client/challenges
+      - ./challenges:/app/build/client/data/challenges
 ```
 
 The folder holds one `.json` file per challenge and an `index.json` listing them in the order the catalogue shows them:
@@ -208,7 +208,7 @@ The folder holds one `.json` file per challenge and an `index.json` listing them
 }
 ```
 
-Everything a card says comes out of the challenge itself, so it reads the same here as it does for someone who imported the file. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/challenges`](static/challenges) to start from the shipped ones.
+Everything a card says comes out of the challenge itself, so it reads the same here as it does for someone who imported the file. Each file is the same `gg:challenge/1` document that Export writes and a share link carries, so the way to write one is to build it on the canvas, export it, and drop it in. Copy [`static/data/challenges`](static/data/challenges) to start from the shipped ones.
 
 A challenge is known by its `id`, which is what a reader's progress is stored against, so a file can be renamed freely, while changing an `id` makes it a challenge nobody has started and leaves the old record behind. Editing one in place is how a challenge changes: a reader keeps the goals they had met, apart from any the edit judges differently.
 
@@ -237,12 +237,12 @@ The preference turns on WebAssembly JSPI, which the local AWS region needs.
 
 Then open `http://<remote-host>:5800` and browse to `localhost:3000`.
 
-The pages under `/about` are a separate Astro project in `site/`, with a dev server of its own:
+The pages at every path other than `/`, such as `/about` and `/challenges`, are a separate Astro project in `site/`, with a dev server of its own:
 
 ```sh
 npm run dev:site
 ```
 
-That serves them on port `4321`, so the hub page is at `http://localhost:4321/about`. Astro runs it in the background rather than holding the terminal, so stop it with `npm run dev:site -- stop`, and put `status` or `logs` in place of `stop` to check on it. Add `npm run dev:site -- --host` to reach it from another machine.
+That serves them on port `4321`, so the About page is at `http://localhost:4321/about`. Astro runs it in the background rather than holding the terminal, so stop it with `npm run dev:site -- stop`, and put `status` or `logs` in place of `stop` to check on it. Add `npm run dev:site -- --host` to reach it from another machine.
 
 The app's own dev server serves these pages from whatever `npm run build:site` last wrote into `static/`, so they are stale or missing until you run it, and it serves them only at their exact paths, so `/about/index.html` works there and `/about` does not. To see them as they are deployed, and to see the running canvas the About page embeds, run `npm run build` and then `npm run preview`.
