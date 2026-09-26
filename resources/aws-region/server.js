@@ -120,9 +120,9 @@ let observed = emptyTopology();
 // Environment output is its own stream in the node's log, and each measurement carries the
 // environment so the per-environment lines add up to the total, as CloudWatch's do
 const observer = {
-  onOutput(line, { functionName, environment }) {
+  onOutput({ text, functionName, environment }) {
     const nodeId = observed.owners.lambda[functionName];
-    if (nodeId) emit({ kind: 'output', nodeId, environment, line });
+    if (nodeId) emit({ kind: 'output', nodeId, environment, line: text });
   },
   onEvent(event) {
     const { owners } = observed;
@@ -172,12 +172,12 @@ const { createRegion, directoryStore, serve } = await import('./cache/pocket-reg
 // are pocket-region's, including the shuttle through MEMFS that Vivari's corrupt writes
 // through a node mount force
 const region = await createRegion({
-  packageCacheDir: CACHE_DIR,
+  assetsDir: CACHE_DIR,
   indexURL: path.join(CACHE_DIR, 'pyodide'),
   store: directoryStore(DATA_DIR),
   // Queue URLs are built from this, and the SDK dials the URL it is given
   port: PORT,
-  onOutput: (line, stream) => (stream === 'stderr' ? console.error(line) : console.log(line)),
+  onOutput: ({ text, stream }) => (stream === 'stderr' ? console.error(text) : console.log(text)),
   lambda: observer
 });
 // What restoring found is pocket-region's to report, and it says so on its own output: a
