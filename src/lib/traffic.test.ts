@@ -46,16 +46,19 @@ describe('parseTrafficLine', () => {
 	});
 });
 
-// generator → balancer → web (ports 3001-3003) → queue, and queue → fn
+// generator → balancer → web (ports 3001-3003) → queue, queue → fn, and web → db, which web
+// reaches from port 49152
 const edges: Record<string, string> = {
 	'gen>lb': 'e1',
 	'lb>web': 'e2',
 	'web>queue': 'e3',
-	'queue>fn': 'e4'
+	'queue>fn': 'e4',
+	'web>db': 'e5'
 };
 const services: TrafficServices = {
 	instanceAt: (port) =>
 		port >= 3001 && port <= 3003 ? { nodeId: 'web', lane: port - 3001 } : undefined,
+	callerAt: (remotePort) => (remotePort === 49152 ? 'web' : undefined),
 	edgeBetween: (source, target) => edges[`${source}>${target}`]
 };
 
@@ -95,6 +98,13 @@ describe('Traffic', () => {
 		traffic.ingest('gen', { kind: 'hop', at: 1, to: { port: 9999 } });
 		settle();
 		expect(traffic.flights).toEqual([]);
+	});
+
+	it('names a caller by the port its connection came from', () => {
+		traffic.ingest('db', { kind: 'hop', at: 1, from: { remotePort: 49152 } });
+		traffic.ingest('db', { kind: 'hop', at: 2, from: { remotePort: 49999 } });
+		settle();
+		expect(traffic.flights).toMatchObject([{ edgeId: 'e5', reverse: false, lane: undefined }]);
 	});
 
 	it('does not let a departure leave before what reached the node has landed', () => {

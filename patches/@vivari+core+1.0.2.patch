@@ -1,8 +1,123 @@
+diff --git a/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js b/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
+index fe52cb1..0ebdc1e 100644
+--- a/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
++++ b/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
+@@ -5177,6 +5177,11 @@ function inboundBodyBytes(req) {
+ 	return null;
+ }
+ const INBOX_INLINE_MAX = 1032192;
++/** The port a process worker's TCP listener registers its cross-process pipe under, or null for any other pipe. */
++function tcpPortOfPipe(path) {
++	const match = /^\0oc-tcp:(\d+)$/.exec(path);
++	return match ? Number(match[1]) : null;
++}
+ var Kernel = class {
+ 	constructor({ fs, spawnWorker, stdout, stderr, fetcher, signalGraceMs }) {
+ 		this.fs = fs;
+@@ -5200,6 +5205,8 @@ var Kernel = class {
+ 		this.pipeListeners = /* @__PURE__ */ new Map();
+ 		this.pipeConns = /* @__PURE__ */ new Map();
+ 		this.nextPipeConnId = 1;
++		this.nextClientPort = 49151;
++		this.onConnect = null;
+ 		this.fetcher = fetcher || null;
+ 		this.fetchCache = /* @__PURE__ */ new Map();
+ 		this.onFetch = null;
+@@ -5905,16 +5912,45 @@ var Kernel = class {
+ 			return;
+ 		}
+ 		const connId = this.nextPipeConnId++;
++		const port = tcpPortOfPipe(path);
++		const clientPort = port === null ? void 0 : this.allocClientPort();
+ 		this.pipeConns.set(connId, {
+ 			clientPid: proc.pid,
+-			serverPid
++			serverPid,
++			clientPort
+ 		});
+ 		this.postToProc(serverPid, {
+ 			type: "pipe-open",
+ 			connId,
+-			path
++			path,
++			remotePort: clientPort
++		});
++		if (port !== null && this.onConnect) this.onConnect({
++			port,
++			remotePort: clientPort,
++			pid: serverPid,
++			remotePid: proc.pid
+ 		});
+-		this.respondOk(proc, encodeString(JSON.stringify({ connId })));
++		this.respondOk(proc, encodeString(JSON.stringify({
++			connId,
++			localPort: clientPort
++		})));
++	}
++	/**
++	* The client end of a TCP connection between two processes gets its port here rather than
++	* from its own worker, so the port is unique across the VM: the server's
++	* `socket.remotePort` then names one connection, as it would on a real host, and the
++	* `connection` event can say which process holds it.
++	*/
++	allocClientPort() {
++		const taken = /* @__PURE__ */ new Set();
++		for (const conn of this.pipeConns.values()) if (conn.clientPort !== void 0) taken.add(conn.clientPort);
++		for (let tries = 0; tries < 16384; tries++) {
++			this.nextClientPort = this.nextClientPort >= 65535 ? 49152 : this.nextClientPort + 1;
++			const port = this.nextClientPort;
++			if (!taken.has(port) && !this.listeners.has(port)) return port;
++		}
++		return this.nextClientPort;
+ 	}
+ 	handlePipeRelay(fromPid, m) {
+ 		if (!m || typeof m !== "object") return;
+@@ -8974,6 +9010,20 @@ async function boot() {
+ 			announceDemoReady(id, port);
+ 		}
+ 	};
++	kernel.onConnect = (conn) => {
++		const remoteAncestors = [];
++		const seen = /* @__PURE__ */ new Set([conn.remotePid]);
++		let p = kernel.procs.get(conn.remotePid)?.parentPid;
++		while (p && !seen.has(p)) {
++			seen.add(p);
++			remoteAncestors.push(p);
++			p = kernel.procs.get(p)?.parentPid;
++		}
++		post("connection", {
++			...conn,
++			remoteAncestors
++		});
++	};
+ 	kernel.onClose = (port) => {
+ 		if (!listening.delete(port)) return;
+ 		servingProbed.delete(port);
 diff --git a/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js b/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
-index cfce5d3..e6f590e 100644
+index cfce5d3..c4bdd2e 100644
 --- a/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
 +++ b/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
-@@ -2783,7 +2783,8 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+@@ -2689,14 +2689,18 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+ 			if (!server || server._closed) {
+ 				if (pipeBridge && pipeBridge.postRaw && syscalls && syscalls.pipeConnect) {
+ 					let connId = 0;
++					let localPort = 0;
+ 					try {
+-						connId = syscalls.pipeConnect(tcpXKey(p)).connId | 0;
++						const reply = syscalls.pipeConnect(tcpXKey(p));
++						connId = reply.connId | 0;
++						localPort = reply.localPort | 0;
+ 					} catch {
+ 						connId = 0;
+ 					}
+ 					if (connId > 0) {
+ 						this._xproc = true;
+ 						this._connId = connId;
++						if (localPort > 0) this._localPort = localPort;
+ 						xpipeConns.set(connId, this);
+ 						nextTick(() => {
+ 							this._live = true;
+@@ -2783,7 +2787,8 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
  				this._closed = true;
  				recount(this);
  				if (this.type === TCPConstants.SERVER) {
@@ -12,3 +127,89 @@ index cfce5d3..e6f590e 100644
  					if (this._kernelPort != null && syscalls && syscalls.closeServer) {
  						try {
  							syscalls.closeServer(this._kernelPort);
+@@ -3070,7 +3075,12 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+ 			peer._xproc = true;
+ 			peer._connId = connId;
+ 			if (peer instanceof Pipe) peer._remotePath = String(msg.path);
+-			else peer._remoteAddress = "127.0.0.1";
++			else {
++				peer._localAddress = "127.0.0.1";
++				peer._localPort = server._localPort;
++				peer._remoteAddress = "127.0.0.1";
++				peer._remotePort = msg.remotePort >>> 0;
++			}
+ 			xpipeConns.set(connId, peer);
+ 			peer._live = true;
+ 			recount(peer);
+diff --git a/node_modules/@vivari/core/dist/index.d.ts b/node_modules/@vivari/core/dist/index.d.ts
+index 6b706ae..b8434a9 100644
+--- a/node_modules/@vivari/core/dist/index.d.ts
++++ b/node_modules/@vivari/core/dist/index.d.ts
+@@ -5,5 +5,5 @@ export type { FileSystemAPI, FSWatcher } from "./fs.js";
+ export type { OutputStream, VivariProcess } from "./process.js";
+ export type { PreviewMode, RequestOptions } from "./bridge.js";
+ export type { VivariErrorCode, VivariFsErrorCode, VivariRuntimeErrorCode, } from "./errors.js";
+-export type { BootOptions, DirectoryNode, DirEnt, Encoding, ErrorListener, ExportedFile, ExportOptions, ExportResult, FileNode, FileSystemTree, FsChangeEvent, FsChangeKind, FsChangeListener, FsOperationOptions, KernelMessage, ListenerOptions, MountOptions, PortKind, PortListener, ServerReadyListener, SpawnOptions, Stats, Unsubscribe, VivariEventMap, VivariListener, WatchOptions, } from "./types.js";
++export type { BootOptions, ConnectionEvent, DirectoryNode, DirEnt, Encoding, ErrorListener, ExportedFile, ExportOptions, ExportResult, FileNode, FileSystemTree, FsChangeEvent, FsChangeKind, FsChangeListener, FsOperationOptions, KernelMessage, ListenerOptions, MountOptions, PortKind, PortListener, ServerReadyListener, SpawnOptions, Stats, Unsubscribe, VivariEventMap, VivariListener, WatchOptions, } from "./types.js";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/@vivari/core/dist/index.js b/node_modules/@vivari/core/dist/index.js
+index 7ba6676..cd99934 100644
+--- a/node_modules/@vivari/core/dist/index.js
++++ b/node_modules/@vivari/core/dist/index.js
+@@ -994,6 +994,15 @@ var Vivari = class Vivari {
+ 			const port = m.port;
+ 			this.emit("server-ready", port, bridge.previewUrlFor(port));
+ 		});
++		bridge.on("connection", (m) => {
++			this.emit("connection", {
++				port: m.port,
++				remotePort: m.remotePort,
++				pid: m.pid,
++				remotePid: m.remotePid,
++				remoteAncestors: m.remoteAncestors ?? []
++			});
++		});
+ 		bridge.on("port-close", (m) => {
+ 			const port = m.port;
+ 			this.emit("port", port, "close", bridge.previewUrlFor(port));
+diff --git a/node_modules/@vivari/core/dist/types.d.ts b/node_modules/@vivari/core/dist/types.d.ts
+index 819f1dd..fc1eeec 100644
+--- a/node_modules/@vivari/core/dist/types.d.ts
++++ b/node_modules/@vivari/core/dist/types.d.ts
+@@ -216,14 +216,35 @@ export type PortKind = "open" | "close";
+  *   `server-ready` for the same port, and again with `"close"` when it goes away.
+  * - `fs-change` — something under the VFS changed. Coalesce these; a single
+  *   install fires thousands.
++ * - `connection` — one process opened a TCP connection to a server in another.
++ *   Fires before either end can send anything, so it arrives ahead of any output
++ *   the server prints about the connection.
+  * - `error` — an unrecoverable kernel error.
+  */
+ export interface VivariEventMap {
+     "server-ready": [port: number, url: string];
+     port: [port: number, kind: PortKind, url: string];
++    connection: [event: ConnectionEvent];
+     "fs-change": [event: FsChangeEvent];
+     error: [error: VivariError];
+ }
++/**
++ * A TCP connection between two processes in the VM. `remotePort` is what the
++ * server's `socket.remotePort` reads for it, and is unique across the VM while
++ * the connection is open, so it names the client.
++ */
++export interface ConnectionEvent {
++    /** The port the server accepted the connection on. */
++    port: number;
++    /** The client's end of the connection: the server's `socket.remotePort`. */
++    remotePort: number;
++    /** The server process. */
++    pid: number;
++    /** The client process. */
++    remotePid: number;
++    /** The client's parent, its parent's parent, and so on, nearest first. */
++    remoteAncestors: number[];
++}
+ /** The listener signature for one {@link VivariEventMap} event. */
+ export type VivariListener<E extends keyof VivariEventMap> = (...args: VivariEventMap[E]) => void;
+ /** Fired when a server inside the VM starts listening and its preview is reachable. */

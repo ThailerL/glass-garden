@@ -19,6 +19,7 @@ import { nodeFiles } from './files/node-files';
 import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
 import { buildTopology } from './aws-topology';
 import { Traffic } from './traffic.svelte';
+import { Callers } from './callers';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -37,7 +38,14 @@ export class Orchestrator {
 	#containerError = $state<string | undefined>();
 	#slowBoot = $state(false);
 	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
+	#callers = new Callers((pid) => {
+		for (const controller of this.#controllers.values()) {
+			if (controller.runsProcess(pid)) return controller.nodeId;
+		}
+		return undefined;
+	});
 	readonly traffic = new Traffic({
+		callerAt: (remotePort) => this.#callers.nodeAt(remotePort),
 		instanceAt: (port) => {
 			for (const node of this.#graphState.nodes) {
 				const lane = nodePorts(node).indexOf(port);
@@ -57,6 +65,10 @@ export class Orchestrator {
 		onRegionEvent((event) => {
 			if (event.kind === 'hop') return this.traffic.ingest(undefined, event);
 			if (event.kind === 'level') return this.traffic.ingest(event.nodeId, event);
+			if (event.kind === 'environment-process') {
+				return this.#callers.environmentSpawned(event.pid, event.nodeId, event.environment);
+			}
+			if (event.kind === 'environment-exit') this.#callers.environmentExited(event.environment);
 			const log = event.nodeId ? this.#controllers.get(event.nodeId)?.log : undefined;
 			if (!log) return;
 			if (event.kind === 'metric') log.putMetric('resource', { dimensions: {}, ...event });
@@ -421,6 +433,7 @@ export class Orchestrator {
 						if (controller.onPortOpen(port, url)) return;
 					}
 				});
+				container.on('connection', (event) => this.#callers.connected(event));
 				this.#containerReady = true;
 				this.#endBootWatch();
 				return container;

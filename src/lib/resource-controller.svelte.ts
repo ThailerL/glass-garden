@@ -95,6 +95,11 @@ export class ResourceController {
 		this.#services = services;
 	}
 
+	// Whether one of this node's instances runs as that VM process
+	runsProcess(pid: number): boolean {
+		return this.instances.some((instance) => instance.handle?.pid === pid);
+	}
+
 	get status(): ResourceStatus {
 		if (this.instances.length === 0) return 'stopped';
 		if (this.instances.every((instance) => instance.status === 'running')) return 'running';

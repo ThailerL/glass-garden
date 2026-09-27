@@ -69,6 +69,7 @@ export function processHandle(process: VivariProcess): InstanceHandle {
 			process.kill();
 			await process.exit;
 		},
-		output: process.output
+		output: process.output,
+		pid: process.pid
 	};
 }

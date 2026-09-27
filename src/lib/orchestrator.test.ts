@@ -5,6 +5,7 @@ import { GraphState, nodeConfig } from '$lib/graph-state.svelte';
 import { ensureRegion } from '$lib/aws-region';
 import { getContainer } from '$lib/container';
 import type { ResourceType } from '$lib/resources';
+import { REORDER_MS } from '$lib/traffic.svelte';
 
 // Reservation logic is tested against a real GraphState (persistence and node
 // replacement are part of the contract) and real controllers for live-instance state;
@@ -13,11 +14,18 @@ const fake = vi.hoisted(() => ({
 	stopFails: false,
 	alwaysOn: false,
 	aws: false,
-	clearByRestart: false
+	clearByRestart: false,
+	// Every instance runs as a process of its own, numbered as the VM would
+	nextPid: 1,
+	onConnection: undefined as ((event: import('@vivari/core').ConnectionEvent) => void) | undefined
 }));
 
 vi.mock('$lib/container', () => ({
-	getContainer: vi.fn(async () => ({ on: vi.fn() })),
+	getContainer: vi.fn(async () => ({
+		on: vi.fn((event: string, listener: never) => {
+			if (event === 'connection') fake.onConnection = listener;
+		})
+	})),
 	mountNodeFiles: vi.fn(async () => {}),
 	removeNodeFiles: vi.fn(),
 	requestPersistentStorage: vi.fn(),
@@ -63,7 +71,8 @@ vi.mock('$lib/resources', async () => {
 			exited: new Promise<number>(() => {}),
 			stop: async () => {
 				if (fake.stopFails) throw new Error('kill failed');
-			}
+			},
+			pid: fake.nextPid++
 		})
 	};
 	return {
@@ -135,6 +144,34 @@ describe('Orchestrator instance statuses', () => {
 		orchestrator.start(id);
 		await settle();
 		expect(orchestrator.getInstanceStatuses(id)).toEqual(['running', 'running', 'running']);
+	});
+});
+
+describe('Orchestrator traffic', () => {
+	it('draws a hop from the node whose process opened the connection', async () => {
+		vi.useFakeTimers();
+		try {
+			fake.nextPid = 100;
+			const { graphState, orchestrator, nodeIds } = setup([1, 1]);
+			const [web, db] = nodeIds;
+			graphState.addEdge(web, db);
+			orchestrator.start(web);
+			await settle();
+			// web's instance is pid 100; the process that connects is a child it started
+			fake.onConnection!({
+				port: 5432,
+				remotePort: 49152,
+				pid: 7,
+				remotePid: 101,
+				remoteAncestors: [100]
+			});
+			orchestrator.traffic.ingest(db, { kind: 'hop', at: 1, from: { remotePort: 49152 } });
+			orchestrator.traffic.ingest(db, { kind: 'hop', at: 2, from: { remotePort: 49153 } });
+			vi.advanceTimersByTime(REORDER_MS);
+			expect(orchestrator.traffic.flights).toMatchObject([{ reverse: false, lane: undefined }]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

@@ -37,6 +37,7 @@ export type NodeReport =
 			dimensions?: Record<string, string>;
 	  }
 	| { kind: 'output'; nodeId: string; environment: string; line: string }
+	| { kind: 'environment-process'; nodeId: string; environment: string; pid: number }
 	| { kind: 'environment-exit'; nodeId: string; environment: string };
 
 export const EVENT_PREFIX: string;

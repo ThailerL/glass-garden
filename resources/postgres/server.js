@@ -28,15 +28,20 @@ if (existsSync(RESET_MARKER)) {
 const server = new PGLiteSocketServer({ db, port, host: '127.0.0.1', maxConnections });
 await server.start();
 
-// Each query as a hop for the canvas, named for the node that connected
-const reportHop = (node) =>
-  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), from: { node } }));
+// Each query as a hop for the canvas, from the port its connection came from, which the
+// canvas traces back to the node that opened it
+const reportHop = (remotePort) =>
+  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), from: { remotePort } }));
 
 // The socket server owns the listener, so this watches a copy of what arrives at it rather
 // than standing in the way
 const listener = server.server;
 if (listener) {
-  listener.on('connection', (socket) => socket.on('data', connectionTap(reportHop)));
+  listener.on('connection', (socket) => {
+    // Read as the connection opens, while the socket still has its peer to report
+    const { remotePort } = socket;
+    if (remotePort !== undefined) socket.on('data', connectionTap(() => reportHop(remotePort)));
+  });
 } else {
   console.error('Cannot see which node each query comes from, so the canvas will not draw them');
 }

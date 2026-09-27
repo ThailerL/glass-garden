@@ -131,6 +131,8 @@ const observer = {
     const { environment } = event;
     if (event.kind === 'environment') {
       if (event.phase === 'stopped') emit({ kind: 'environment-exit', nodeId, environment });
+      // Its connections name its pid, and the pid alone says only that the region spawned it
+      if (event.phase === 'spawned') emit({ kind: 'environment-process', nodeId, environment, pid: event.pid });
     } else if (event.phase === 'started') {
       functionState(event.functionName).busy += 1;
       // A 1 when this invocation had to wait for an environment to boot and a 0 when it did

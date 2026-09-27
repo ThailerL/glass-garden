@@ -45,10 +45,11 @@ describe('consumerEnv', () => {
 		expect(env.DATABASE_URL).toBe(env.ORDERS_DATABASE_URL);
 	});
 
-	it('hands each consumer a database user named for it, so queries name their caller', () => {
+	it('hands every consumer the same database address, since connections name their caller', () => {
 		const db = [neighbour(database('p1', 'Orders'), 5433)];
-		expect(consumerEnv(web, db).DATABASE_URL).toBe(
-			`postgres://gg${web.id}@localhost:5433/postgres`
+		expect(consumerEnv(web, db).DATABASE_URL).toBe('postgres://postgres@localhost:5433/postgres');
+		expect(consumerEnv(fn('f', 'Worker', 'worker'), db).DATABASE_URL).toBe(
+			'postgres://postgres@localhost:5433/postgres'
 		);
 	});
 

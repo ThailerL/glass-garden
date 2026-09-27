@@ -1,0 +1,54 @@
+diff --git a/node_modules/pocket-region/dist/core.d.ts b/node_modules/pocket-region/dist/core.d.ts
+index 16f36f7..83211f3 100644
+--- a/node_modules/pocket-region/dist/core.d.ts
++++ b/node_modules/pocket-region/dist/core.d.ts
+@@ -80,6 +80,10 @@ export type LambdaEvent = LambdaEnvironment & ({
+     kind: 'environment';
+     phase: 'started' | 'stopped';
+     reason?: string;
++} | {
++    kind: 'environment';
++    phase: 'spawned';
++    pid: number;
+ } | {
+     kind: 'invocation';
+     requestId: string;
+diff --git a/node_modules/pocket-region/dist/lambda/pool.d.ts b/node_modules/pocket-region/dist/lambda/pool.d.ts
+index ea3fa23..84f8d6b 100644
+--- a/node_modules/pocket-region/dist/lambda/pool.d.ts
++++ b/node_modules/pocket-region/dist/lambda/pool.d.ts
+@@ -14,6 +14,8 @@ export type SandboxEvents = {
+     failed(requestId: string, error: LambdaError): void;
+     exited(reason: string, initError?: LambdaError): void;
+     output(line: string): void;
++    /** A sandbox that runs as its own process reports its pid once it has one */
++    spawned?(pid: number): void;
+ };
+ export type SandboxFactory = (env: Record<string, string>, events: SandboxEvents) => Sandbox;
+ export type PoolSettings = {
+diff --git a/node_modules/pocket-region/dist/lambda/pool.js b/node_modules/pocket-region/dist/lambda/pool.js
+index e2b51eb..474dc8b 100644
+--- a/node_modules/pocket-region/dist/lambda/pool.js
++++ b/node_modules/pocket-region/dist/lambda/pool.js
+@@ -81,6 +81,7 @@ export class FunctionPool {
+                 failed: (requestId, error) => this.complete(this.owned(env, requestId), error.errorMessage),
+                 exited: (reason, initError) => this.exited(env, reason, initError),
+                 output: (line) => this.output(env, line),
++                spawned: (pid) => this.emit({ kind: 'environment', functionName: env.functionName, environment: id, phase: 'spawned', pid }),
+             }),
+         };
+         this.environments.set(id, env);
+diff --git a/node_modules/pocket-region/dist/lambda/process-host.js b/node_modules/pocket-region/dist/lambda/process-host.js
+index 4ff73c3..6e11051 100644
+--- a/node_modules/pocket-region/dist/lambda/process-host.js
++++ b/node_modules/pocket-region/dist/lambda/process-host.js
+@@ -93,6 +93,9 @@ function processSandbox({ taskRoot, runtimeScript }) {
+                     LAMBDA_TASK_ROOT: taskRoot,
+                 },
+             });
++            // Which OS process this environment is, for a host that tells its connections apart
++            if (child.pid !== undefined)
++                events.spawned?.(child.pid);
+             forwardLines(child.stdout, events.output);
+             forwardLines(child.stderr, events.output);
+             child.on('error', (error) => {

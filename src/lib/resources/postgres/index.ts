@@ -39,9 +39,9 @@ export const postgres = {
 	instanceCount: () => 1,
 	runsProcesses: true,
 	alwaysOn: false,
-	supplies: (_node: Node, port: number, consumer: Node) => ({
+	supplies: (_node: Node, port: number) => ({
 		suffix: 'DATABASE_URL',
-		value: connectionUrl(port, consumer.id),
+		value: connectionUrl(port),
 		soleName: 'DATABASE_URL'
 	}),
 	launchConfig,
