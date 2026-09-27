@@ -1,5 +1,5 @@
 diff --git a/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js b/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
-index fe52cb1..f469de3 100644
+index fe52cb1..21c4555 100644
 --- a/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
 +++ b/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
 @@ -5200,6 +5200,9 @@ var Kernel = class {
@@ -43,26 +43,23 @@ index fe52cb1..f469de3 100644
 -			path
 +			path,
 +			remotePort: clientPort
- 		});
--		this.respondOk(proc, encodeString(JSON.stringify({ connId })));
++		});
 +		if (port !== void 0 && this.onConnect) this.onConnect({
 +			port,
 +			remotePort: clientPort,
 +			pid: serverPid,
 +			remotePid: proc.pid,
 +			remoteAncestors: this.ancestorsOf(proc.pid)
-+		});
+ 		});
+-		this.respondOk(proc, encodeString(JSON.stringify({ connId })));
 +		this.respondOk(proc, encodeString(JSON.stringify({
 +			connId,
 +			localPort: clientPort
 +		})));
 +	}
 +	/**
-+	* The client end of a TCP connection between two processes gets its port here rather than
-+	* from its own worker, so the port is unique across the VM: the server's
-+	* `socket.remotePort` then names one connection, as it would on a real host, and the
-+	* `connection` event can say which process holds it. Undefined when every ephemeral port
-+	* is taken.
++	* Ports for the client end of cross-process TCP connections, unique across the VM so
++	* `socket.remotePort` names one connection. Undefined when all are taken.
 +	*/
 +	allocClientPort() {
 +		for (let tries = 0; tries < 16384; tries++) {
@@ -74,7 +71,10 @@ index fe52cb1..f469de3 100644
 +			}
 +		}
 +	}
-+	/** A process's parent, its parent's parent, and so on, nearest first. Pids only grow, so a parent's is always lower and the walk ends. */
++	/**
++	* A process's ancestors, nearest first. Pids only grow, so a parent's is always lower and
++	* the walk ends.
++	*/
 +	ancestorsOf(pid) {
 +		const ancestors = [];
 +		for (let p = this.procs.get(pid)?.parentPid; p; p = this.procs.get(p)?.parentPid) ancestors.push(p);
@@ -207,10 +207,10 @@ index 7ba6676..2221798 100644
  			const port = m.port;
  			this.emit("port", port, "close", bridge.previewUrlFor(port));
 diff --git a/node_modules/@vivari/core/dist/types.d.ts b/node_modules/@vivari/core/dist/types.d.ts
-index 819f1dd..fc1eeec 100644
+index 819f1dd..b6f6572 100644
 --- a/node_modules/@vivari/core/dist/types.d.ts
 +++ b/node_modules/@vivari/core/dist/types.d.ts
-@@ -216,14 +216,35 @@ export type PortKind = "open" | "close";
+@@ -216,14 +216,31 @@ export type PortKind = "open" | "close";
   *   `server-ready` for the same port, and again with `"close"` when it goes away.
   * - `fs-change` — something under the VFS changed. Coalesce these; a single
   *   install fires thousands.
@@ -226,15 +226,11 @@ index 819f1dd..fc1eeec 100644
      "fs-change": [event: FsChangeEvent];
      error: [error: VivariError];
  }
-+/**
-+ * A TCP connection between two processes in the VM. `remotePort` is what the
-+ * server's `socket.remotePort` reads for it, and is unique across the VM while
-+ * the connection is open, so it names the client.
-+ */
++/** A TCP connection between two processes in the VM. */
 +export interface ConnectionEvent {
 +    /** The port the server accepted the connection on. */
 +    port: number;
-+    /** The client's end of the connection: the server's `socket.remotePort`. */
++    /** The server's `socket.remotePort`: unique across the VM while the connection is open. */
 +    remotePort: number;
 +    /** The server process. */
 +    pid: number;
