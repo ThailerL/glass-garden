@@ -1,34 +1,36 @@
 diff --git a/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js b/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
-index fe52cb1..0ebdc1e 100644
+index fe52cb1..f469de3 100644
 --- a/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
 +++ b/node_modules/@vivari/core/dist/assets/kernel-worker-CyA_bh4w.js
-@@ -5177,6 +5177,11 @@ function inboundBodyBytes(req) {
- 	return null;
- }
- const INBOX_INLINE_MAX = 1032192;
-+/** The port a process worker's TCP listener registers its cross-process pipe under, or null for any other pipe. */
-+function tcpPortOfPipe(path) {
-+	const match = /^\0oc-tcp:(\d+)$/.exec(path);
-+	return match ? Number(match[1]) : null;
-+}
- var Kernel = class {
- 	constructor({ fs, spawnWorker, stdout, stderr, fetcher, signalGraceMs }) {
- 		this.fs = fs;
-@@ -5200,6 +5205,8 @@ var Kernel = class {
+@@ -5200,6 +5200,9 @@ var Kernel = class {
  		this.pipeListeners = /* @__PURE__ */ new Map();
  		this.pipeConns = /* @__PURE__ */ new Map();
  		this.nextPipeConnId = 1;
-+		this.nextClientPort = 49151;
++		this.clientPorts = /* @__PURE__ */ new Set();
++		this.nextClientPort = 49152;
 +		this.onConnect = null;
  		this.fetcher = fetcher || null;
  		this.fetchCache = /* @__PURE__ */ new Map();
  		this.onFetch = null;
-@@ -5905,16 +5912,45 @@ var Kernel = class {
+@@ -5693,6 +5696,7 @@ var Kernel = class {
+ 				connId
+ 			});
+ 			this.pipeConns.delete(connId);
++			this.clientPorts.delete(conn.clientPort);
+ 		}
+ 		const result = {
+ 			code,
+@@ -5904,17 +5908,58 @@ var Kernel = class {
+ 			this.respondErr(proc, "ENOENT");
  			return;
  		}
++		const port = msg.tcpPort;
++		const clientPort = port === void 0 ? void 0 : this.allocClientPort();
++		if (port !== void 0 && clientPort === void 0) {
++			this.respondErr(proc, "EADDRNOTAVAIL");
++			return;
++		}
  		const connId = this.nextPipeConnId++;
-+		const port = tcpPortOfPipe(path);
-+		const clientPort = port === null ? void 0 : this.allocClientPort();
  		this.pipeConns.set(connId, {
  			clientPid: proc.pid,
 -			serverPid
@@ -41,14 +43,15 @@ index fe52cb1..0ebdc1e 100644
 -			path
 +			path,
 +			remotePort: clientPort
-+		});
-+		if (port !== null && this.onConnect) this.onConnect({
+ 		});
+-		this.respondOk(proc, encodeString(JSON.stringify({ connId })));
++		if (port !== void 0 && this.onConnect) this.onConnect({
 +			port,
 +			remotePort: clientPort,
 +			pid: serverPid,
-+			remotePid: proc.pid
- 		});
--		this.respondOk(proc, encodeString(JSON.stringify({ connId })));
++			remotePid: proc.pid,
++			remoteAncestors: this.ancestorsOf(proc.pid)
++		});
 +		this.respondOk(proc, encodeString(JSON.stringify({
 +			connId,
 +			localPort: clientPort
@@ -58,66 +61,96 @@ index fe52cb1..0ebdc1e 100644
 +	* The client end of a TCP connection between two processes gets its port here rather than
 +	* from its own worker, so the port is unique across the VM: the server's
 +	* `socket.remotePort` then names one connection, as it would on a real host, and the
-+	* `connection` event can say which process holds it.
++	* `connection` event can say which process holds it. Undefined when every ephemeral port
++	* is taken.
 +	*/
 +	allocClientPort() {
-+		const taken = /* @__PURE__ */ new Set();
-+		for (const conn of this.pipeConns.values()) if (conn.clientPort !== void 0) taken.add(conn.clientPort);
 +		for (let tries = 0; tries < 16384; tries++) {
-+			this.nextClientPort = this.nextClientPort >= 65535 ? 49152 : this.nextClientPort + 1;
 +			const port = this.nextClientPort;
-+			if (!taken.has(port) && !this.listeners.has(port)) return port;
++			this.nextClientPort = port >= 65535 ? 49152 : port + 1;
++			if (!this.clientPorts.has(port) && !this.listeners.has(port)) {
++				this.clientPorts.add(port);
++				return port;
++			}
 +		}
-+		return this.nextClientPort;
++	}
++	/** A process's parent, its parent's parent, and so on, nearest first. Pids only grow, so a parent's is always lower and the walk ends. */
++	ancestorsOf(pid) {
++		const ancestors = [];
++		for (let p = this.procs.get(pid)?.parentPid; p; p = this.procs.get(p)?.parentPid) ancestors.push(p);
++		return ancestors;
  	}
  	handlePipeRelay(fromPid, m) {
  		if (!m || typeof m !== "object") return;
-@@ -8974,6 +9010,20 @@ async function boot() {
+@@ -5922,7 +5967,10 @@ var Kernel = class {
+ 		if (!conn) return;
+ 		const otherPid = fromPid === conn.clientPid ? conn.serverPid : conn.clientPid;
+ 		this.postToProc(otherPid, m);
+-		if (m.type === "pipe-close") this.pipeConns.delete(m.connId);
++		if (m.type === "pipe-close") {
++			this.pipeConns.delete(m.connId);
++			this.clientPorts.delete(conn.clientPort);
++		}
+ 	}
+ 	handleRespond(proc, fields) {
+ 		const meta = JSON.parse(decodeBytes(fields[0]));
+@@ -8974,6 +9022,7 @@ async function boot() {
  			announceDemoReady(id, port);
  		}
  	};
-+	kernel.onConnect = (conn) => {
-+		const remoteAncestors = [];
-+		const seen = /* @__PURE__ */ new Set([conn.remotePid]);
-+		let p = kernel.procs.get(conn.remotePid)?.parentPid;
-+		while (p && !seen.has(p)) {
-+			seen.add(p);
-+			remoteAncestors.push(p);
-+			p = kernel.procs.get(p)?.parentPid;
-+		}
-+		post("connection", {
-+			...conn,
-+			remoteAncestors
-+		});
-+	};
++	kernel.onConnect = (conn) => post("connection", conn);
  	kernel.onClose = (port) => {
  		if (!listening.delete(port)) return;
  		servingProbed.delete(port);
 diff --git a/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js b/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
-index cfce5d3..c4bdd2e 100644
+index cfce5d3..be5a2ae 100644
 --- a/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
 +++ b/node_modules/@vivari/core/dist/assets/process-worker-Do4GxeIj.js
-@@ -2689,14 +2689,18 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+@@ -266,7 +266,10 @@ function createSyscalls({ ctrl, data, notify, onSignal = null }) {
+ 		},
+ 		closeServer: (port) => call(24, encodeRequest([b(JSON.stringify({ port }))])),
+ 		pipeListen: (path) => call(31, encodeRequest([b(JSON.stringify({ path }))])),
+-		pipeConnect: (path) => JSON.parse(decodeBytes(call(32, encodeRequest([b(JSON.stringify({ path }))])))),
++		pipeConnect: (path, tcpPort) => JSON.parse(decodeBytes(call(32, encodeRequest([b(JSON.stringify({
++			path,
++			tcpPort
++		}))])))),
+ 		pipeCloseServer: (path) => call(33, encodeRequest([b(JSON.stringify({ path }))])),
+ 		fetch: (url, opts) => {
+ 			const o = opts || {};
+@@ -2685,18 +2688,17 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+ 			this._remoteAddress = address;
+ 			this._remotePort = p;
+ 			this._localAddress = "127.0.0.1";
+-			this._localPort = allocPort();
  			if (!server || server._closed) {
  				if (pipeBridge && pipeBridge.postRaw && syscalls && syscalls.pipeConnect) {
- 					let connId = 0;
-+					let localPort = 0;
+-					let connId = 0;
++					let reply = null;
  					try {
 -						connId = syscalls.pipeConnect(tcpXKey(p)).connId | 0;
-+						const reply = syscalls.pipeConnect(tcpXKey(p));
-+						connId = reply.connId | 0;
-+						localPort = reply.localPort | 0;
- 					} catch {
- 						connId = 0;
- 					}
+-					} catch {
+-						connId = 0;
+-					}
++						reply = syscalls.pipeConnect(tcpXKey(p), p);
++					} catch {}
++					const connId = reply ? reply.connId | 0 : 0;
  					if (connId > 0) {
  						this._xproc = true;
  						this._connId = connId;
-+						if (localPort > 0) this._localPort = localPort;
++						this._localPort = reply.localPort;
  						xpipeConns.set(connId, this);
  						nextTick(() => {
  							this._live = true;
-@@ -2783,7 +2787,8 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+@@ -2709,6 +2711,7 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+ 				nextTick(() => req.oncomplete(UV_CODES.UV_ECONNREFUSED, this, req, false, false));
+ 				return 0;
+ 			}
++			this._localPort = allocPort();
+ 			const peer = new TCP(TCPConstants.SOCKET);
+ 			peer._localAddress = address;
+ 			peer._localPort = port >>> 0;
+@@ -2783,7 +2786,8 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
  				this._closed = true;
  				recount(this);
  				if (this.type === TCPConstants.SERVER) {
@@ -127,7 +160,7 @@ index cfce5d3..c4bdd2e 100644
  					if (this._kernelPort != null && syscalls && syscalls.closeServer) {
  						try {
  							syscalls.closeServer(this._kernelPort);
-@@ -3070,7 +3075,12 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
+@@ -3070,7 +3074,12 @@ function createNetBindings({ process, liveness, syscalls, netServers, pipeBridge
  			peer._xproc = true;
  			peer._connId = connId;
  			if (peer instanceof Pipe) peer._remotePath = String(msg.path);
@@ -154,7 +187,7 @@ index 6b706ae..b8434a9 100644
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/@vivari/core/dist/index.js b/node_modules/@vivari/core/dist/index.js
-index 7ba6676..cd99934 100644
+index 7ba6676..2221798 100644
 --- a/node_modules/@vivari/core/dist/index.js
 +++ b/node_modules/@vivari/core/dist/index.js
 @@ -994,6 +994,15 @@ var Vivari = class Vivari {
@@ -167,7 +200,7 @@ index 7ba6676..cd99934 100644
 +				remotePort: m.remotePort,
 +				pid: m.pid,
 +				remotePid: m.remotePid,
-+				remoteAncestors: m.remoteAncestors ?? []
++				remoteAncestors: m.remoteAncestors
 +			});
 +		});
  		bridge.on("port-close", (m) => {
