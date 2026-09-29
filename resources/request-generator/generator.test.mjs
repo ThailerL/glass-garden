@@ -1,13 +1,16 @@
 // The generator under real Node: the same code the VM runs, minus the VM
 import { describe, expect, it } from 'vitest';
-import { freePort, onCleanup, sleep, spawnHarness, waitUntil } from '../harness-testing.js';
+import {
+  freePort,
+  layResource,
+  onCleanup,
+  sleep,
+  spawnHarness,
+  waitUntil
+} from '../harness-testing.js';
 import http from 'node:http';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const GENERATOR = fileURLToPath(new URL('./generator.js', import.meta.url));
 
 const CONFIG_POLL_MS = 100;
 // Long enough for the generator to have re-read config.json more than once
@@ -55,12 +58,12 @@ const baseConfig = {
 };
 
 async function generator(config) {
-  const cwd = await mkdtemp(path.join(tmpdir(), 'generator-'));
+  const cwd = await layResource('request-generator');
   const configPath = path.join(cwd, 'config.json');
   const write = (next) => writeFile(configPath, JSON.stringify({ ...baseConfig, ...next }));
   if (config !== undefined) await write(config);
 
-  const { stdout, stderr, metrics, hops, exited } = spawnHarness(GENERATOR, {
+  const { stdout, stderr, metrics, hops, exited } = spawnHarness('generator.js', {
     cwd,
     env: { GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS) }
   });

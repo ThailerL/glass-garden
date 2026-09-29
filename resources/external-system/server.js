@@ -1,6 +1,7 @@
 // Runs the author's api.mjs and counts its calls out of the reader's code's reach
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { bodyOf, putMetric, reportEvent } from './_harness/lib.js';
 import { callerIn } from './caller.js';
 
 const port = Number(process.env.PORT);
@@ -12,30 +13,6 @@ if (!port) {
 const METRIC_PERIOD_MS = 1000;
 // Overridable for tests
 const ENDPOINTS_POLL_MS = Number(process.env.GG_ENDPOINTS_POLL_MS) || 1000;
-
-// Embedded Metric Format. A metric is either always about a status or never
-function putMetric(name, value, unit, status) {
-  console.log(
-    JSON.stringify({
-      _aws: {
-        Timestamp: Date.now(),
-        CloudWatchMetrics: [
-          {
-            Namespace: 'glass-garden',
-            Dimensions: status === undefined ? [[]] : [[], ['status']],
-            Metrics: [{ Name: name, Unit: unit }]
-          }
-        ]
-      },
-      [name]: value,
-      status
-    })
-  );
-}
-
-function reportHop(ends) {
-  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), ...ends }));
-}
 
 function nothingObserved() {
   return { responses: new Map(), sent: new Map(), unanswered: 0, readings: new Map() };
@@ -107,7 +84,7 @@ function endpoint({ name, port: to }) {
     let response, body;
     try {
       if (to === null) throw unreachable(name);
-      reportHop({ to: { port: to } });
+      reportEvent('hop', { to: { port: to } });
       response = await fetch(`http://localhost:${to}${path}`, init);
       // Read whole, so the time is the round trip as the request generator counts it
       body = NULL_BODY.has(response.status) ? null : await response.arrayBuffer();
@@ -130,8 +107,8 @@ function putExchanges(prefix, exchanges, unanswered = 0) {
   const outcomes = [];
   for (const [status, times] of exchanges) {
     outcomes.push(...times.map(() => (status >= 500 ? 1 : 0)));
-    putMetric(`${prefix}requests`, times.map(() => 1), 'Count', String(status));
-    putMetric(`${prefix}response time`, times, 'Milliseconds', String(status));
+    putMetric(`${prefix}requests`, times.map(() => 1), 'Count', { status: String(status) });
+    putMetric(`${prefix}response time`, times, 'Milliseconds', { status: String(status) });
   }
   outcomes.push(...Array(unanswered).fill(1));
   if (outcomes.length > 0) putMetric(`${prefix}errors`, outcomes, 'Count');
@@ -148,12 +125,6 @@ function publish() {
     if (values) putMetric(name, values, unit);
     else if (unit === 'Count') putMetric(name, 0, unit);
   }
-}
-
-async function bodyOf(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  return Buffer.concat(chunks);
 }
 
 // A standard Request, addressed as if this service were the whole host
@@ -183,7 +154,7 @@ function serve(handle) {
   return http.createServer(async (req, res) => {
     const started = performance.now();
     const { node, path } = callerIn(req.url ?? '/');
-    if (node !== undefined) reportHop({ from: { node } });
+    if (node !== undefined) reportEvent('hop', { from: { node } });
     try {
       const response = await handle(await requestFrom(req, path), { metric, endpoints });
       if (!(response instanceof Response)) {

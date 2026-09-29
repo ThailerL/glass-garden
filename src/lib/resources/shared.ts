@@ -1,5 +1,6 @@
 import type { Node } from '@xyflow/svelte';
-import type { Vivari, VivariProcess } from '@vivari/core';
+import type { FileSystemTree, Vivari, VivariProcess } from '@vivari/core';
+import * as resourceFiles from 'virtual:resource-files';
 import type { Capture, ConnectedNode, InstanceHandle } from './types';
 import { nodeDirectory } from '../container';
 import { nodeName } from '../graph-state.svelte';
@@ -59,6 +60,11 @@ export async function npmInstall(node: Node, container: Vivari, capture?: Captur
 	if (code !== 0) {
 		throw new Error(`npm install exited ${code}`);
 	}
+}
+
+// For a hidden process that imports ./_harness/lib.js. Never a tree the reader edits
+export function withHarness(files: FileSystemTree): FileSystemTree {
+	return { ...files, _harness: { directory: resourceFiles._harness } };
 }
 
 export function runningPort({ instances }: ConnectedNode): number | null {

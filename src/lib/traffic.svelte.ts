@@ -1,4 +1,4 @@
-import { EVENT_PREFIX } from '../../resources/aws-region/lib.js';
+import { EVENT_PREFIX } from '../../resources/_harness/lib.js';
 
 // Traffic for the canvas, printed as `gg:event {json}` by hidden code and the region. A hop
 // is one request crossing an edge, a level is what a node is holding. A node process leaves

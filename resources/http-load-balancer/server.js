@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
+import { bodyOf, putMetric, reportEvent } from './_harness/lib.js';
 import { Health, reasonOf } from './health.js';
 
 const port = Number(process.env.PORT);
@@ -12,38 +13,6 @@ if (!port) {
 const TICK_MS = 1000;
 
 let cursor = 0;
-
-// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line. A metric
-// always carries the same dimensions, never some readings with and some without, so the Metrics
-// tab can break it down. `fold` says the per-dimension lines add up to a total worth drawing
-function putMetric(name, value, unit, dimensions = {}, fold = true) {
-  const named = Object.keys(dimensions);
-  console.log(
-    JSON.stringify({
-      _aws: {
-        Timestamp: Date.now(),
-        CloudWatchMetrics: [
-          {
-            Namespace: 'glass-garden',
-            Dimensions: named.length === 0 ? [[]] : fold ? [[], named] : [named],
-            Metrics: [{ Name: name, Unit: unit }],
-          },
-        ],
-      },
-      [name]: value,
-      ...dimensions,
-    }),
-  );
-}
-
-// A request forwarded, for the canvas to draw; the balancer is the side left unnamed
-const reportHop = (port) =>
-  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), to: { port } }));
-
-// Which targets are actually being sent to, so the canvas can dim the rest. Sent every tick
-// rather than on change, so a page that reloads mid-run gets the picture back
-const reportRouting = (ports) =>
-  console.log('gg:event ' + JSON.stringify({ kind: 'routing', at: Date.now(), ports }));
 
 async function readConfig() {
   let contents;
@@ -94,8 +63,9 @@ function reportHealth(targets) {
   for (const { port, state } of states) {
     putMetric('target health', state === 'healthy' ? 1 : 0, 'Count', { target: String(port) }, false);
   }
-  // choose(), not the healthy ones: with none healthy an ALB routes to every target
-  reportRouting(health.choose(targets));
+  // Which targets are being sent to, so the canvas dims the rest. Every tick, so a page that
+  // reloads gets it back. choose(), not the healthy ones: with none healthy an ALB routes to all
+  reportEvent('routing', { ports: health.choose(targets) });
   announceFailOpen(
     healthy === 0 && unhealthy > 0
       ? `No healthy targets: routing to all ${targets.length} regardless, as an ALB does`
@@ -149,9 +119,7 @@ function forward(target, req, body) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const body = Buffer.concat(chunks);
+  const body = await bodyOf(req);
 
   // Read per request so a rewrite takes effect without restarting the process
   let algorithm, targets;
@@ -181,7 +149,8 @@ const server = http.createServer(async (req, res) => {
   const target = pick(algorithm, health.choose(targets));
   const dimension = String(target);
   putMetric('requests', 1, 'Count', { target: dimension });
-  reportHop(target);
+  // A request forwarded; the balancer is the side left unnamed
+  reportEvent('hop', { to: { port: target } });
 
   const started = Date.now();
   let upstream;

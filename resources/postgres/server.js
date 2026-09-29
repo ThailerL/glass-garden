@@ -2,6 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
+import { putMetric, reportEvent } from './_harness/lib.js';
 import { connectionTap, RESET_MARKER } from './caller.js';
 
 const port = Number(process.env.PORT);
@@ -28,35 +29,18 @@ if (existsSync(RESET_MARKER)) {
 const server = new PGLiteSocketServer({ db, port, host: '127.0.0.1', maxConnections });
 await server.start();
 
-// Each query as a hop for the canvas, named for the node that connected
-const reportHop = (node) =>
-  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), from: { node } }));
-
 // The socket server owns the listener, so this watches a copy of what arrives at it rather
-// than standing in the way
+// than standing in the way. Each query is a hop, named for the node that connected
 const listener = server.server;
 if (listener) {
-  listener.on('connection', (socket) => socket.on('data', connectionTap(reportHop)));
+  listener.on('connection', (socket) =>
+    socket.on('data', connectionTap((node) => reportEvent('hop', { from: { node } }))),
+  );
 } else {
   console.error('Cannot see which node each query comes from, so the canvas will not draw them');
 }
 
 console.log(`Postgres running on localhost:${port}`);
-
-// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line
-function putMetric(name, value, unit) {
-  console.log(
-    JSON.stringify({
-      _aws: {
-        Timestamp: Date.now(),
-        CloudWatchMetrics: [
-          { Namespace: 'glass-garden', Dimensions: [[]], Metrics: [{ Name: name, Unit: unit }] },
-        ],
-      },
-      [name]: value,
-    }),
-  );
-}
 
 // Sampled on a timer rather than reported per event: these describe the database as it
 // stands, and there is no event to hang them off

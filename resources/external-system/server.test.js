@@ -1,22 +1,14 @@
 // The harness under real Node: the same code the VM runs, minus the VM
 import { describe, expect, it } from 'vitest';
-import { freePort, onCleanup, spawnHarness, waitUntil } from '../harness-testing.js';
+import { freePort, layResource, onCleanup, spawnHarness, waitUntil } from '../harness-testing.js';
+import { bodyOf } from '../_harness/lib.js';
 import http from 'node:http';
-import { copyFile, mkdtemp, rename, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const SERVER = fileURLToPath(new URL('./server.js', import.meta.url));
-const CALLER = fileURLToPath(new URL('./caller.js', import.meta.url));
-const PACKAGE = fileURLToPath(new URL('./package.json', import.meta.url));
-
-// Laid down side by side, as the canvas does
+// With the author's module beside the harness, as the canvas lays it
 async function externalSystem(code, endpoints = []) {
-  const cwd = await mkdtemp(path.join(tmpdir(), 'external-system-'));
-  await copyFile(SERVER, path.join(cwd, 'server.js'));
-  await copyFile(CALLER, path.join(cwd, 'caller.js'));
-  await copyFile(PACKAGE, path.join(cwd, 'package.json'));
+  const cwd = await layResource('external-system');
   await writeFile(path.join(cwd, 'api.mjs'), code);
   // Swapped in whole, so a re-read never catches it half written
   const connect = async (list) => {
@@ -53,9 +45,8 @@ async function externalSystem(code, endpoints = []) {
 async function receiver(status = 200) {
   const received = [];
   const server = http.createServer(async (req, res) => {
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    received.push({ method: req.method, path: req.url, body: Buffer.concat(chunks).toString() });
+    const body = (await bodyOf(req)).toString();
+    received.push({ method: req.method, path: req.url, body });
     res.writeHead(status).end(`received ${received.length}`);
   });
   await new Promise((resolve) => server.listen(0, resolve));
@@ -114,6 +105,11 @@ describe('answering', () => {
     await api.ready;
     await api.call('/from/node-7/charges');
     await api.call('/from/node-9');
+    // Its stdout can reach the test after the answer does
+    await waitUntil(
+      () => api.hops.length >= 2,
+      () => 'Never drew both calls'
+    );
     expect(api.hops.map((hop) => hop.from)).toEqual([{ node: 'node-7' }, { node: 'node-9' }]);
   });
 
@@ -152,6 +148,10 @@ describe('sending', () => {
     const response = await api.call('/charges', { method: 'POST', body: 'payment 3' });
     expect(await response.json()).toEqual({ forwarded: 1, answers: ['Bank Events 200 received 1'] });
     expect(target.received).toEqual([{ method: 'POST', path: '/webhooks', body: 'payment 3' }]);
+    await waitUntil(
+      () => api.hops.length >= 1,
+      () => 'Never drew the send'
+    );
     expect(api.hops.map((hop) => hop.to)).toEqual([{ port: target.port }]);
   });
 

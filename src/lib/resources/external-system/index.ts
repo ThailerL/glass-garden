@@ -7,7 +7,7 @@ import * as resourceFiles from 'virtual:resource-files';
 import { callerPath } from '../../../../resources/external-system/caller.js';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
-import { processHandle, runningPort } from '../shared';
+import { processHandle, runningPort, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
 
@@ -45,7 +45,7 @@ async function writeEndpoints(node: Node, container: Vivari, targets: readonly C
 export const externalSystem = {
 	name: 'External System',
 	icon: GlobeIcon,
-	files: resourceFiles.externalSystem,
+	files: withHarness(resourceFiles.externalSystem),
 	hasEditableFiles: false,
 	hasPreview: false,
 	provides: ['api'],

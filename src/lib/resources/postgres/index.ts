@@ -7,7 +7,7 @@ import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
 import { RESET_MARKER } from '../../../../resources/postgres/caller.js';
 import type { Capture, ResourceDefinition, ConnectedNode } from '../types';
-import { npmInstall, processHandle } from '../shared';
+import { npmInstall, processHandle, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
 
@@ -27,7 +27,7 @@ type LaunchConfig = ReturnType<typeof launchConfig>;
 export const postgres = {
 	name: 'Postgres',
 	icon: DatabaseIcon,
-	files: resourceFiles.postgres,
+	files: withHarness(resourceFiles.postgres),
 	hasEditableFiles: false,
 	hasPreview: false,
 	provides: ['sql'],

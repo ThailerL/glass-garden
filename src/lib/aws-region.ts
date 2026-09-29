@@ -1,7 +1,8 @@
 import { toast } from 'svelte-sonner';
 import type { Vivari } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
-import { EVENT_PREFIX, emptyTopology } from '../../resources/aws-region/lib.js';
+import { EVENT_PREFIX } from '../../resources/_harness/lib.js';
+import { emptyTopology } from '../../resources/aws-region/lib.js';
 import type { NodeReport, Service, Topology } from '../../resources/aws-region/lib.js';
 import type { InstanceHandle } from '$lib/resources/types';
 import { activeProjectDirectory, getContainer } from '$lib/container';
@@ -10,6 +11,7 @@ import { fileTree } from '$lib/files/file-tree';
 import { ADMIN_ACCESS_KEY } from '$lib/aws-topology';
 import type { Hop, Level } from '$lib/traffic.svelte';
 import { withTrailingSlash } from '$lib/utils';
+import { withHarness } from '$lib/resources/shared';
 
 export type { Principal, Service, Topology } from '../../resources/aws-region/lib.js';
 
@@ -248,7 +250,7 @@ function boot(): Region {
 		created.directory = directory;
 		await ensureCache(container, directory);
 		await container.fs.mkdir(directory, { recursive: true });
-		await container.mount(resourceFiles.awsRegion, { mountPoint: directory });
+		await container.mount(withHarness(resourceFiles.awsRegion), { mountPoint: directory });
 		// Before the spawn: the bridge reads this before it listens, so no request is ever
 		// judged against a canvas it has not been told about
 		await writeTopology(directory);

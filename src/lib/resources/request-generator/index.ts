@@ -6,7 +6,7 @@ import * as resourceFiles from 'virtual:resource-files';
 import RequestGeneratorConfig from './RequestGeneratorConfig.svelte';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
-import { processHandle, runningPort } from '../shared';
+import { processHandle, runningPort, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
 
@@ -59,7 +59,7 @@ async function writeConfig(node: Node, container: Vivari, targets: readonly Conn
 export const requestGenerator = {
 	name: 'Request Generator',
 	icon: GaugeIcon,
-	files: resourceFiles.requestGenerator,
+	files: withHarness(resourceFiles.requestGenerator),
 	hasEditableFiles: false,
 	hasPreview: false,
 	provides: [],

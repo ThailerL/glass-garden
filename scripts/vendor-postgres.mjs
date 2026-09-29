@@ -40,10 +40,19 @@ try {
 fs.rmSync(OUTPUT_DIRECTORY, { recursive: true, force: true });
 fs.mkdirSync(OUTPUT_DIRECTORY, { recursive: true });
 
+// ./_harness is where withHarness lays it in the VM; here it sits beside the resources
+const harness = {
+	name: 'harness',
+	resolveId(source) {
+		return source.startsWith('./_harness/') ? path.join(ROOT, 'resources', source) : null;
+	}
+};
+
 // codeSplitting off: PGlite's dynamic imports would otherwise become sibling chunks
 await build({
 	input: ENTRY,
 	platform: 'node',
+	plugins: [harness],
 	output: {
 		file: path.join(OUTPUT_DIRECTORY, BUNDLE),
 		format: 'esm',

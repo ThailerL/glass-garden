@@ -9,6 +9,7 @@ declare module 'virtual:resource-files' {
 	export const awsRegion: FileSystemTree;
 	export const postgres: FileSystemTree;
 	export const externalSystem: FileSystemTree;
+	export const _harness: FileSystemTree;
 	// One entry per directory under a template, keyed by the path to it
 	export const templates: Record<
 		| 'load-balanced-app/instance-group'

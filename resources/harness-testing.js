@@ -1,10 +1,28 @@
-// Test helpers for the hidden harnesses. Never mounted: the resource-files plugin reads only subdirectories
+// Test helpers for the hidden harnesses; not a subdirectory, so never mounted
 import { afterEach } from 'vitest';
-import { EVENT_PREFIX } from './aws-region/lib.js';
+import { EVENT_PREFIX } from './_harness/lib.js';
 import net from 'node:net';
 import readline from 'node:readline';
 import { spawn } from 'node:child_process';
-import { rm } from 'node:fs/promises';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const RESOURCES = path.dirname(fileURLToPath(import.meta.url));
+// The resource-files plugin leaves tests out the same way
+function notTest(source) {
+  return !path.basename(source).includes('.test.');
+}
+
+// A resource's directory as withHarness lays it in the VM, in a temp directory of its own
+export async function layResource(name) {
+  const cwd = await mkdtemp(path.join(tmpdir(), `${name}-`));
+  const options = { recursive: true, filter: notTest };
+  await cp(path.join(RESOURCES, name), cwd, options);
+  await cp(path.join(RESOURCES, '_harness'), path.join(cwd, '_harness'), options);
+  return cwd;
+}
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

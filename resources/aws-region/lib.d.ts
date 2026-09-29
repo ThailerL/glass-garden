@@ -39,7 +39,6 @@ export type NodeReport =
 	| { kind: 'output'; nodeId: string; environment: string; line: string }
 	| { kind: 'environment-exit'; nodeId: string; environment: string };
 
-export const EVENT_PREFIX: string;
 export function receivedMessages(responseText: string): { Body?: string }[];
 export function escapeXml(text: string): string;
 export function emptyByService<T>(make: () => T): Record<Service, T>;

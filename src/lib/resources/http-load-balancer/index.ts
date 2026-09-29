@@ -6,7 +6,7 @@ import * as resourceFiles from 'virtual:resource-files';
 import HttpLoadBalancerConfig from './HttpLoadBalancerConfig.svelte';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
-import { processHandle } from '../shared';
+import { processHandle, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
 
@@ -87,7 +87,7 @@ async function updateConfig(node: Node, container: Vivari, connected: readonly C
 export const httpLoadBalancer = {
 	name: 'HTTP Load Balancer',
 	icon: LoadBalancerIcon,
-	files: resourceFiles.httpLoadBalancer,
+	files: withHarness(resourceFiles.httpLoadBalancer),
 	hasEditableFiles: false,
 	hasPreview: true,
 	provides: ['http'],

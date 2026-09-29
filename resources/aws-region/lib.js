@@ -6,9 +6,6 @@
 const NODE_LABELS = { s3: 'Bucket', sqs: 'Queue', dynamodb: 'Table', lambda: 'Function' };
 const noun = (service) => NODE_LABELS[service].toLowerCase();
 
-// The stdout line prefix for events the bridge reports and the host routes
-export const EVENT_PREFIX = 'gg:event ';
-
 export const parseJson = (text) => {
   try {
     return JSON.parse(text);

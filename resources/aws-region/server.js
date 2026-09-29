@@ -10,8 +10,8 @@ import { sampleStats } from './stats.js';
 import { textOf } from './aws-api.js';
 import { invocationSource } from './function-events.js';
 import { functionUrl } from './function-url.js';
+import { EVENT_PREFIX } from './_harness/lib.js';
 import {
-  EVENT_PREFIX,
   decideRequest,
   emptyTopology,
   denialResponse,

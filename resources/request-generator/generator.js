@@ -3,6 +3,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { putMetric, reportEvent } from './_harness/lib.js';
 
 // The host stores one datapoint per second, so a second's observations travel as one line
 const METRIC_PERIOD_MS = 1000;
@@ -10,32 +11,6 @@ const METRIC_PERIOD_MS = 1000;
 const CONFIG_POLL_MS = Number(process.env.GG_CONFIG_POLL_MS) || 1000;
 // A stall longer than this is forgiven rather than made up in one burst
 const MAX_CATCH_UP_MS = 1000;
-
-// Embedded Metric Format: the shape CloudWatch extracts metrics from in a log line. A second's
-// readings go out as one array rather than a line per request, since the host parses every
-// line on its main thread. A metric is either always about a status or never about one
-function putMetric(name, value, unit, status) {
-  console.log(
-    JSON.stringify({
-      _aws: {
-        Timestamp: Date.now(),
-        CloudWatchMetrics: [
-          {
-            Namespace: 'glass-garden',
-            Dimensions: status === undefined ? [[]] : [[], ['status']],
-            Metrics: [{ Name: name, Unit: unit }]
-          }
-        ]
-      },
-      [name]: value,
-      status
-    })
-  );
-}
-
-// A request leaving, for the canvas to draw; the generator is the side left unnamed
-const reportHop = (port) =>
-  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), to: { port } }));
 
 // Says a message only while it is new, so a failure that repeats every request is said once.
 // Called with nothing it forgets, so the next failure is said again
@@ -128,7 +103,8 @@ function send() {
     return;
   }
   inFlight++;
-  reportHop(target);
+  // A request leaving; the generator is the side left unnamed
+  reportEvent('hop', { to: { port: target } });
   const { method, path } = config;
   const body = config.body.replaceAll('{{n}}', String(++sent));
   const started = Date.now();
@@ -170,8 +146,8 @@ function publish() {
 
   for (const [status, times] of responses) {
     // One reading per response, as every other resource counts them
-    putMetric('requests', times.map(() => 1), 'Count', status);
-    putMetric('response time', times, 'Milliseconds', status);
+    putMetric('requests', times.map(() => 1), 'Count', { status });
+    putMetric('response time', times, 'Milliseconds', { status });
   }
   // Still its own count: `errors` says how often a request failed, this says why. Both are
   // reported every second, zeros and all, so "nothing was dropped" is a reading to point at
