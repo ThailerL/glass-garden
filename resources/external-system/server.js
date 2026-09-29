@@ -12,7 +12,7 @@ if (!port) {
 // The host stores one datapoint per second, so a second travels as one line
 const METRIC_PERIOD_MS = 1000;
 // Overridable for tests
-const ENDPOINTS_POLL_MS = Number(process.env.GG_ENDPOINTS_POLL_MS) || 1000;
+const REREAD_MS = Number(process.env.GG_REREAD_MS) || 1000;
 
 function nothingObserved() {
   return { responses: new Map(), sent: new Map(), unanswered: 0, readings: new Map() };
@@ -55,15 +55,24 @@ function metric(name, value, unit = 'Count') {
   append(observed.readings, name, value);
 }
 
-// Re-read, so a new edge needs no restart and the author's module keeps its memory
+// Re-read, so a change needs no restart and the module keeps its memory
 let connected = [];
+let settings = {};
 
-async function refreshEndpoints() {
+async function reread(file, last) {
   try {
-    connected = JSON.parse(await readFile('endpoints.json', 'utf8'));
+    return JSON.parse(await readFile(file, 'utf8'));
   } catch {
-    // Not written yet, or caught mid-write: the last list read stands
+    // Not written yet, or caught mid-write: the last one read stands
+    return last;
   }
+}
+
+async function refresh() {
+  [connected, settings] = await Promise.all([
+    reread('endpoints.json', connected),
+    reread('settings.json', settings)
+  ]);
 }
 
 // Statuses a Response may not be constructed with a body for
@@ -101,6 +110,13 @@ function endpoint({ name, port: to }) {
 function endpoints() {
   return connected.map(endpoint);
 }
+
+const context = {
+  metric,
+  endpoints,
+  // A copy, so the module cannot change what the next call reads
+  settings: () => structuredClone(settings)
+};
 
 // 1 per failure and 0 otherwise, so Average is the failure rate
 function putExchanges(prefix, exchanges, unanswered = 0) {
@@ -156,7 +172,7 @@ function serve(handle) {
     const { node, path } = callerIn(req.url ?? '/');
     if (node !== undefined) reportEvent('hop', { from: { node } });
     try {
-      const response = await handle(await requestFrom(req, path), { metric, endpoints });
+      const response = await handle(await requestFrom(req, path), context);
       if (!(response instanceof Response)) {
         fail(res, `handle must return a Response, but ${req.method} ${path} returned ${response}`);
       } else {
@@ -177,8 +193,8 @@ try {
   putMetric('errors', 0, 'Count');
   publish();
   setInterval(publish, METRIC_PERIOD_MS);
-  await refreshEndpoints();
-  setInterval(() => void refreshEndpoints(), ENDPOINTS_POLL_MS);
+  await refresh();
+  setInterval(() => void refresh(), REREAD_MS);
   serve(handle).listen(port, () => console.log(`External System running on localhost:${port}`));
 } catch (error) {
   console.error(error?.message ?? error);

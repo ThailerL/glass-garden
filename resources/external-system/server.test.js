@@ -1,6 +1,13 @@
 // The harness under real Node: the same code the VM runs, minus the VM
 import { describe, expect, it } from 'vitest';
-import { freePort, layResource, onCleanup, spawnHarness, waitUntil } from '../harness-testing.js';
+import {
+  freePort,
+  layResource,
+  onCleanup,
+  sleep,
+  spawnHarness,
+  waitUntil
+} from '../harness-testing.js';
 import { bodyOf } from '../_harness/lib.js';
 import http from 'node:http';
 import { rename, writeFile } from 'node:fs/promises';
@@ -11,15 +18,17 @@ async function externalSystem(code, endpoints = []) {
   const cwd = await layResource('external-system');
   await writeFile(path.join(cwd, 'api.mjs'), code);
   // Swapped in whole, so a re-read never catches it half written
-  const connect = async (list) => {
-    await writeFile(path.join(cwd, 'endpoints.next'), JSON.stringify(list));
-    await rename(path.join(cwd, 'endpoints.next'), path.join(cwd, 'endpoints.json'));
+  const write = async (name, text) => {
+    await writeFile(path.join(cwd, `${name}.next`), text);
+    await rename(path.join(cwd, `${name}.next`), path.join(cwd, `${name}.json`));
   };
+  const connect = (list) => write('endpoints', JSON.stringify(list));
+  const set = (settings) => write('settings', JSON.stringify(settings));
   await connect(endpoints);
   const port = await freePort();
   const { stdout, stderr, metrics, hops, exited } = spawnHarness('server.js', {
     cwd,
-    env: { PORT: String(port), GG_ENDPOINTS_POLL_MS: '50' }
+    env: { PORT: String(port), GG_REREAD_MS: '50' }
   });
 
   const listening = () => stdout.some((line) => line.includes('running'));
@@ -33,7 +42,9 @@ async function externalSystem(code, endpoints = []) {
     hops,
     exited,
     ready,
+    write,
     connect,
+    set,
     call: (url, init) => fetch(`http://localhost:${port}${url}`, init),
     // Flattened across seconds
     readings: (name) => metrics.filter((m) => m.name === name).flatMap((m) => [m.value].flat()),
@@ -198,6 +209,71 @@ describe('sending', () => {
     expect(sent.map((m) => [m.status, [m.value].flat().length])).toEqual([['503', 1]]);
     // A call in is counted apart from the calls it made
     expect(api.readings('errors').filter((value) => value === 1)).toEqual([]);
+  });
+});
+
+describe('settings', () => {
+  // Down while its settings say so, counting calls to show it kept its memory
+  const OUTAGE = `
+let calls = 0;
+export function handle(request, { settings }) {
+  calls += 1;
+  const { down } = settings();
+  return Response.json({ calls, down: down ?? null }, { status: down ? 503 : 200 });
+}
+`;
+
+  it('hands the module no settings before any are written', async () => {
+    const api = await externalSystem(OUTAGE);
+    await api.ready;
+    const response = await api.call('/charges');
+    expect(await response.json()).toEqual({ calls: 1, down: null });
+  });
+
+  it('takes new settings while running, without forgetting anything', async () => {
+    const api = await externalSystem(OUTAGE);
+    await api.ready;
+    await api.call('/charges');
+    await api.set({ down: true });
+    const outage = await waitUntil(
+      async () => {
+        const response = await api.call('/charges');
+        return response.status === 503 && response.json();
+      },
+      () => 'Never read the new settings'
+    );
+    expect(outage.calls).toBeGreaterThan(1);
+  });
+
+  it('keeps the last settings read when the file does not parse', async () => {
+    const api = await externalSystem(OUTAGE);
+    await api.ready;
+    await api.set({ down: true });
+    await waitUntil(
+      async () => (await api.call('/charges')).status === 503,
+      () => 'Never read the settings'
+    );
+    await api.write('settings', '{"down": fal');
+    await sleep(200);
+    expect((await api.call('/charges')).status).toBe(503);
+  });
+
+  it('gives each call a copy the module cannot change for the next', async () => {
+    const api = await externalSystem(`
+      export function handle(request, { settings }) {
+        const read = settings();
+        const before = read.down;
+        read.down = 'changed';
+        return Response.json({ before });
+      }
+    `);
+    await api.ready;
+    await api.set({ down: false });
+    await waitUntil(
+      async () => (await (await api.call('/charges')).json()).before === false,
+      () => 'Never read the settings'
+    );
+    expect(await (await api.call('/charges')).json()).toEqual({ before: false });
   });
 });
 

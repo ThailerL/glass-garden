@@ -14,7 +14,11 @@ import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
 const configSchema = z.object({
 	name: z.string().min(1).default('External System'),
 	// The author's module, in config since a non-editable directory is re-laid each start
-	code: z.string().default('export function handle() {\n  return Response.json({ ok: true });\n}\n')
+	code: z
+		.string()
+		.default('export function handle() {\n  return Response.json({ ok: true });\n}\n'),
+	// Out of launchConfig, so a change needs no restart
+	settings: z.record(z.string(), z.json()).default({})
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -32,14 +36,18 @@ export function endpointsOf(targets: readonly ConnectedNode[]) {
 	}));
 }
 
-// Re-read by the running harness, so an edge change reaches it without a restart
-async function writeEndpoints(node: Node, container: Vivari, targets: readonly ConnectedNode[]) {
+// Re-read by the running harness
+async function writeLive(node: Node, container: Vivari, targets: readonly ConnectedNode[]) {
+	const directory = nodeDirectory(node.id);
 	// An update can reach a service whose start has not mounted it yet
-	await container.fs.mkdir(nodeDirectory(node.id), { recursive: true });
-	await container.fs.writeFile(
-		`${nodeDirectory(node.id)}/endpoints.json`,
-		JSON.stringify(endpointsOf(targets))
-	);
+	await container.fs.mkdir(directory, { recursive: true });
+	await Promise.all([
+		container.fs.writeFile(`${directory}/endpoints.json`, JSON.stringify(endpointsOf(targets))),
+		container.fs.writeFile(
+			`${directory}/settings.json`,
+			JSON.stringify(nodeConfig<Config>(node).settings)
+		)
+	]);
 }
 
 export const externalSystem = {
@@ -77,7 +85,7 @@ export const externalSystem = {
 		// Before the spawn, so a send from the first moment already has somewhere to go
 		await Promise.all([
 			container.fs.writeFile(`${directory}/api.mjs`, code),
-			writeEndpoints(node, container, targets)
+			writeLive(node, container, targets)
 		]);
 		const process = await container.spawn('node', ['server.js'], {
 			cwd: directory,
@@ -85,7 +93,7 @@ export const externalSystem = {
 		});
 		return processHandle(process);
 	},
-	update: writeEndpoints,
+	update: writeLive,
 	// Its state is whatever the author's module holds in memory
 	clear: 'restart',
 	// A sandbox's reset, rather than wiping a service the reader owns
