@@ -10,8 +10,8 @@
 </script>
 
 <p class="text-sm text-muted-foreground">
-	Run by someone outside your system. You can call it and read what it reports, but its code and its
-	starting and stopping are not yours.
+	Run by someone outside your system. You can exchange requests with it and read what it reports,
+	but its code and its starting and stopping are not yours.
 </p>
 
 <ReadOnlyValue
