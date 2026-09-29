@@ -6,7 +6,7 @@ import * as resourceFiles from 'virtual:resource-files';
 import RequestGeneratorConfig from './RequestGeneratorConfig.svelte';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
-import { processHandle } from '../shared';
+import { processHandle, runningPort } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
 
@@ -28,9 +28,9 @@ export type Config = z.infer<typeof configSchema>;
 // The first running instance of whatever the generator points at, or null while there is none.
 // One rather than all: splitting traffic is a load balancer's job
 export function targetPort(connected: readonly ConnectedNode[]): number | null {
-	for (const { instances } of providing(connected, 'http')) {
-		const running = instances.find((instance) => instance.status === 'running');
-		if (running) return running.port;
+	for (const target of providing(connected, 'http')) {
+		const port = runningPort(target);
+		if (port !== null) return port;
 	}
 	return null;
 }

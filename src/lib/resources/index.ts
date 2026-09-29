@@ -9,7 +9,7 @@ import { s3Bucket } from './s3-bucket';
 import { sqsQueue } from './sqs-queue';
 import { dynamodbTable } from './dynamodb-table';
 import { lambdaFunction } from './lambda-function';
-import { externalApi } from './external-api';
+import { externalSystem } from './external-system';
 
 export * from './types';
 
@@ -22,7 +22,7 @@ export const resourceDefinitions = {
 	s3Bucket,
 	sqsQueue,
 	dynamodbTable,
-	externalApi
+	externalSystem
 } satisfies Record<string, ResourceDefinition>;
 
 export type ResourceType = keyof typeof resourceDefinitions;

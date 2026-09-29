@@ -1,11 +1,8 @@
 // The generator under real Node: the same code the VM runs, minus the VM
-import { afterEach, describe, expect, it } from 'vitest';
-import { EVENT_PREFIX } from '../aws-region/lib.js';
+import { describe, expect, it } from 'vitest';
+import { freePort, onCleanup, sleep, spawnHarness, waitUntil } from '../harness-testing.js';
 import http from 'node:http';
-import net from 'node:net';
-import readline from 'node:readline';
-import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,32 +12,6 @@ const GENERATOR = fileURLToPath(new URL('./generator.js', import.meta.url));
 const CONFIG_POLL_MS = 100;
 // Long enough for the generator to have re-read config.json more than once
 const CONFIG_POLLS_MS = CONFIG_POLL_MS * 3;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function waitUntil(find, what, timeout = 5000) {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    const found = find();
-    if (found) return found;
-    await sleep(20);
-  }
-  throw new Error(what());
-}
-
-const freePort = () =>
-  new Promise((resolve) => {
-    const probe = net.createServer();
-    probe.listen(0, () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
-    });
-  });
-
-const cleanups = [];
-afterEach(async () => {
-  await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
-});
 
 // A target that records what reaches it and answers however the test says. Answering
 // `undefined` holds the request open for the rest of the test
@@ -62,7 +33,7 @@ function target(answer = () => ({})) {
     res.writeHead(reply.status ?? 200).end(reply.body ?? 'ok');
   });
   server.listen(0);
-  cleanups.push(
+  onCleanup(
     () =>
       new Promise((resolve) => {
         for (const res of held) res.destroy();
@@ -89,37 +60,16 @@ async function generator(config) {
   const write = (next) => writeFile(configPath, JSON.stringify({ ...baseConfig, ...next }));
   if (config !== undefined) await write(config);
 
-  const child = spawn('node', [GENERATOR], {
+  const { stdout, stderr, metrics, hops, exited } = spawnHarness(GENERATOR, {
     cwd,
-    env: { ...process.env, GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS) }
-  });
-  const stdout = [];
-  const stderr = [];
-  const metrics = [];
-  const traffic = [];
-  readline.createInterface({ input: child.stdout }).on('line', (line) => {
-    if (line.startsWith(EVENT_PREFIX)) return traffic.push(JSON.parse(line.slice(EVENT_PREFIX.length)));
-    if (!line.startsWith('{')) return stdout.push(line);
-    const parsed = JSON.parse(line);
-    const [{ Metrics, Dimensions }] = parsed._aws.CloudWatchMetrics;
-    for (const { Name } of Metrics) {
-      metrics.push({ name: Name, value: parsed[Name], status: parsed.status, dimensions: Dimensions });
-    }
-  });
-  readline.createInterface({ input: child.stderr }).on('line', (line) => stderr.push(line));
-  const exited = new Promise((resolve) => child.on('exit', resolve));
-
-  cleanups.push(async () => {
-    child.kill();
-    await exited;
-    await rm(cwd, { recursive: true, force: true });
+    env: { GG_CONFIG_POLL_MS: String(CONFIG_POLL_MS) }
   });
   return {
     cwd,
     stdout,
     stderr,
     metrics,
-    traffic,
+    hops,
     exited,
     write,
     // Readings of one metric, less the zero each count is announced with at boot
@@ -216,11 +166,11 @@ describe('sending', () => {
     const gen = await generator({ target: port, maxInFlight: 1 });
     // The hop is printed as the request leaves, before it lands
     await waitUntil(
-      () => gen.traffic.length > 0 && requests.length > 0,
+      () => gen.hops.length > 0 && requests.length > 0,
       () => `Never reported a hop; stdout: ${gen.stdout.join('\n')}`
     );
     expect(requests).toHaveLength(1);
-    expect(gen.traffic).toEqual([{ kind: 'hop', at: expect.any(Number), to: { port } }]);
+    expect(gen.hops).toEqual([{ kind: 'hop', at: expect.any(Number), to: { port } }]);
   });
 
   it('sends a body that is not JSON as plain text', async () => {

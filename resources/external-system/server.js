@@ -1,5 +1,6 @@
 // Runs the author's api.mjs and counts its calls out of the reader's code's reach
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { callerIn } from './caller.js';
 
 const port = Number(process.env.PORT);
@@ -9,6 +10,8 @@ if (!port) {
 
 // The host stores one datapoint per second, so a second travels as one line
 const METRIC_PERIOD_MS = 1000;
+// Overridable for tests
+const ENDPOINTS_POLL_MS = Number(process.env.GG_ENDPOINTS_POLL_MS) || 1000;
 
 // Embedded Metric Format. A metric is either always about a status or never
 function putMetric(name, value, unit, status) {
@@ -30,12 +33,13 @@ function putMetric(name, value, unit, status) {
   );
 }
 
-// Drawn from the calling node to this one
-const reportHop = (node) =>
-  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), from: { node } }));
+function reportHop(ends) {
+  console.log('gg:event ' + JSON.stringify({ kind: 'hop', at: Date.now(), ...ends }));
+}
 
-// This second's response times by status, and the author's readings
-const nothingObserved = () => ({ responses: new Map(), readings: new Map() });
+function nothingObserved() {
+  return { responses: new Map(), sent: new Map(), unanswered: 0, readings: new Map() };
+}
 let observed = nothingObserved();
 // Every author metric, so a quiet second still reports it
 const units = new Map();
@@ -51,10 +55,10 @@ async function loadHandle() {
   try {
     api = await import('./api.mjs');
   } catch (error) {
-    throw new Error(`The API's code did not load: ${error?.stack ?? error}`);
+    throw new Error(`The system's code did not load: ${error?.stack ?? error}`);
   }
   if (typeof api.handle !== 'function') {
-    throw new Error('The API\'s code must export a function named handle');
+    throw new Error("The system's code must export a function named handle");
   }
   for (const [name, unit] of Object.entries(api.metrics ?? {})) {
     if (typeof unit !== 'string') throw new Error(`metrics.${name} must be a unit such as 'Count'`);
@@ -74,17 +78,70 @@ function metric(name, value, unit = 'Count') {
   append(observed.readings, name, value);
 }
 
-function publish() {
-  const { responses, readings } = observed;
-  observed = nothingObserved();
-  // 1 per failure and 0 otherwise, so Average is the failure rate
-  const outcomes = [];
-  for (const [status, times] of responses) {
-    outcomes.push(...times.map(() => (status >= 500 ? 1 : 0)));
-    putMetric('requests', times.map(() => 1), 'Count', String(status));
-    putMetric('response time', times, 'Milliseconds', String(status));
+// Re-read, so a new edge needs no restart and the author's module keeps its memory
+let connected = [];
+
+async function refreshEndpoints() {
+  try {
+    connected = JSON.parse(await readFile('endpoints.json', 'utf8'));
+  } catch {
+    // Not written yet, or caught mid-write: the last list read stands
   }
-  if (outcomes.length > 0) putMetric('errors', outcomes, 'Count');
+}
+
+// Statuses a Response may not be constructed with a body for
+const NULL_BODY = new Set([101, 204, 205, 304]);
+
+// What fetch throws when nothing is listening
+function unreachable(name) {
+  const cause = Object.assign(new Error(`${name} is not running`), { code: 'ECONNREFUSED' });
+  return new TypeError('fetch failed', { cause });
+}
+
+function endpoint({ name, port: to }) {
+  async function send(path, init) {
+    if (typeof path !== 'string' || !path.startsWith('/')) {
+      throw new TypeError(`send needs a path starting with /, not ${path}`);
+    }
+    const started = performance.now();
+    let response, body;
+    try {
+      if (to === null) throw unreachable(name);
+      reportHop({ to: { port: to } });
+      response = await fetch(`http://localhost:${to}${path}`, init);
+      // Read whole, so the time is the round trip as the request generator counts it
+      body = NULL_BODY.has(response.status) ? null : await response.arrayBuffer();
+    } catch (error) {
+      observed.unanswered += 1;
+      throw error;
+    }
+    append(observed.sent, response.status, performance.now() - started);
+    return new Response(body, response);
+  }
+  return { name, send };
+}
+
+function endpoints() {
+  return connected.map(endpoint);
+}
+
+// 1 per failure and 0 otherwise, so Average is the failure rate
+function putExchanges(prefix, exchanges, unanswered = 0) {
+  const outcomes = [];
+  for (const [status, times] of exchanges) {
+    outcomes.push(...times.map(() => (status >= 500 ? 1 : 0)));
+    putMetric(`${prefix}requests`, times.map(() => 1), 'Count', String(status));
+    putMetric(`${prefix}response time`, times, 'Milliseconds', String(status));
+  }
+  outcomes.push(...Array(unanswered).fill(1));
+  if (outcomes.length > 0) putMetric(`${prefix}errors`, outcomes, 'Count');
+}
+
+function publish() {
+  const { responses, sent, unanswered, readings } = observed;
+  observed = nothingObserved();
+  putExchanges('', responses);
+  putExchanges('outgoing ', sent, unanswered);
   // A quiet count reports 0 for goals to judge, a quiet measurement nothing
   for (const [name, unit] of units) {
     const values = readings.get(name);
@@ -99,7 +156,7 @@ async function bodyOf(req) {
   return Buffer.concat(chunks);
 }
 
-// A standard Request, addressed as if this API were the whole host
+// A standard Request, addressed as if this service were the whole host
 async function requestFrom(req, path) {
   const body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await bodyOf(req);
   const headers = new Headers();
@@ -126,9 +183,9 @@ function serve(handle) {
   return http.createServer(async (req, res) => {
     const started = performance.now();
     const { node, path } = callerIn(req.url ?? '/');
-    if (node !== undefined) reportHop(node);
+    if (node !== undefined) reportHop({ from: { node } });
     try {
-      const response = await handle(await requestFrom(req, path), { metric });
+      const response = await handle(await requestFrom(req, path), { metric, endpoints });
       if (!(response instanceof Response)) {
         fail(res, `handle must return a Response, but ${req.method} ${path} returned ${response}`);
       } else {
@@ -149,7 +206,9 @@ try {
   putMetric('errors', 0, 'Count');
   publish();
   setInterval(publish, METRIC_PERIOD_MS);
-  serve(handle).listen(port, () => console.log(`External API running on localhost:${port}`));
+  await refreshEndpoints();
+  setInterval(() => void refreshEndpoints(), ENDPOINTS_POLL_MS);
+  serve(handle).listen(port, () => console.log(`External System running on localhost:${port}`));
 } catch (error) {
   console.error(error?.message ?? error);
   process.exit(1);

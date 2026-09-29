@@ -1,6 +1,6 @@
 import type { Node } from '@xyflow/svelte';
 import type { Vivari, VivariProcess } from '@vivari/core';
-import type { Capture, InstanceHandle } from './types';
+import type { Capture, ConnectedNode, InstanceHandle } from './types';
 import { nodeDirectory } from '../container';
 import { nodeName } from '../graph-state.svelte';
 
@@ -59,6 +59,10 @@ export async function npmInstall(node: Node, container: Vivari, capture?: Captur
 	if (code !== 0) {
 		throw new Error(`npm install exited ${code}`);
 	}
+}
+
+export function runningPort({ instances }: ConnectedNode): number | null {
+	return instances.find((instance) => instance.status === 'running')?.port ?? null;
 }
 
 // Wraps the common case of an instance that is exactly one process

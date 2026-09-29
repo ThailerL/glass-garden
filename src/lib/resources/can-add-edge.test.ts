@@ -31,17 +31,25 @@ describe('canAddEdge', () => {
 	});
 
 	// Outside parties are called by code, never sent traffic
-	it('lets code call an external API, and nothing send it traffic', () => {
-		const api = node('api', 'externalApi');
+	it('lets code call an external system, and nothing send it traffic', () => {
+		const api = node('api', 'externalSystem');
 		expect(canAddEdge(app, api, [])).toBe(true);
 		expect(canAddEdge(fn, api, [])).toBe(true);
 		expect(canAddEdge(generator, api, [])).toBe(false);
 		expect(canAddEdge(balancer, api, [])).toBe(false);
-		expect(canAddEdge(api, app, [])).toBe(false);
 	});
 
-	it('leaves an external API out of the palette, since only an author puts one down', () => {
-		expect(paletteTypes()).not.toContain('externalApi');
+	it('lets an external system send to anything serving HTTP, as a webhook does', () => {
+		const api = node('api', 'externalSystem');
+		expect(canAddEdge(api, app, [])).toBe(true);
+		expect(canAddEdge(api, fn, [])).toBe(true);
+		expect(canAddEdge(api, balancer, [])).toBe(true);
+		expect(canAddEdge(api, database, [])).toBe(false);
+		expect(canAddEdge(api, node('other-api', 'externalSystem'), [])).toBe(false);
+	});
+
+	it('leaves an external system out of the palette, since only an author puts one down', () => {
+		expect(paletteTypes()).not.toContain('externalSystem');
 		expect(paletteTypes()).toContain('instanceGroup');
 	});
 
