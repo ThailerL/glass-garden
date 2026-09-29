@@ -39,7 +39,8 @@ export function challenges(): BuiltInChallenge[] {
 const SEARCH_TITLES: Record<string, string> = {
 	'first-challenge': 'Connect a load balancer to a Node app',
 	oversold: 'An in-memory count breaks when you scale out',
-	'slow-signups': 'Move password hashing off the request path'
+	'slow-signups': 'Move password hashing off the request path',
+	'charged-twice': 'Stop a retried queue batch charging twice'
 };
 
 // The claim leads rather than trails, since a search result trims the end

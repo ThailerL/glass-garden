@@ -12,6 +12,10 @@
 		{
 			"id": "slow-signups",
 			"file": "slow-signups.json"
+		},
+		{
+			"id": "charged-twice",
+			"file": "charged-twice.json"
 		}
 	]
 }
