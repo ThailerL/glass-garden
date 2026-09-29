@@ -117,10 +117,7 @@ describe('answering', () => {
     await api.call('/from/node-7/charges');
     await api.call('/from/node-9');
     // Its stdout can reach the test after the answer does
-    await waitUntil(
-      () => api.hops.length >= 2,
-      () => 'Never drew both calls'
-    );
+    await waitUntil(() => api.hops.length >= 2, () => 'Never drew both calls');
     expect(api.hops.map((hop) => hop.from)).toEqual([{ node: 'node-7' }, { node: 'node-9' }]);
   });
 
@@ -159,10 +156,7 @@ describe('sending', () => {
     const response = await api.call('/charges', { method: 'POST', body: 'payment 3' });
     expect(await response.json()).toEqual({ forwarded: 1, answers: ['Bank Events 200 received 1'] });
     expect(target.received).toEqual([{ method: 'POST', path: '/webhooks', body: 'payment 3' }]);
-    await waitUntil(
-      () => api.hops.length >= 1,
-      () => 'Never drew the send'
-    );
+    await waitUntil(() => api.hops.length >= 1, () => 'Never drew the send');
     expect(api.hops.map((hop) => hop.to)).toEqual([{ port: target.port }]);
   });
 
@@ -328,11 +322,78 @@ describe('counting', () => {
   });
 });
 
+describe('running', () => {
+  it('sends traffic nobody asked for, to what it is connected to', async () => {
+    const target = await receiver();
+    const code = `
+      export async function run({ endpoints }) {
+        for (let order = 1; order <= 3; order++) {
+          for (const endpoint of endpoints()) {
+            await endpoint.send('/orders', { method: 'POST', body: 'order ' + order });
+          }
+        }
+      }
+    `;
+    const api = await externalSystem(code, [{ name: 'Orders', port: target.port }]);
+    await api.ready;
+    await waitUntil(() => target.received.length >= 3, () => 'Never sent three orders');
+    const bodies = target.received.map((request) => request.body);
+    expect(bodies).toEqual(['order 1', 'order 2', 'order 3']);
+    await waitUntil(() => api.hops.length >= 3, () => 'Never drew the sends');
+    expect(api.hops.every((hop) => hop.to.port === target.port)).toBe(true);
+  });
+
+  it('answers a call with 404 when it only sends', async () => {
+    const api = await externalSystem('export async function run() {}');
+    await api.ready;
+    const response = await api.call('/from/a/charges');
+    expect(response.status).toBe(404);
+  });
+
+  it('logs a run that fails and goes on answering', async () => {
+    const api = await externalSystem(`
+      export function handle() { return new Response('still here'); }
+      export async function run() { throw new Error('partner went away'); }
+    `);
+    await api.ready;
+    // The stack follows the prefix on the same line
+    await waitUntil(
+      () => api.stderr.some((line) => line.includes('run failed: Error: partner went away')),
+      () => 'Never logged the failed run'
+    );
+    expect(await (await api.call('/charges')).text()).toBe('still here');
+  });
+
+  it('hands run the same settings a handler gets, so a script can steer it', async () => {
+    const target = await receiver();
+    const code = `
+      export async function run({ endpoints, settings }) {
+        for (;;) {
+          if (settings().sending) for (const endpoint of endpoints()) await endpoint.send('/tick');
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      }
+    `;
+    const api = await externalSystem(code, [{ name: 'Ticks', port: target.port }]);
+    await api.ready;
+    await sleep(200);
+    expect(target.received).toEqual([]);
+    await api.set({ sending: true });
+    await waitUntil(() => target.received.length > 0, () => 'Never started sending once told to');
+  });
+});
+
 describe('starting', () => {
-  it('refuses to start without a handle, and says so', async () => {
+  it('refuses to start with neither a handle nor a run, and says so', async () => {
     const api = await externalSystem(`export const nothing = 1;`);
     expect(await api.ready).toEqual({ code: 1 });
-    expect(api.stderr.join('\n')).toContain('must export a function named handle');
+    expect(api.stderr.join('\n')).toContain('must export a function named handle, run, or both');
+  });
+
+  it('refuses a run that is not a function', async () => {
+    const api = await externalSystem(`export const run = 5;`);
+    expect(await api.ready).toEqual({ code: 1 });
+    expect(api.stderr.join('\n')).toContain('run must be a function');
   });
 
   it("refuses to start when the author's code does not load, and says why", async () => {

@@ -27,21 +27,42 @@ function append(map, key, value) {
   else map.set(key, [value]);
 }
 
-async function loadHandle() {
+// What a host with nothing listening answers
+function notFound() {
+  return new Response('Not found\n', { status: 404 });
+}
+
+async function loadModule() {
   let api;
   try {
     api = await import('./api.mjs');
   } catch (error) {
     throw new Error(`The system's code did not load: ${error?.stack ?? error}`);
   }
-  if (typeof api.handle !== 'function') {
-    throw new Error("The system's code must export a function named handle");
+  const { handle, run } = api;
+  if (handle !== undefined && typeof handle !== 'function') {
+    throw new Error("The system's handle must be a function");
+  }
+  if (run !== undefined && typeof run !== 'function') {
+    throw new Error("The system's run must be a function");
+  }
+  if (!handle && !run) {
+    throw new Error("The system's code must export a function named handle, run, or both");
   }
   for (const [name, unit] of Object.entries(api.metrics ?? {})) {
     if (typeof unit !== 'string') throw new Error(`metrics.${name} must be a unit such as 'Count'`);
     units.set(name, unit);
   }
-  return api.handle;
+  return { handle: handle ?? notFound, run };
+}
+
+// Traffic nobody asked for
+async function start(run) {
+  try {
+    await run(context);
+  } catch (error) {
+    console.error(`run failed: ${error?.stack ?? error}`);
+  }
 }
 
 function metric(name, value, unit = 'Count') {
@@ -187,7 +208,7 @@ function serve(handle) {
 
 // An error escaping a VM process exits 0 without a trace
 try {
-  const handle = await loadHandle();
+  const { handle, run } = await loadModule();
   // So the Metrics tab names them before anything happens
   putMetric('requests', 0, 'Count');
   putMetric('errors', 0, 'Count');
@@ -195,7 +216,10 @@ try {
   setInterval(publish, METRIC_PERIOD_MS);
   await refresh();
   setInterval(() => void refresh(), REREAD_MS);
-  serve(handle).listen(port, () => console.log(`External System running on localhost:${port}`));
+  serve(handle).listen(port, () => {
+    console.log(`External System running on localhost:${port}`);
+    if (run) void start(run);
+  });
 } catch (error) {
   console.error(error?.message ?? error);
   process.exit(1);
