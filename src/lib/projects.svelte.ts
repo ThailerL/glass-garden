@@ -1,7 +1,6 @@
 import { nanoid } from 'nanoid';
 import { resolve } from '$app/paths';
 import { buildTourCanvas } from './tour.svelte';
-import type { Edge, Node } from '@xyflow/svelte';
 import {
 	getContainer,
 	nodeDirectory,
@@ -10,8 +9,8 @@ import {
 	PROJECTS_ROOT,
 	removeProjectFiles
 } from './container';
-import { GRAPH_PREFIX, GraphState, graphKeyPrefix, loadNode } from './graph-state.svelte';
-import { keysWithPrefix, readByPrefix } from './storage';
+import { deleteGraph, GraphState, readGraph } from './graph-state.svelte';
+import { readByPrefix } from './storage';
 import { getResourceDefinition } from './resources';
 import { nodeFiles } from './files/node-files';
 import { storeImportedFiles } from './files/imported-files';
@@ -130,16 +129,10 @@ export function ensureProject(): Project {
 }
 
 export function deleteProject(id: string) {
-	const prefix = graphKeyPrefix(id);
-	const nodePrefix = `${prefix}node:`;
-	const keys = keysWithPrefix(prefix);
+	// Read before the graph goes, since nothing else records which nodes were this project's
+	const nodeIds = readGraph(id).nodes.map((node) => node.id);
 
-	// Read before the keys go, since nothing else records which nodes were this project's
-	const nodeIds = keys
-		.filter((key) => key.startsWith(nodePrefix))
-		.map((key) => key.slice(nodePrefix.length));
-
-	for (const key of keys) localStorage.removeItem(key);
+	deleteGraph(id);
 	localStorage.removeItem(`${PROJECT_PREFIX}${id}`);
 	projects = projects.filter((project) => project.id !== id);
 
@@ -151,9 +144,7 @@ export function deleteProject(id: string) {
 export async function exportProject(project: Project): Promise<GardenDocument> {
 	// The challenge as written, so passing it on never hands out the reader's progress
 	if (project.challenge) return project.challenge;
-	const prefix = graphKeyPrefix(project.id);
-	const nodes = readByPrefix<Node>(`${prefix}node:`).flatMap((node) => loadNode(node) ?? []);
-	const edges = readByPrefix<Edge>(`${prefix}edge:`);
+	const { nodes, edges } = readGraph(project.id);
 	const editable = nodes.filter((node) => getResourceDefinition(node.type).hasEditableFiles);
 	const files: Record<string, NodeFiles> = {};
 	if (editable.length) {
@@ -258,10 +249,8 @@ onContainerBoot(async (container) => {
 	);
 });
 
-// The editor route carries a node id and nothing else, so the project it belongs to is read
-// back off the key holding it
+// The editor route carries a node id and nothing else, so the project holding it is searched for
 export function findProjectIdForNode(nodeId: string): string | undefined {
-	const suffix = `:node:${nodeId}`;
-	const key = keysWithPrefix(GRAPH_PREFIX).find((key) => key.endsWith(suffix));
-	return key?.slice(GRAPH_PREFIX.length, key.length - suffix.length);
+	return projects.find((project) => readGraph(project.id).nodes.some((node) => node.id === nodeId))
+		?.id;
 }

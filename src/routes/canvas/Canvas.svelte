@@ -10,7 +10,6 @@
 		type Edge,
 		type OnDelete,
 		type OnBeforeDelete,
-		type NodeTargetEventWithPointer,
 		type NodeEventWithPointer,
 		type OnConnect,
 		type IsValidConnection,
@@ -96,8 +95,7 @@
 	};
 
 	const onDelete: OnDelete = ({ nodes, edges }) => {
-		nodes.forEach((node) => graphState.deleteNodeFromStorage(node.id));
-		edges.forEach((edge) => graphState.deleteEdgeFromStorage(edge.id));
+		graphState.save();
 
 		// Before remove, which deletes the node's directory: a shell must not be sitting in it
 		nodes.forEach((node) => shellSessions.closeForNode(node.id));
@@ -237,12 +235,10 @@
 		if (await addResource(resource, position)) liftAbovePanel(position);
 	}
 
-	const onNodeDragStop: NodeTargetEventWithPointer<MouseEvent | TouchEvent, Node> = ({
-		targetNode
-	}) => {
+	function onNodeDragStop() {
 		dragged = true;
-		if (targetNode) graphState.setNodeInStorage(targetNode);
-	};
+		graphState.save();
+	}
 
 	// The only way to delete without a keyboard. deleteElements is the same path the Delete key
 	// takes, so the confirm dialog and the cleanup in ondelete both still run
@@ -291,7 +287,7 @@
 		);
 		if (edge) {
 			orchestrator.refreshEdge(edge);
-			graphState.setEdgeInStorage(edge);
+			graphState.save();
 		}
 	};
 </script>

@@ -3,12 +3,11 @@ import { fixesSetting, neededNodes } from './challenge';
 import { storeNodeFiles } from './files/imported-files';
 import {
 	buildNode,
-	graphKeyPrefix,
 	nodeAuthored,
 	nodeConfig,
 	nodeName,
-	readNodesAt,
-	writeNodeAt
+	readGraph,
+	writeGraph
 } from './graph-state.svelte';
 import { startingNodes, type CanvasDocumentNode, type ChallengeDocument } from './project-document';
 
@@ -25,20 +24,21 @@ export function mergeStartingCanvas(
 	before: ChallengeDocument,
 	challenge: ChallengeDocument
 ): boolean {
-	const prefix = graphKeyPrefix(projectId);
+	const graph = readGraph(projectId);
+	const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
 	const shipped = startingNodes(challenge);
 	const had = startingNodes(before);
 	const needed = neededNodes(challenge);
 	const authored = new Map<string, Node>();
 	let changed = false;
 
-	for (const node of readNodesAt(prefix).filter(nodeAuthored)) {
+	for (const node of graph.nodes.filter(nodeAuthored)) {
 		if (shipped.get(nodeName(node))?.type === node.type) {
 			authored.set(nodeName(node), node);
 			continue;
 		}
 		// Dropped or retyped by the author, so it becomes the reader's own: nothing can name it now
-		writeNodeAt(prefix, { ...node, deletable: true, data: { ...node.data, authored: undefined } });
+		nodes.set(node.id, { ...node, deletable: true, data: { ...node.data, authored: undefined } });
 		// A name the author never shipped is one the reader gave it, which moves nothing
 		if (had.get(nodeName(node))?.type === node.type) changed = true;
 	}
@@ -46,9 +46,9 @@ export function mergeStartingCanvas(
 	for (const [name, node] of shipped) {
 		const existing = authored.get(name);
 		if (existing) {
-			const written = writeNode(prefix, challenge, name, existing, node, needed.has(name));
+			const updated = updateNode(nodes, challenge, name, existing, node, needed.has(name));
 			const was = had.get(name);
-			if (written.some((entry) => authorChanged(before, name, was, entry))) changed = true;
+			if (updated.some((entry) => authorChanged(before, name, was, entry))) changed = true;
 			continue;
 		}
 		// Shipped before and gone now is one the reader deleted, and it stays deleted unless named
@@ -61,10 +61,15 @@ export function mergeStartingCanvas(
 			deletable: !needed.has(name)
 		});
 		storeNodeFiles(added.id, node.type, challenge.startingCanvas.nodeFiles[node.id]);
-		writeNodeAt(prefix, added);
+		nodes.set(added.id, added);
 		changed = true;
 	}
 
+	const merged = [...nodes.values()];
+	// Runs on every page load, so a merge that replaced or added nothing writes nothing
+	if (merged.some((node, index) => node !== graph.nodes[index])) {
+		writeGraph(projectId, { nodes: merged, edges: graph.edges });
+	}
 	return changed;
 }
 
@@ -87,9 +92,9 @@ export function driftedSettings(
 
 // A fixed setting is the author's: the challenge renders it as a value, so whatever the reader
 // holds is whatever they were given, and the new value can simply take its place. Whether the
-// node may be deleted follows the new version too, but only the settings written are returned
-function writeNode(
-	prefix: string,
+// node may be deleted follows the new version too, but only the settings updated are returned
+function updateNode(
+	nodes: Map<string, Node>,
 	challenge: ChallengeDocument,
 	name: string,
 	existing: Node,
@@ -99,7 +104,7 @@ function writeNode(
 	const config = nodeConfig(existing);
 	const updates = fixedDrift(challenge, name, config, shipped);
 	if (!updates.length && existing.deletable === !needed) return [];
-	writeNodeAt(prefix, {
+	nodes.set(existing.id, {
 		...existing,
 		deletable: !needed,
 		data: { ...existing.data, config: { ...config, ...Object.fromEntries(updates) } }

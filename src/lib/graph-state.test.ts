@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+	deleteGraph,
 	GraphState,
 	nameTakenByChallenge,
 	nodeChart,
-	nodeTestEvent
+	nodeTestEvent,
+	readGraph,
+	writeGraph
 } from '$lib/graph-state.svelte';
 import type { ResourceType } from '$lib/resources';
 
@@ -41,9 +44,7 @@ beforeEach(() => {
 	globalThis.localStorage = makeLocalStorage();
 });
 
-const stored = (id: string) =>
-	(JSON.parse(localStorage.getItem(`graph:p1:node:${id}`)!) as { data: { chart?: string } }).data
-		.chart;
+const stored = (id: string) => nodeChart(readGraph('p1').nodes.find((node) => node.id === id)!);
 
 describe('node chart', () => {
 	it('is pinned on creation only when a template asks', () => {
@@ -99,6 +100,42 @@ describe('node test event', () => {
 		const graph = new GraphState('p1');
 		const node = graph.addNode('test' as ResourceType, { x: 0, y: 0 }, { testEvent: '{}' });
 		expect(nodeTestEvent(node)).toBe('{}');
+	});
+});
+
+describe('stored graph', () => {
+	it('holds what the canvas last saved, so a node and its edge deleted there stay gone', () => {
+		const graph = new GraphState('p1');
+		const a = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
+		const b = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
+		graph.addEdge(a.id, b.id);
+		graph.nodes = graph.nodes.filter((node) => node.id !== b.id);
+		graph.edges = [];
+		graph.save();
+		expect(readGraph('p1')).toEqual({ nodes: [expect.objectContaining({ id: a.id })], edges: [] });
+	});
+
+	it('keeps each project to itself, and deletes one without touching another', () => {
+		new GraphState('p1').addNode('test' as ResourceType, { x: 0, y: 0 });
+		const kept = new GraphState('p2').addNode('test' as ResourceType, { x: 0, y: 0 });
+		deleteGraph('p1');
+		expect(readGraph('p1').nodes).toEqual([]);
+		expect(readGraph('p2').nodes.map((node) => node.id)).toEqual([kept.id]);
+	});
+
+	it('drops an edge whose end did not load, rather than drawing it into empty space', () => {
+		const graph = new GraphState('p1');
+		const a = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
+		writeGraph('p1', { nodes: [a], edges: [{ id: 'e', source: a.id, target: 'gone' }] });
+		expect(readGraph('p1').edges).toEqual([]);
+	});
+
+	it('stores no selection, which would come back selected on the next load', () => {
+		const graph = new GraphState('p1');
+		const { id } = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
+		graph.select(id);
+		graph.save();
+		expect(readGraph('p1').nodes[0].selected).toBe(false);
 	});
 });
 

@@ -1,13 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Edge, Node } from '@xyflow/svelte';
-import {
-	GraphState,
-	graphKeyPrefix,
-	nodeAuthored,
-	nodeConfig,
-	nodeName
-} from '$lib/graph-state.svelte';
-import { readByPrefix } from '$lib/storage';
+import { GraphState, nodeAuthored, nodeConfig, nodeName, readGraph } from '$lib/graph-state.svelte';
 import {
 	applyCanvasDocument,
 	CHALLENGE_FORMAT,
@@ -91,9 +83,7 @@ function start(document: ChallengeDocument) {
 }
 
 const readNodes = () =>
-	readByPrefix<Node>(`${graphKeyPrefix(PROJECT)}node:`).sort((a, b) =>
-		nodeName(a).localeCompare(nodeName(b))
-	);
+	readGraph(PROJECT).nodes.sort((a, b) => nodeName(a).localeCompare(nodeName(b)));
 const named = (name: string) => readNodes().find((node) => nodeName(node) === name);
 
 function edit(name: string, patch: object) {
@@ -104,8 +94,8 @@ function edit(name: string, patch: object) {
 
 // Every edge on the canvas, by the names at its ends
 const pairs = () =>
-	readByPrefix<Edge>(`${graphKeyPrefix(PROJECT)}edge:`)
-		.map((edge) => {
+	readGraph(PROJECT)
+		.edges.map((edge) => {
 			const ends = [edge.source, edge.target].map((id) => readNodes().find((n) => n.id === id));
 			return ends.map((node) => (node ? nodeName(node) : '?')).join(' -> ');
 		})
@@ -123,6 +113,15 @@ const fixing = (config: object) => ({
 });
 
 describe('mergeStartingCanvas', () => {
+	it('writes nothing when the version has not moved, since it runs on every page load', () => {
+		const doc = challenge();
+		start(doc);
+		const setItem = vi.spyOn(localStorage, 'setItem');
+		expect(mergeStartingCanvas(PROJECT, doc, doc)).toBe(false);
+		expect(setItem).not.toHaveBeenCalled();
+		setItem.mockRestore();
+	});
+
 	it('writes a fixed setting the author has changed, which no reader could have touched', () => {
 		const before = challenge(fixing({ count: 2 }));
 		start(before);
@@ -186,7 +185,8 @@ describe('mergeStartingCanvas', () => {
 		const before = challenge({ startingCanvas: threeNodes });
 		start(before);
 		const graph = new GraphState(PROJECT);
-		graph.deleteNodeFromStorage(graph.nodes.find((node) => nodeName(node) === 'C')!.id);
+		graph.nodes = graph.nodes.filter((node) => nodeName(node) !== 'C');
+		graph.save();
 
 		expect(mergeStartingCanvas(PROJECT, before, challenge({ startingCanvas: threeNodes }))).toBe(
 			false

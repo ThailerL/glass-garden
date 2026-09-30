@@ -38,10 +38,8 @@ import {
 	resetChallenge
 } from '$lib/projects.svelte';
 import { readImportedFiles } from '$lib/files/imported-files';
-import { graphKeyPrefix } from '$lib/graph-state.svelte';
-import { readByPrefix } from '$lib/storage';
+import { readGraph } from '$lib/graph-state.svelte';
 import type { GardenDocument } from '$lib/project-document';
-import type { Node } from '@xyflow/svelte';
 
 // One test, since the store loads once and its records outlive a single case
 describe('listProjects and listChallenges', () => {
@@ -98,8 +96,7 @@ describe('importProject', () => {
 			nodeFiles
 		}) as GardenDocument;
 
-	const nodeIdsOf = (projectId: string) =>
-		readByPrefix<Node>(`${graphKeyPrefix(projectId)}node:`).map((node) => node.id);
+	const nodeIdsOf = (projectId: string) => readGraph(projectId).nodes.map((node) => node.id);
 
 	it("holds a node's code under the id the canvas minted for it, not the document's", () => {
 		const project = importProject(doc('instanceGroup', { written: { 'server.js': 'authored' } }));

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node } from '@xyflow/svelte';
 import { Orchestrator } from '$lib/orchestrator.svelte';
-import { GraphState, nodeConfig } from '$lib/graph-state.svelte';
+import { GraphState, nodeConfig, nodePorts, readGraph } from '$lib/graph-state.svelte';
 import { ensureRegion } from '$lib/aws-region';
 import { getContainer } from '$lib/container';
 import type { ResourceType } from '$lib/resources';
@@ -106,8 +106,7 @@ function setCount(graphState: GraphState, id: string, instanceCount: number) {
 }
 
 const storedPorts = (id: string) =>
-	(JSON.parse(localStorage.getItem(`graph:p1:node:${id}`)!) as { data: { ports: number[] } }).data
-		.ports;
+	nodePorts(readGraph('p1').nodes.find((node) => node.id === id)!);
 
 // Every fake resolves in a microtask, so draining the queue settles a convergence
 async function settle() {
@@ -249,10 +248,10 @@ describe('Orchestrator port reservations', () => {
 		expect(orchestrator.getReservedPorts(id)[0]).toBe(first);
 
 		// Repeated reads change nothing, and a missing node reads as empty
-		const before = localStorage.getItem(`graph:p1:node:${id}`);
+		const before = readGraph('p1');
 		orchestrator.getReservedPorts(id);
 		orchestrator.getReservedPorts(id);
-		expect(localStorage.getItem(`graph:p1:node:${id}`)).toBe(before);
+		expect(readGraph('p1')).toEqual(before);
 		expect(orchestrator.getReservedPorts('missing')).toEqual([]);
 
 		setCount(graphState, id, 1);
@@ -337,8 +336,8 @@ describe('Orchestrator port reservations', () => {
 		// but its unresponsive instance still occupies the port
 		fake.stopFails = true;
 		const nodeA = graphState.nodes.find((node) => node.id === a)!;
-		graphState.deleteNodeFromStorage(a);
 		graphState.nodes = graphState.nodes.filter((node) => node.id !== a);
+		graphState.save();
 		orchestrator.remove(nodeA);
 		await settle();
 		expect(orchestrator.getReservedPorts(a)).toEqual([]);
