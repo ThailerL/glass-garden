@@ -39,13 +39,16 @@ export function mergeStartingCanvas(
 		}
 		// Dropped or retyped by the author, so it becomes the reader's own: nothing can name it now
 		writeNodeAt(prefix, { ...node, deletable: true, data: { ...node.data, authored: undefined } });
-		changed = true;
+		// A name the author never shipped is one the reader gave it, which moves nothing
+		if (had.get(nodeName(node))?.type === node.type) changed = true;
 	}
 
 	for (const [name, node] of shipped) {
 		const existing = authored.get(name);
 		if (existing) {
-			if (writeNode(prefix, challenge, name, existing, node, needed.has(name))) changed = true;
+			const written = writeNode(prefix, challenge, name, existing, node, needed.has(name));
+			const was = had.get(name);
+			if (written.some((entry) => authorChanged(before, name, was, entry))) changed = true;
 			continue;
 		}
 		// Shipped before and gone now is one the reader deleted, and it stays deleted unless named
@@ -67,7 +70,7 @@ export function mergeStartingCanvas(
 
 // A fixed setting is the author's: the challenge renders it as a value, so whatever the reader
 // holds is whatever they were given, and the new value can simply take its place. Whether the
-// node may be deleted follows the new version too, but only a setting counts as the canvas moving
+// node may be deleted follows the new version too, but only the settings written are returned
 function writeNode(
 	prefix: string,
 	challenge: ChallengeDocument,
@@ -75,17 +78,28 @@ function writeNode(
 	existing: Node,
 	shipped: CanvasDocumentNode,
 	needed: boolean
-): boolean {
+): [string, unknown][] {
 	const fixes = fixesSetting(challenge, { name, authored: true });
 	const config = nodeConfig(existing);
 	const updates = Object.entries(shipped.config).filter(
 		([key, value]) => fixes(key) && JSON.stringify(config[key]) !== JSON.stringify(value)
 	);
-	if (!updates.length && existing.deletable === !needed) return false;
+	if (!updates.length && existing.deletable === !needed) return [];
 	writeNodeAt(prefix, {
 		...existing,
 		deletable: !needed,
 		data: { ...existing.data, config: { ...config, ...Object.fromEntries(updates) } }
 	});
-	return updates.length > 0;
+	return updates;
+}
+
+// A value the author did not change is one a script's event left behind
+function authorChanged(
+	before: ChallengeDocument,
+	name: string,
+	was: CanvasDocumentNode | undefined,
+	[key, value]: [string, unknown]
+): boolean {
+	const fixedBefore = fixesSetting(before, { name, authored: true });
+	return !fixedBefore(key) || JSON.stringify(was?.config[key]) !== JSON.stringify(value);
 }

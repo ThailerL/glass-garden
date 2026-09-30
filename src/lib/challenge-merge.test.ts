@@ -96,6 +96,12 @@ const readNodes = () =>
 	);
 const named = (name: string) => readNodes().find((node) => nodeName(node) === name);
 
+function edit(name: string, patch: object) {
+	const graph = new GraphState(PROJECT);
+	const node = graph.nodes.find((n) => nodeName(n) === name)!;
+	graph.updateNodeConfig(node.id, { ...nodeConfig(node), ...patch });
+}
+
 // Every edge on the canvas, by the names at its ends
 const pairs = () =>
 	readByPrefix<Edge>(`${graphKeyPrefix(PROJECT)}edge:`)
@@ -125,12 +131,21 @@ describe('mergeStartingCanvas', () => {
 		expect(nodeConfig(named('A')!)).toMatchObject({ count: 5 });
 	});
 
+	it('puts back a fixed setting a script left behind without calling it a move', () => {
+		const before = challenge(fixing({ count: 2 }));
+		start(before);
+		// What a set event writes, and nothing puts back once the run is over
+		edit('A', { count: 5 });
+
+		const after = challenge({ ...fixing({ count: 2 }), title: 'Keep up, faster' });
+		expect(mergeStartingCanvas(PROJECT, before, after)).toBe(false);
+		expect(nodeConfig(named('A')!)).toMatchObject({ count: 2 });
+	});
+
 	it('leaves a setting the reader owns at whatever they set it to', () => {
 		start(challenge());
 		// Nothing is fixed on B, so this is the reader's own tuning
-		const graph = new GraphState(PROJECT);
-		const b = graph.nodes.find((node) => nodeName(node) === 'B')!;
-		graph.updateNodeConfig(b.id, { ...nodeConfig(b), count: 7 });
+		edit('B', { count: 7 });
 
 		const after = challenge({ ...fixing({ count: 4 }), title: 'Keep up, faster' });
 		expect(mergeStartingCanvas(PROJECT, challenge(), after)).toBe(true);
@@ -189,14 +204,22 @@ describe('mergeStartingCanvas', () => {
 	it('hands the reader a node the author has dropped, with their work on it', () => {
 		const before = challenge({ startingCanvas: threeNodes });
 		start(before);
-		const graph = new GraphState(PROJECT);
-		const c = graph.nodes.find((node) => nodeName(node) === 'C')!;
-		graph.updateNodeConfig(c.id, { ...nodeConfig(c), count: 7 });
+		edit('C', { count: 7 });
 
 		expect(mergeStartingCanvas(PROJECT, before, challenge())).toBe(true);
 		expect(nodeAuthored(named('C')!)).toBeFalsy();
 		expect(named('C')!.deletable).toBe(true);
 		expect(nodeConfig(named('C')!)).toMatchObject({ count: 7 });
+	});
+
+	it('hands the reader a node they renamed without calling it a move', () => {
+		start(challenge());
+		// Nothing names B, so its name is the reader's to change
+		edit('B', { name: 'Bee' });
+
+		expect(mergeStartingCanvas(PROJECT, challenge(), challenge())).toBe(false);
+		expect(nodeAuthored(named('Bee')!)).toBeFalsy();
+		expect(named('B')).toBeUndefined();
 	});
 
 	it('follows the new version on which nodes may be deleted', () => {
