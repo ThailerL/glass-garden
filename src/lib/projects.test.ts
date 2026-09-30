@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('$app/paths', () => ({ resolve: (route: string) => route }));
 // The store's own imports plus graph-state's, which creating a project reaches through
@@ -39,7 +39,13 @@ import {
 } from '$lib/projects.svelte';
 import { readImportedFiles } from '$lib/files/imported-files';
 import { readGraph } from '$lib/graph-state.svelte';
+import { removeProjectFiles } from '$lib/container';
+import { readByPrefix } from '$lib/storage';
 import type { GardenDocument } from '$lib/project-document';
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 // One test, since the store loads once and its records outlive a single case
 describe('listProjects and listChallenges', () => {
@@ -119,5 +125,28 @@ describe('importProject', () => {
 		const project = importProject(doc('dynamodbTable', { written: { 'server.js': 'theirs' } }));
 
 		expect(nodeIdsOf(project.id).map((id) => readImportedFiles(id))).toEqual([undefined]);
+	});
+
+	// The cleanup forgets the code of whichever nodes it is handed, so a stored node must be among them
+	it.each([
+		['canvas', 0],
+		['importedFiles', 1],
+		['project', 1]
+	])('lists nothing and keeps no graph when writing %s fails', (failing, stored) => {
+		const listed = listProjects().length;
+		const graphs = readByPrefix('canvas:');
+		const setItem = localStorage.setItem.bind(localStorage);
+		vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+			if (key.startsWith(`${failing}:`)) throw new DOMException('full', 'QuotaExceededError');
+			setItem(key, value);
+		});
+
+		expect(() =>
+			importProject(doc('instanceGroup', { written: { 'server.js': 'authored' } }))
+		).toThrow('full');
+
+		expect(listProjects()).toHaveLength(listed);
+		expect(readByPrefix('canvas:')).toEqual(graphs);
+		expect(vi.mocked(removeProjectFiles).mock.lastCall?.[1]).toHaveLength(stored);
 	});
 });
