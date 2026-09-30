@@ -130,12 +130,22 @@ describe('stored graph', () => {
 		expect(readGraph('p1').edges).toEqual([]);
 	});
 
-	it('stores no selection, which would come back selected on the next load', () => {
-		const graph = new GraphState('p1');
-		const { id } = graph.addNode('test' as ResourceType, { x: 0, y: 0 });
-		graph.select(id);
-		graph.save();
-		expect(readGraph('p1').nodes[0].selected).toBe(false);
+	it('stores none of the flow’s own state, which would come back stale on the next load', () => {
+		const a = new GraphState('p1').addNode('test' as ResourceType, { x: 0, y: 0 });
+		writeGraph('p1', {
+			nodes: [{ ...a, selected: true, dragging: true, measured: { width: 100, height: 40 } }],
+			edges: [{ id: 'e', source: a.id, target: a.id, selected: true, sourceHandle: null }]
+		});
+		const { nodes, edges } = readGraph('p1');
+		expect(Object.keys(nodes[0]).sort()).toEqual([
+			'data',
+			'deletable',
+			'id',
+			'origin',
+			'position',
+			'type'
+		]);
+		expect(Object.keys(edges[0]).sort()).toEqual(['id', 'source', 'target']);
 	});
 });
 

@@ -9,7 +9,7 @@ import {
 } from './resources';
 import { requestPersistentStorage, setActiveProject } from './container';
 import { createContext } from './context';
-import { keysWithPrefix, readByPrefix } from './storage';
+import { readByPrefix, readEntry } from './storage';
 import type { FileSetId } from './files/node-files';
 
 export type NodeData = {
@@ -63,11 +63,11 @@ export function nameTakenByChallenge(
 	);
 }
 
-// One key space per project, so a graph's entries can be found and cleared as a set
-const GRAPH_PREFIX = 'graph:';
+// One record per project. Not `graph:`, which a visitor's old per-node keys still start with
+const GRAPH_PREFIX = 'canvas:';
 
-function graphKeyPrefix(projectId: string) {
-	return `${GRAPH_PREFIX}${projectId}:`;
+function graphKey(projectId: string) {
+	return `${GRAPH_PREFIX}${projectId}`;
 }
 
 // Every project's nodes share one VFS, so a boot restores them all - a database in a project
@@ -75,14 +75,9 @@ function graphKeyPrefix(projectId: string) {
 // Postgres specifically, not every resource that stores something: its files are the ones
 // heavy enough to explain a slow boot
 export function anyPostgresNodes(): boolean {
-	return storedGraphIds().some((id) =>
-		readGraph(id).nodes.some((node) => node.type === ('postgres' satisfies ResourceType))
+	return readByPrefix<StoredGraph>(GRAPH_PREFIX).some(({ nodes }) =>
+		nodes.some((node) => node.type === ('postgres' satisfies ResourceType))
 	);
-}
-
-function storedGraphIds(): string[] {
-	const ids = keysWithPrefix(GRAPH_PREFIX).map((key) => key.split(':')[1]);
-	return ids.filter((id, index) => ids.indexOf(id) === index);
 }
 
 // A config the schema has outgrown costs its settings rather than the node
@@ -100,39 +95,40 @@ function loadNode(node: Node): Node | undefined {
 	return node;
 }
 
-type StoredGraph = { nodes: Node[]; edges: Edge[] };
+type Graph = { nodes: Node[]; edges: Edge[] };
 
-// The one way a graph is read or written: a project that is not open has no GraphState, and
-// building one for it would take the container's active project with it
-export function readGraph(projectId: string): StoredGraph {
-	const prefix = graphKeyPrefix(projectId);
-	const nodes = readByPrefix<Node>(`${prefix}node:`).flatMap((node) => loadNode(node) ?? []);
+type StoredNode = Pick<Node, 'id' | 'type' | 'position' | 'data' | 'deletable' | 'origin'>;
+type StoredEdge = Pick<Edge, 'id' | 'source' | 'target'>;
+type StoredGraph = { nodes: StoredNode[]; edges: StoredEdge[] };
+
+// Not through a GraphState: a project that is not open has none, and building one for it would
+// take the container's active project with it
+export function readGraph(projectId: string): Graph {
+	const stored = readEntry<StoredGraph>(graphKey(projectId)) ?? { nodes: [], edges: [] };
+	const nodes = stored.nodes.flatMap((node) => loadNode(node) ?? []);
 	const has = (id: string) => nodes.some((node) => node.id === id);
 	// An edge to a node that did not load would be drawn into empty space
-	const edges = readByPrefix<Edge>(`${prefix}edge:`).filter(
-		(edge) => has(edge.source) && has(edge.target)
-	);
+	const edges = stored.edges.filter((edge) => has(edge.source) && has(edge.target));
 	return { nodes, edges };
 }
 
-// Written whole, so what is stored is always a graph the canvas held
-export function writeGraph(projectId: string, { nodes, edges }: StoredGraph) {
-	const prefix = graphKeyPrefix(projectId);
-	const entries = [
-		...nodes.map((node) => [`${prefix}node:${node.id}`, node] as const),
-		...edges.map((edge) => [`${prefix}edge:${edge.id}`, edge] as const)
-	];
-	for (const [key, entry] of entries) {
-		localStorage.setItem(key, JSON.stringify({ ...entry, selected: false }));
-	}
-	const kept: string[] = entries.map(([key]) => key);
-	for (const key of keysWithPrefix(prefix)) {
-		if (!kept.includes(key)) localStorage.removeItem(key);
-	}
+// Written whole, so no reader ever finds half a graph
+export function writeGraph(projectId: string, { nodes, edges }: Graph) {
+	const stored: StoredGraph = { nodes: nodes.map(storedNode), edges: edges.map(storedEdge) };
+	localStorage.setItem(graphKey(projectId), JSON.stringify(stored));
+}
+
+// Only what a load needs back: selection, measurements and drag state are the flow's own
+function storedNode({ id, type, position, data, deletable, origin }: Node): StoredNode {
+	return { id, type, position, data, deletable, origin };
+}
+
+function storedEdge({ id, source, target }: Edge): StoredEdge {
+	return { id, source, target };
 }
 
 export function deleteGraph(projectId: string) {
-	for (const key of keysWithPrefix(graphKeyPrefix(projectId))) localStorage.removeItem(key);
+	localStorage.removeItem(graphKey(projectId));
 }
 
 export type NodeOptions = Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'authored'> & {
@@ -146,7 +142,7 @@ export function buildNode(
 	type: ResourceType,
 	position: { x: number; y: number },
 	{ files, config, chart, testEvent, authored, deletable = true }: NodeOptions = {}
-): Node {
+): StoredNode {
 	const definition = getResourceDefinition(type);
 	const data: NodeData = {
 		config: definition.configSchema.parse(config ?? {}),

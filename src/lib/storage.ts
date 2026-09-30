@@ -1,5 +1,4 @@
-// Snapshotted rather than iterated lazily, so a caller can delete the keys it is handed
-export function keysWithPrefix(prefix: string): string[] {
+function keysWithPrefix(prefix: string): string[] {
 	const keys: string[] = [];
 	for (let index = 0; index < localStorage.length; index++) {
 		const key = localStorage.key(index);
