@@ -186,20 +186,24 @@ export class ResourceController {
 	schedule() {
 		this.#dirty = true;
 		if (this.#converging) return;
-		this.#converging = true;
 		this.#converge()
 			// The pass is left where it stopped, so nothing moves until the next trigger
 			.catch((e) => {
 				toast.error(`${this.#nodeName()} stopped applying changes`);
 				this.log.event('resource', 'error', `Failed to apply changes, left as is: ${messageOf(e)}`);
-			})
-			.finally(() => (this.#converging = false));
+			});
 	}
 
 	async #converge() {
-		while (this.#dirty) {
-			this.#dirty = false;
-			await this.#reconcilePass();
+		this.#converging = true;
+		// No await between the loop's last look at #dirty and the release, or a trigger is lost
+		try {
+			while (this.#dirty) {
+				this.#dirty = false;
+				await this.#reconcilePass();
+			}
+		} finally {
+			this.#converging = false;
 		}
 		if (this.#forgotten && this.instances.length === 0) {
 			this.#services.unregister();

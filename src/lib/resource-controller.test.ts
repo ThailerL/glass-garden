@@ -91,8 +91,8 @@ function setup(config: Partial<Config> = {}, overrides: Partial<ResourceDefiniti
 }
 
 // Every fake resolves in a microtask, so draining the queue settles a convergence
-async function settle() {
-	for (let i = 0; i < 30; i++) await Promise.resolve();
+async function settle(microtasks = 30) {
+	for (let i = 0; i < microtasks; i++) await Promise.resolve();
 }
 
 beforeEach(() => {
@@ -287,6 +287,21 @@ describe('ResourceController', () => {
 		expect(controller.instances).toHaveLength(0);
 		expect(controller.status).toBe('stopped');
 	});
+
+	// A second challenge run does exactly this: stopAll on stopped nodes, then start
+	it.each([0, 1, 2, 3, 4, 5])(
+		'takes a start that lands %i microtasks after a stop',
+		async (gap) => {
+			const { controller, definition } = setup();
+			controller.stop();
+			await settle(gap);
+			controller.start();
+			await settle();
+
+			expect(definition.start).toHaveBeenCalledTimes(1);
+			expect(controller.settled).toBe(true);
+		}
+	);
 
 	it('respawns a crashed instance after the delay and counts the restart', async () => {
 		const { definition, handles, controller } = setup();
