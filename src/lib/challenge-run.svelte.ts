@@ -28,6 +28,7 @@ export type RunServices = {
 	start: (nodeId: string) => void;
 	stop: (nodeId: string) => void;
 	setConfig: (nodeId: string, patch: Record<string, unknown>) => void;
+	restoreFixedSettings: () => void;
 	stopAll: () => void;
 	clearStoredData: () => Promise<{ nodeId: string; nodeName: string } | undefined>;
 	read: (
@@ -109,6 +110,7 @@ export class ChallengeRun {
 		this.failedAt = {};
 		this.#lateStarted = false;
 		this.#services.stopAll();
+		this.#services.restoreFixedSettings();
 		const uncleared = await this.#services.clearStoredData();
 		if (uncleared) return this.#end('ended', { reason: 'not-cleared', ...uncleared });
 		// Stop run, pressed while that was in flight, has already ended this one

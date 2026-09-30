@@ -1,7 +1,8 @@
 import { nodeAuthored, nodeConfig, type GraphState } from './graph-state.svelte';
 import type { Orchestrator } from './orchestrator.svelte';
 import type { RunServices } from './challenge-run.svelte';
-import type { Challenge } from './challenge';
+import type { ChallengeDocument } from './project-document';
+import { driftedSettings } from './challenge-merge';
 import { getResourceDefinition, readOf, startsLast } from './resources';
 import { recordRun } from './projects.svelte';
 import { hostGoals, tellHost } from './embed';
@@ -9,11 +10,26 @@ import { hostGoals, tellHost } from './embed';
 // A script's events are the same operations as the node's own buttons and Save config
 export function runServices(
 	projectId: string,
-	challenge: Challenge,
+	challenge: ChallengeDocument,
 	graph: GraphState,
 	orchestrator: Orchestrator
 ): RunServices {
 	const goals = hostGoals(challenge);
+
+	function setConfig(nodeId: string, patch: Record<string, unknown>) {
+		const node = graph.getNode(nodeId);
+		if (!node) return;
+		const config = nodeConfig(node);
+		const parsed = getResourceDefinition(node.type).configSchema.safeParse({
+			...config,
+			...patch
+		});
+		// A script's typo leaves the node as it was rather than resetting its settings
+		if (!parsed.success) return;
+		graph.updateNodeConfig(nodeId, parsed.data);
+		orchestrator.refresh(nodeId);
+	}
+
 	return {
 		canvas: () => ({
 			nodes: graph.nodes.map((node) => ({
@@ -31,18 +47,11 @@ export function runServices(
 		settled: () => orchestrator.settled,
 		start: (nodeId) => orchestrator.start(nodeId),
 		stop: (nodeId) => orchestrator.stop(nodeId),
-		setConfig: (nodeId, patch) => {
-			const node = graph.getNode(nodeId);
-			if (!node) return;
-			const config = nodeConfig(node);
-			const parsed = getResourceDefinition(node.type).configSchema.safeParse({
-				...config,
-				...patch
-			});
-			// A script's typo leaves the node as it was rather than resetting its settings
-			if (!parsed.success) return;
-			graph.updateNodeConfig(nodeId, parsed.data);
-			orchestrator.refresh(nodeId);
+		setConfig,
+		restoreFixedSettings: () => {
+			for (const [nodeId, patch] of driftedSettings(challenge, graph.nodes)) {
+				setConfig(nodeId, patch);
+			}
 		},
 		stopAll: () => orchestrator.stopAll(),
 		clearStoredData: () => orchestrator.clearStoredData(),

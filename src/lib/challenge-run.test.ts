@@ -67,6 +67,7 @@ function fakeCanvas(clearFails = false, readHangs = false) {
 				)
 			};
 		},
+		restoreFixedSettings: () => calls.push('restoreFixedSettings'),
 		stopAll: () => calls.push('stopAll'),
 		clearStoredData: async () => {
 			calls.push('clearStoredData');
@@ -111,7 +112,7 @@ describe('ChallengeRun', () => {
 		const fake = fakeCanvas();
 		const run = new ChallengeRun(challenge, fake.services);
 		await run.start();
-		expect(fake.calls).toEqual(['stopAll', 'clearStoredData', 'start app']);
+		expect(fake.calls).toEqual(['stopAll', 'restoreFixedSettings', 'clearStoredData', 'start app']);
 		// Locked from the press, not from the clock: a boot is part of the run
 		expect(run.active).toBe(true);
 		advance(30);
@@ -202,7 +203,7 @@ describe('ChallengeRun', () => {
 		expect(run.phase).toBe('ended');
 		expect(run.ended).toEqual({ reason: 'not-cleared', nodeId: 'app', nodeName: 'App' });
 		// Nothing came up, so there is no half-started canvas judging itself
-		expect(fake.calls).toEqual(['stopAll', 'clearStoredData']);
+		expect(fake.calls).toEqual(['stopAll', 'restoreFixedSettings', 'clearStoredData']);
 		advance(30);
 		expect(run.phase).toBe('ended');
 		expect(fake.services.finished).not.toHaveBeenCalled();

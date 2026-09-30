@@ -15,7 +15,7 @@ import {
 	parseDocument,
 	type ChallengeDocument
 } from '$lib/project-document';
-import { mergeStartingCanvas } from '$lib/challenge-merge';
+import { driftedSettings, mergeStartingCanvas } from '$lib/challenge-merge';
 
 vi.mock('$lib/container', () => ({
 	requestPersistentStorage: vi.fn(),
@@ -253,5 +253,23 @@ describe('mergeStartingCanvas', () => {
 	it('reports nothing moved when the version changes only what it says', () => {
 		start(challenge());
 		expect(mergeStartingCanvas(PROJECT, challenge(), challenge({ title: 'Renamed' }))).toBe(false);
+	});
+});
+
+describe('driftedSettings', () => {
+	it('puts a fixed setting a script moved back to what was shipped, and only that', () => {
+		const shipped = challenge(fixing({ count: 2 }));
+		start(shipped);
+		edit('A', { count: 5 });
+		edit('B', { count: 7 });
+
+		const a = named('A')!;
+		expect(driftedSettings(shipped, readNodes())).toEqual(new Map([[a.id, { count: 2 }]]));
+	});
+
+	it('finds nothing on a canvas as it was shipped', () => {
+		const shipped = challenge(fixing({ count: 2 }));
+		start(shipped);
+		expect(driftedSettings(shipped, readNodes()).size).toBe(0);
 	});
 });

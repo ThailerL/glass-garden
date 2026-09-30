@@ -68,6 +68,23 @@ export function mergeStartingCanvas(
 	return changed;
 }
 
+// Each authored node's fixed settings that differ from what ships, as the shipped values
+export function driftedSettings(
+	challenge: ChallengeDocument,
+	nodes: Node[]
+): Map<string, Record<string, unknown>> {
+	const shipped = startingNodes(challenge);
+	const drifted = new Map<string, Record<string, unknown>>();
+	for (const node of nodes.filter(nodeAuthored)) {
+		const name = nodeName(node);
+		const ships = shipped.get(name);
+		if (!ships || ships.type !== node.type) continue;
+		const drift = fixedDrift(challenge, name, nodeConfig(node), ships);
+		if (drift.length) drifted.set(node.id, Object.fromEntries(drift));
+	}
+	return drifted;
+}
+
 // A fixed setting is the author's: the challenge renders it as a value, so whatever the reader
 // holds is whatever they were given, and the new value can simply take its place. Whether the
 // node may be deleted follows the new version too, but only the settings written are returned
@@ -79,11 +96,8 @@ function writeNode(
 	shipped: CanvasDocumentNode,
 	needed: boolean
 ): [string, unknown][] {
-	const fixes = fixesSetting(challenge, { name, authored: true });
 	const config = nodeConfig(existing);
-	const updates = Object.entries(shipped.config).filter(
-		([key, value]) => fixes(key) && JSON.stringify(config[key]) !== JSON.stringify(value)
-	);
+	const updates = fixedDrift(challenge, name, config, shipped);
 	if (!updates.length && existing.deletable === !needed) return [];
 	writeNodeAt(prefix, {
 		...existing,
@@ -91,6 +105,19 @@ function writeNode(
 		data: { ...existing.data, config: { ...config, ...Object.fromEntries(updates) } }
 	});
 	return updates;
+}
+
+// The fixed settings a node holds at anything other than what this version ships
+function fixedDrift(
+	challenge: ChallengeDocument,
+	name: string,
+	config: Record<string, unknown>,
+	shipped: CanvasDocumentNode
+): [string, unknown][] {
+	const fixes = fixesSetting(challenge, { name, authored: true });
+	return Object.entries(shipped.config).filter(
+		([key, value]) => fixes(key) && JSON.stringify(config[key]) !== JSON.stringify(value)
+	);
 }
 
 // A value the author did not change is one a script's event left behind
