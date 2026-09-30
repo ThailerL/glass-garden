@@ -392,7 +392,7 @@ export function parseDocument(text: string): GardenDocument {
 	throw new Error(`That ${documentKind(tag)} was made by a newer version of Glass Garden`);
 }
 
-// Ids are minted fresh so a project can be imported beside its own export; returns old → new.
+// Ids are minted fresh so a project can be imported beside its own export.
 // A challenge's canvas is marked as authored, which is what lets its goals name these nodes
 export function applyCanvasDocument(graph: GraphState, doc: CanvasDocument, challenge?: Challenge) {
 	const needed = challenge && neededNodes(challenge);
@@ -401,6 +401,7 @@ export function applyCanvasDocument(graph: GraphState, doc: CanvasDocument, chal
 		const config = parseStoredConfig(resourceDefinitions[node.type], node.config);
 		const added = graph.addNode(node.type, node.position, {
 			config,
+			code: doc.nodeFiles[node.id],
 			chart: node.chart,
 			testEvent: node.testEvent,
 			// Kept off an ordinary project's nodes rather than stored as false on every one
@@ -414,7 +415,6 @@ export function applyCanvasDocument(graph: GraphState, doc: CanvasDocument, chal
 		const target = ids.get(edge.target);
 		if (source && target) graph.addEdge(source, target);
 	}
-	return ids;
 }
 
 export type ReadableFs = {

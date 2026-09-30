@@ -11,6 +11,7 @@ import { requestPersistentStorage, setActiveProject } from './container';
 import { createContext } from './context';
 import { readByPrefix, readEntry } from './storage';
 import type { FileSetId } from './files/node-files';
+import type { NodeFiles } from './project-document';
 
 export type NodeData = {
 	config: Record<string, unknown>;
@@ -18,6 +19,8 @@ export type NodeData = {
 	ports: number[];
 	// Set by a template whose node starts on files other than its resource type's
 	files?: FileSetId;
+	// The code an imported document gave this node to start on
+	code?: NodeFiles;
 	// The one metric charted under the node on the canvas
 	chart?: string;
 	// The event this node's Test tab last invoked it with
@@ -131,7 +134,7 @@ export function deleteGraph(projectId: string) {
 	localStorage.removeItem(graphKey(projectId));
 }
 
-export type NodeOptions = Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'authored'> & {
+export type NodeOptions = Pick<NodeData, 'files' | 'code' | 'chart' | 'testEvent' | 'authored'> & {
 	// config arrives unparsed, so it is not NodeData's own
 	config?: Record<string, unknown>;
 	deletable?: boolean;
@@ -141,13 +144,15 @@ export type NodeOptions = Pick<NodeData, 'files' | 'chart' | 'testEvent' | 'auth
 export function buildNode(
 	type: ResourceType,
 	position: { x: number; y: number },
-	{ files, config, chart, testEvent, authored, deletable = true }: NodeOptions = {}
+	{ files, code, config, chart, testEvent, authored, deletable = true }: NodeOptions = {}
 ): StoredNode {
 	const definition = getResourceDefinition(type);
 	const data: NodeData = {
 		config: definition.configSchema.parse(config ?? {}),
 		ports: [],
 		files,
+		// A document is anyone's text: it can carry code for a resource the reader never writes
+		code: definition.hasEditableFiles ? code : undefined,
 		chart,
 		testEvent,
 		authored

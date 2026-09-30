@@ -37,9 +37,7 @@ import {
 	listProjects,
 	resetChallenge
 } from '$lib/projects.svelte';
-import { readImportedFiles } from '$lib/files/imported-files';
-import { readGraph } from '$lib/graph-state.svelte';
-import { removeProjectFiles } from '$lib/container';
+import { readGraph, type NodeData } from '$lib/graph-state.svelte';
 import { readByPrefix } from '$lib/storage';
 import type { GardenDocument } from '$lib/project-document';
 
@@ -91,7 +89,6 @@ describe('resetChallenge', () => {
 	});
 });
 
-// Nothing is mounted here: the import's reload would beat the kernel's persist
 describe('importProject', () => {
 	const doc = (type: string, nodeFiles: Record<string, Record<string, string>>) =>
 		({
@@ -102,51 +99,45 @@ describe('importProject', () => {
 			nodeFiles
 		}) as GardenDocument;
 
-	const nodeIdsOf = (projectId: string) => readGraph(projectId).nodes.map((node) => node.id);
+	const codeOf = (projectId: string) =>
+		readGraph(projectId).nodes.map((node) => (node.data as NodeData).code);
 
-	it("holds a node's code under the id the canvas minted for it, not the document's", () => {
+	it("keeps a node's code on the stored node, so it lasts exactly as long as the node", () => {
 		const project = importProject(doc('instanceGroup', { written: { 'server.js': 'authored' } }));
-		const [nodeId] = nodeIdsOf(project.id);
 
-		expect(nodeId).not.toBe('written');
-		expect(readImportedFiles(nodeId)).toEqual({ 'server.js': 'authored' });
-		expect(readImportedFiles('written')).toBeUndefined();
+		expect(codeOf(project.id)).toEqual([{ 'server.js': 'authored' }]);
 	});
 
 	it('ignores files written for a node the document never placed', () => {
 		const project = importProject(doc('instanceGroup', { absent: { 'server.js': 'orphan' } }));
 
-		expect(nodeIdsOf(project.id).map((id) => readImportedFiles(id))).toEqual([undefined]);
-		expect(readImportedFiles('absent')).toBeUndefined();
+		expect(codeOf(project.id)).toEqual([undefined]);
 	});
 
 	// The region provisions this one from files of ours, which a document does not get to replace
 	it('ignores files written for a resource the reader does not write', () => {
 		const project = importProject(doc('dynamodbTable', { written: { 'server.js': 'theirs' } }));
 
-		expect(nodeIdsOf(project.id).map((id) => readImportedFiles(id))).toEqual([undefined]);
+		expect(codeOf(project.id)).toEqual([undefined]);
 	});
 
-	// The cleanup forgets the code of whichever nodes it is handed, so a stored node must be among them
-	it.each([
-		['canvas', 0],
-		['importedFiles', 1],
-		['project', 1]
-	])('lists nothing and keeps no graph when writing %s fails', (failing, stored) => {
-		const listed = listProjects().length;
-		const graphs = readByPrefix('canvas:');
-		const setItem = localStorage.setItem.bind(localStorage);
-		vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
-			if (key.startsWith(`${failing}:`)) throw new DOMException('full', 'QuotaExceededError');
-			setItem(key, value);
-		});
+	it.each(['canvas', 'project'])(
+		'lists nothing and keeps no graph when writing %s fails',
+		(failing) => {
+			const listed = listProjects().length;
+			const graphs = readByPrefix('canvas:');
+			const setItem = localStorage.setItem.bind(localStorage);
+			vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+				if (key.startsWith(`${failing}:`)) throw new DOMException('full', 'QuotaExceededError');
+				setItem(key, value);
+			});
 
-		expect(() =>
-			importProject(doc('instanceGroup', { written: { 'server.js': 'authored' } }))
-		).toThrow('full');
+			expect(() =>
+				importProject(doc('instanceGroup', { written: { 'server.js': 'authored' } }))
+			).toThrow('full');
 
-		expect(listProjects()).toHaveLength(listed);
-		expect(readByPrefix('canvas:')).toEqual(graphs);
-		expect(vi.mocked(removeProjectFiles).mock.lastCall?.[1]).toHaveLength(stored);
-	});
+			expect(listProjects()).toHaveLength(listed);
+			expect(readByPrefix('canvas:')).toEqual(graphs);
+		}
+	);
 });

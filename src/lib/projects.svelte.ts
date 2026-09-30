@@ -13,7 +13,6 @@ import { deleteGraph, GraphState, readGraph } from './graph-state.svelte';
 import { readByPrefix } from './storage';
 import { getResourceDefinition } from './resources';
 import { nodeFiles } from './files/node-files';
-import { storeNodeFiles } from './files/imported-files';
 import { mergeStartingCanvas } from './challenge-merge';
 import {
 	applyCanvasDocument,
@@ -138,14 +137,10 @@ export function ensureProject(): Project {
 }
 
 export function deleteProject(id: string) {
-	// Read before the graph goes, since nothing else records which nodes were this project's
-	const nodeIds = readGraph(id).nodes.map((node) => node.id);
-
 	deleteGraph(id);
 	localStorage.removeItem(`${PROJECT_PREFIX}${id}`);
 	projects = projects.filter((project) => project.id !== id);
-
-	void removeProjectFiles(id, nodeIds);
+	void removeProjectFiles(id);
 }
 
 // Read from storage rather than a GraphState, so any project exports, not just the open one.
@@ -171,8 +166,7 @@ export async function exportProject(project: Project): Promise<GardenDocument> {
 	return buildProjectDocument(project.name, nodes, edges, files);
 }
 
-// Like the create dialog, this leaves the ambient project pointed at the new one, so callers
-// reload. The code is stored rather than mounted, because that reload would lose the write
+// Like the create dialog, this leaves the ambient project pointed at the new one, so callers reload
 export function importProject(
 	doc: GardenDocument,
 	fields: Omit<ProjectFields, 'challenge'> = {}
@@ -181,13 +175,7 @@ export function importProject(
 	const canvas = doc.format === CHALLENGE_FORMAT ? doc.startingCanvas : doc;
 	return createProject(
 		documentName(doc),
-		(graph) => {
-			const ids = applyCanvasDocument(graph, canvas, challenge);
-			for (const node of canvas.nodes) {
-				const nodeId = ids.get(node.id);
-				if (nodeId) storeNodeFiles(nodeId, node.type, canvas.nodeFiles[node.id]);
-			}
-		},
+		(graph) => applyCanvasDocument(graph, canvas, challenge),
 		{ challenge, ...fields }
 	);
 }

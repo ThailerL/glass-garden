@@ -337,12 +337,10 @@ describe('parseDocument', () => {
 describe('applyCanvasDocument', () => {
 	it('mints fresh ids and remaps edges through them', () => {
 		const graph = new GraphState('p1');
-		const ids = applyCanvasDocument(graph, parseProject(JSON.stringify(document())));
-		expect(ids.get('a')).not.toBe('a');
-		expect(graph.nodes.map((n) => n.id)).toEqual([ids.get('a'), ids.get('b')]);
-		expect(graph.edges.map(({ source, target }) => [source, target])).toEqual([
-			[ids.get('a'), ids.get('b')]
-		]);
+		applyCanvasDocument(graph, parseProject(JSON.stringify(document())));
+		const [a, b] = graph.nodes.map((n) => n.id);
+		expect([a, b]).not.toContain('a');
+		expect(graph.edges.map(({ source, target }) => [source, target])).toEqual([[a, b]]);
 		expect(nodeConfig(graph.nodes[0])).toEqual({ name: 'A', count: 5 });
 		expect(nodeTestEvent(graph.nodes[0])).toBe('{"hello":"world"}');
 	});

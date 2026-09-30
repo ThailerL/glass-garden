@@ -1,5 +1,4 @@
 import { Vivari, type FileSystemTree } from '@vivari/core';
-import { forgetImportedFiles } from './files/imported-files';
 import { patchErrorStacks } from './vm-error-stacks';
 
 // Only one container is booted per tab. Vivari's OPFS root, its preview routing and its
@@ -88,11 +87,8 @@ export function mountNodeFiles(nodeId: string, files: FileSystemTree, overwrite 
 		const container = await getContainer();
 		const target = nodeDirectory(nodeId);
 		if (overwrite || !(await container.fs.exists(target))) {
-			await container.fs.mkdir(target, { recursive: true });
 			await container.mount(files, { mountPoint: target });
 		}
-		// On disk now, so an import's held copy is spent
-		forgetImportedFiles(nodeId);
 	})().catch((error) => {
 		mounts.delete(nodeId);
 		throw error;
@@ -106,18 +102,13 @@ export function mountNodeFiles(nodeId: string, files: FileSystemTree, overwrite 
 // booted, so deleting a node cannot be what pays to start it
 export async function removeNodeFiles(nodeId: string) {
 	mounts.delete(nodeId);
-	forgetImportedFiles(nodeId);
 	if (!containerPromise) return;
 	const container = await containerPromise;
 	await container.fs.rm(nodeDirectory(nodeId), { recursive: true, force: true });
 }
 
 // Skipping while unbooted is safe here: the boot-time sweep removes orphaned project dirs
-export async function removeProjectFiles(projectId: string, nodeIds: readonly string[]) {
-	for (const nodeId of nodeIds) {
-		mounts.delete(nodeId);
-		forgetImportedFiles(nodeId);
-	}
+export async function removeProjectFiles(projectId: string) {
 	if (!containerPromise) return;
 	const container = await containerPromise;
 	await container.fs.rm(projectDirectory(projectId), { recursive: true, force: true });

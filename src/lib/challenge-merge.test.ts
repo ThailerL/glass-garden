@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GraphState, nodeAuthored, nodeConfig, nodeName, readGraph } from '$lib/graph-state.svelte';
+import {
+	GraphState,
+	nodeAuthored,
+	nodeConfig,
+	nodeName,
+	readGraph,
+	type NodeData
+} from '$lib/graph-state.svelte';
 import {
 	applyCanvasDocument,
 	CHALLENGE_FORMAT,
@@ -17,7 +24,7 @@ vi.mock('$lib/resources', async () => {
 	const { z } = await import('zod');
 	const definition = {
 		name: 'Test resource',
-		hasEditableFiles: false,
+		hasEditableFiles: true,
 		configSchema: z.object({
 			name: z.string().default('Test resource'),
 			count: z.number().default(1)
@@ -170,6 +177,15 @@ describe('mergeStartingCanvas', () => {
 		expect(added).toBeDefined();
 		expect(nodeAuthored(added!)).toBe(true);
 		expect(added!.deletable).toBe(false);
+	});
+
+	it('starts a node the author has added on the code the new version ships for it', () => {
+		start(challenge());
+
+		const code = { 'server.js': 'authored' };
+		const grown = challenge({ startingCanvas: { ...threeNodes, nodeFiles: { c: code } } });
+		mergeStartingCanvas(PROJECT, challenge(), grown);
+		expect((named('C')!.data as NodeData).code).toEqual(code);
 	});
 
 	it('gives the reader a node the author has added even where nothing names it', () => {

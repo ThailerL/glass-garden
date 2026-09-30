@@ -1,6 +1,5 @@
 import type { Node } from '@xyflow/svelte';
 import { fixesSetting, neededNodes } from './challenge';
-import { storeNodeFiles } from './files/imported-files';
 import {
 	buildNode,
 	nodeAuthored,
@@ -55,12 +54,12 @@ export function mergeStartingCanvas(
 		if (had.get(name)?.type === node.type && !needed.has(name)) continue;
 		const added = buildNode(node.type, node.position, {
 			config: node.config,
+			code: challenge.startingCanvas.nodeFiles[node.id],
 			chart: node.chart,
 			testEvent: node.testEvent,
 			authored: true,
 			deletable: !needed.has(name)
 		});
-		storeNodeFiles(added.id, node.type, challenge.startingCanvas.nodeFiles[node.id]);
 		nodes.set(added.id, added);
 		changed = true;
 	}
