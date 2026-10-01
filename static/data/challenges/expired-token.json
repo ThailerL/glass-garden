@@ -1,0 +1,178 @@
+{
+	"$schema": "./schema.json",
+	"format": "gg:challenge/1",
+	"title": "The token that ran out",
+	"description": "Quotes API asks the Carrier for a new access token for every parcel, and the Carrier turns most of them away. Get every parcel a quote.",
+	"suggests": [],
+	"instructions": [
+		"Quotes API prices the shipping for each parcel it is sent. The rates are the Carrier's, a company outside your system, and it wants an access token with every rate it is asked for.",
+		"The Carrier's code is not yours to read. Select it and open its Config tab to see what it takes, what it answers, and what it limits.",
+		"450 parcels arrive, ten a second and then twenty. Every one of them needs a quote."
+	],
+	"length": 30,
+	"events": [
+		{
+			"at": 5,
+			"text": "The morning's orders arrive, twenty parcels a second",
+			"set": {
+				"node": {
+					"name": "Parcel Traffic"
+				},
+				"config": {
+					"requestsPerSecond": 20
+				}
+			}
+		}
+	],
+	"goals": [
+		{
+			"id": "within-limit",
+			"title": "No token request is turned away",
+			"hint": "The Carrier counts every token it refuses, whatever your own code did next. Its Config tab says how many it will issue and how long each one lasts.",
+			"conditions": [
+				{
+					"metric": {
+						"node": {
+							"name": "Carrier"
+						},
+						"metricName": "tokens refused",
+						"statistic": "Sum",
+						"over": "every datapoint",
+						"lte": 0
+					}
+				}
+			]
+		},
+		{
+			"id": "answered",
+			"title": "Every parcel is answered without an error",
+			"hint": "A token that worked a moment ago can stop working. Quotes API's Logs tab shows what the Carrier answered when it did.",
+			"conditions": [
+				{
+					"metric": {
+						"node": {
+							"name": "Parcel Traffic"
+						},
+						"metricName": "errors",
+						"statistic": "Sum",
+						"over": "every datapoint",
+						"lte": 0
+					}
+				}
+			]
+		},
+		{
+			"id": "quoted",
+			"title": "All 450 parcels have a quote from the Carrier",
+			"hint": "The Carrier counts each parcel it has priced. A parcel that was answered with an error was never priced, and nothing sends it again.",
+			"conditions": [
+				{
+					"metric": {
+						"node": {
+							"name": "Carrier"
+						},
+						"metricName": "parcels quoted",
+						"statistic": "Maximum",
+						"eq": 450
+					}
+				}
+			]
+		}
+	],
+	"fixed": [
+		{
+			"node": {
+				"name": "Parcel Traffic"
+			}
+		}
+	],
+	"startingCanvas": {
+		"format": "gg:project/1",
+		"nodes": [
+			{
+				"id": "traffic",
+				"type": "requestGenerator",
+				"position": {
+					"x": -280,
+					"y": 0
+				},
+				"config": {
+					"name": "Parcel Traffic",
+					"method": "POST",
+					"path": "/quotes",
+					"body": "{\"parcel\":\"{{n}}\"}",
+					"requestsPerSecond": 10,
+					"stopAfter": 450
+				},
+				"chart": "errors"
+			},
+			{
+				"id": "api",
+				"type": "instanceGroup",
+				"position": {
+					"x": 0,
+					"y": 0
+				},
+				"config": {
+					"name": "Quotes API",
+					"instanceCount": 1
+				}
+			},
+			{
+				"id": "carrier",
+				"type": "externalSystem",
+				"position": {
+					"x": 280,
+					"y": 0
+				},
+				"config": {
+					"name": "Carrier",
+					"code": "import { randomUUID } from 'node:crypto';\n\n// Issuing a token takes the Carrier half a second. It honours one for ten seconds, and for a\n// second of grace after that, so a caller that keeps it to the last moment is not caught out\n// by the time its request spends on the way here\nconst ISSUE_MS = 500;\nconst LIFETIME_S = 10;\nconst GRACE_MS = 1000;\n\n// No more than two tokens in any ten seconds\nconst LIMIT = 2;\nconst WINDOW_MS = 10_000;\n\n// When each token it has issued stops being honoured\nconst expiries = new Map();\nlet issuedAt = [];\nlet issued = 0;\nconst quoted = new Set();\n\nexport const metrics = { 'tokens refused': 'Count' };\n\nasync function token(metric) {\n  const now = Date.now();\n  issuedAt = issuedAt.filter((at) => now - at < WINDOW_MS);\n  if (issuedAt.length >= LIMIT) {\n    metric('tokens refused', 1);\n    console.log('refused a token: two were issued in the last ten seconds');\n    const retryAfter = Math.ceil((issuedAt[0] + WINDOW_MS - now) / 1000);\n    return Response.json(\n      { error: 'Too many tokens requested' },\n      { status: 429, headers: { 'retry-after': String(retryAfter) } }\n    );\n  }\n  issuedAt.push(now);\n  await new Promise((resolve) => setTimeout(resolve, ISSUE_MS));\n\n  const value = randomUUID();\n  expiries.set(value, Date.now() + LIFETIME_S * 1000 + GRACE_MS);\n  issued += 1;\n  metric('tokens issued', issued, 'None');\n  console.log(`issued token ${issued}`);\n  return Response.json({ access_token: value, token_type: 'Bearer', expires_in: LIFETIME_S });\n}\n\nfunction rate(request, parcel, metric) {\n  const [scheme, value] = (request.headers.get('authorization') ?? '').split(' ');\n  const expires = scheme === 'Bearer' ? expiries.get(value) : undefined;\n  if (expires === undefined) {\n    return Response.json({ error: 'Missing or unknown access token' }, { status: 401 });\n  }\n  if (Date.now() > expires) {\n    return Response.json({ error: 'The access token has expired' }, { status: 401 });\n  }\n  if (!parcel) {\n    return Response.json({ error: 'Name the parcel, as in /rates?parcel=7' }, { status: 400 });\n  }\n  quoted.add(parcel);\n  metric('parcels quoted', quoted.size, 'None');\n  return Response.json({ parcel, rate: 500 + (Number(parcel) % 7) * 150 });\n}\n\nexport async function handle(request, { metric }) {\n  const { pathname, searchParams } = new URL(request.url);\n  if (request.method === 'POST' && pathname === '/token') return token(metric);\n  if (request.method === 'GET' && pathname === '/rates') {\n    return rate(request, searchParams.get('parcel'), metric);\n  }\n  return new Response('Not found\\n', { status: 404 });\n}\n",
+					"docs": {
+						"exchanges": [
+							{
+								"direction": "you send",
+								"signature": "POST /token",
+								"details": [
+									"Answers 200 with { access_token, token_type, expires_in }. expires_in is in seconds.",
+									"Takes about half a second.",
+									"Answers 429 with a Retry-After header once the limit below is reached."
+								]
+							},
+							{
+								"direction": "you send",
+								"signature": "GET /rates?parcel=<id>",
+								"details": [
+									"Needs the header Authorization: Bearer <access_token>.",
+									"Answers 200 with { parcel, rate }.",
+									"Answers 401 when the token is missing, unknown, or expired."
+								]
+							}
+						],
+						"notes": [
+							"A token is good for 10 seconds from when it is issued, for any number of rate requests.",
+							"At most 2 tokens are issued in any 10 seconds."
+						]
+					}
+				},
+				"chart": "tokens refused"
+			}
+		],
+		"edges": [
+			{
+				"source": "traffic",
+				"target": "api"
+			},
+			{
+				"source": "api",
+				"target": "carrier"
+			}
+		],
+		"nodeFiles": {
+			"api": {
+				"package.json": "{\n  \"name\": \"instance-group\",\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^5.1.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}\n",
+				"server.js": "import express from 'express';\n\n// Glass Garden gives every instance its own PORT, because they all share one machine here.\n// In a real deployment they would each be on their own machine, and could all listen on the same port.\nconst port = Number(process.env.PORT);\nif (!port) {\n  throw new Error('PORT is not set');\n}\n\n// Named for the node it comes from, so connecting something else here would not change it.\n// The Config tab lists every variable this instance is launched with\nconst carrier = process.env.CARRIER_URL;\nif (!carrier) {\n  throw new Error('CARRIER_URL is not set. Connect this instance group to Carrier.');\n}\n\n// The Carrier answers a rate request only when it carries an access token\nasync function accessToken() {\n  const response = await fetch(`${carrier}/token`, { method: 'POST' });\n  if (!response.ok) {\n    throw new Error(`The Carrier answered ${response.status} to a token request`);\n  }\n  const { access_token } = await response.json();\n  return access_token;\n}\n\nconst app = express();\napp.use(express.json());\n\napp.post('/quotes', async (req, res) => {\n  const { parcel } = req.body;\n\n  const token = await accessToken();\n  const response = await fetch(`${carrier}/rates?parcel=${parcel}`, {\n    headers: { authorization: `Bearer ${token}` }\n  });\n  if (!response.ok) {\n    throw new Error(`The Carrier answered ${response.status} for parcel ${parcel}`);\n  }\n\n  const { rate } = await response.json();\n  res.json({ parcel, shipping: rate });\n});\n\n// Express hands a rejected handler here. A parcel that could not be priced is this server\n// failing its caller, whoever was at fault behind it\napp.use((error, req, res, next) => {\n  console.error(error.message);\n  res.status(502).type('text/plain').send(`${error.message}\\n`);\n});\n\napp.listen(port, () => {\n  console.log(`Server running on http://localhost:${port}`);\n});\n"
+			}
+		}
+	}
+}

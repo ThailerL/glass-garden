@@ -12,6 +12,10 @@
 		{
 			"id": "slow-signups",
 			"file": "slow-signups.json"
+		},
+		{
+			"id": "expired-token",
+			"file": "expired-token.json"
 		}
 	]
 }
