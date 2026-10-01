@@ -11,6 +11,23 @@ import { processHandle, runningPort, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
 
+// One thing either side sends, in the protocol's own words, so no protocol is built in
+const exchangeSchema = z.strictObject({
+	direction: z.enum(['you send', 'it sends']),
+	// Its literal first line, such as "POST /token"
+	signature: z.string().min(1),
+	details: z.array(z.string().min(1)).default([])
+});
+
+export type Exchange = z.infer<typeof exchangeSchema>;
+
+// What the system's owner would publish, since its code is never shown
+const docsSchema = z.strictObject({
+	exchanges: z.array(exchangeSchema).default([]),
+	// What belongs to no single exchange: limits, lifetimes, retries
+	notes: z.array(z.string().min(1)).default([])
+});
+
 const configSchema = z.object({
 	name: z.string().min(1).default('External System'),
 	// The author's module, in config since a non-editable directory is re-laid each start
@@ -18,7 +35,8 @@ const configSchema = z.object({
 		.string()
 		.default('export function handle() {\n  return Response.json({ ok: true });\n}\n'),
 	// Out of launchConfig, so a change needs no restart
-	settings: z.record(z.string(), z.json()).default({})
+	settings: z.record(z.string(), z.json()).default({}),
+	docs: docsSchema.prefault({})
 });
 
 export type Config = z.infer<typeof configSchema>;
