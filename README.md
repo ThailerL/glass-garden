@@ -2,7 +2,7 @@
 
 Build cloud architecture by dragging load balancers, instance groups, and AWS services onto a canvas. Press play, use your app, and watch where requests go.
 
-[demo.webm](https://github.com/user-attachments/assets/b7e0f4ca-5d52-4ecf-8c74-cd7caf46dc10)
+[demo.webm](https://github.com/user-attachments/assets/7b29474e-1ed6-4f31-aa61-457956367ec6)
 
 _Three instances of a page-view counter behind a load balancer, with nowhere to keep the count until a Postgres database is dragged in and connected to the app. Each refresh is one request, drawn as a dot landing on the instance the page names._
 
@@ -23,7 +23,7 @@ A two-minute guided tour starts you off at [glass.garden](https://glass.garden/)
 
 Click on any resource for its metrics, logs, and a window into whatever it's serving. Or pin their charts to the canvas to create a live dashboard.
 
-[queue-demo.webm](https://github.com/user-attachments/assets/9324e82c-18ab-4c59-b98a-c497bc655c5a)
+[queue-demo.webm](https://github.com/user-attachments/assets/4c3810dc-2e41-4c4b-bbfe-5460fc3e90c1)
 
 _A signup API drops each new password onto a queue for a Lambda function to hash. Signups come in faster than one execution environment can keep up, so the backlog grows until the function's concurrency is raised and it drains._
 
@@ -31,7 +31,7 @@ _A signup API drops each new password onto a queue for a Lambda function to hash
 
 Every project has a terminal, and the `aws` command is on the PATH of every shell in it. It reaches the same in-browser region your code does, so you can list a bucket, put a message on a queue, or invoke a function by hand.
 
-[aws-cli-demo.webm](https://github.com/user-attachments/assets/0db7a7c4-57b0-49fe-b755-27a6c7bd25e4)
+[aws-cli-demo.webm](https://github.com/user-attachments/assets/9b6c5174-e879-4e17-9bb4-77f57a50dfed)
 
 _A notes app keeps each note as an object in a bucket. `aws s3 ls` prints the same keys the app is showing, and a note copied into the bucket from the shell appears in the app on its next page load._
 
