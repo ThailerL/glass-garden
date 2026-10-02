@@ -3,7 +3,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { putMetric, reportEvent } from './_harness/lib.js';
-import { connectionTap, RESET_MARKER } from './caller.js';
+import { connectionTap, RESET_MARKER, tapAlongside } from './caller.js';
 
 const port = Number(process.env.PORT);
 if (!port) {
@@ -34,7 +34,7 @@ await server.start();
 const listener = server.server;
 if (listener) {
   listener.on('connection', (socket) =>
-    socket.on('data', connectionTap((node) => reportEvent('hop', { from: { node } }))),
+    tapAlongside(socket, connectionTap((node) => reportEvent('hop', { from: { node } }))),
   );
 } else {
   console.error('Cannot see which node each query comes from, so the canvas will not draw them');

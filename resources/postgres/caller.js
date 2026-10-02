@@ -22,6 +22,16 @@ export function nodeInStartup(payload) {
   return user.startsWith(CALLER_PREFIX) ? user.slice(CALLER_PREFIX.length) : undefined;
 }
 
+// Taps only once the owner listens, so our listener never starts the flow early
+export function tapAlongside(socket, tap) {
+  function onNewListener(event) {
+    if (event !== 'data') return;
+    socket.off('newListener', onNewListener);
+    socket.on('data', tap);
+  }
+  socket.on('newListener', onNewListener);
+}
+
 // Frames a copy of what one client sends, so a query can be reported as it is asked for. This
 // only watches bytes on their way to the server, so a slip loses a dot rather than a query
 export function connectionTap(onQuery) {

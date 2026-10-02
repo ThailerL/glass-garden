@@ -1,5 +1,6 @@
+import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { callerUser, connectionTap, nodeInStartup } from './caller.js';
+import { callerUser, connectionTap, nodeInStartup, tapAlongside } from './caller.js';
 
 const startup = (user) => {
   const params = Buffer.from(`user\0${user}\0database\0postgres\0\0`, 'utf8');
@@ -27,6 +28,41 @@ describe('nodeInStartup', () => {
   it('names no node for another client, or for a packet without a user', () => {
     expect(nodeInStartup(startup('postgres').subarray(8))).toBeUndefined();
     expect(nodeInStartup(Buffer.from('database\0postgres\0\0'))).toBeUndefined();
+  });
+});
+
+describe('tapAlongside', () => {
+  const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
+
+  const tapping = () => {
+    const socket = new PassThrough();
+    const tapped = [];
+    tapAlongside(socket, (chunk) => tapped.push(String(chunk)));
+    return { socket, tapped };
+  };
+
+  it('leaves what arrives before the owner listens for the owner to read', async () => {
+    const { socket, tapped } = tapping();
+    const owned = [];
+    socket.write('startup');
+    await nextTurn();
+    expect(tapped).toEqual([]);
+
+    socket.on('data', (chunk) => owned.push(String(chunk)));
+    socket.write('query');
+    await nextTurn();
+    expect(owned).toEqual(['startup', 'query']);
+    expect(tapped).toEqual(owned);
+  });
+
+  it('taps once, however many listeners the owner adds', async () => {
+    const { socket, tapped } = tapping();
+    socket.on('error', () => {});
+    socket.on('data', () => {});
+    socket.on('data', () => {});
+    socket.write('query');
+    await nextTurn();
+    expect(tapped).toEqual(['query']);
   });
 });
 
