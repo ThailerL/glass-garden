@@ -35,15 +35,21 @@
 		{:else}
 			<img src={asset('/favicon.svg')} alt="" class="size-6 shrink-0" />
 			<span class="truncate font-semibold tracking-tight">Glass Garden</span>
-			<a
-				href="https://github.com/ThailerL/glass-garden/releases/tag/v{version}"
-				target="_blank"
-				rel="noreferrer"
-				title="Release notes for this version"
-				class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums hover:text-foreground"
+			<!-- Takes only the room the name leaves, and a version that does not fit wraps out of sight -->
+			<div
+				class="flex h-4 min-w-0 flex-1 basis-0 flex-wrap content-start justify-end overflow-hidden
+				       before:h-4 before:content-['']"
 			>
-				v{version}
-			</a>
+				<a
+					href="https://github.com/ThailerL/glass-garden/releases/tag/v{version}"
+					target="_blank"
+					rel="noreferrer"
+					title="Release notes for this version"
+					class="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums hover:text-foreground"
+				>
+					v{version}
+				</a>
+			</div>
 			<a
 				href="https://github.com/ThailerL/glass-garden"
 				target="_blank"
