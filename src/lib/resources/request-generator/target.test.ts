@@ -6,7 +6,8 @@ import { targetPort } from './index';
 const connected = (type: string, ...statuses: Instance['status'][]): ConnectedNode => ({
 	node: { id: type, type, position: { x: 0, y: 0 }, data: { config: {} } } as unknown as Node,
 	instances: statuses.map((status, i) => ({ port: 4000 + i, status }) as Instance),
-	reservedPorts: []
+	reservedPorts: [],
+	isTarget: true
 });
 
 describe('targetPort', () => {

@@ -10,7 +10,8 @@ const connected = (
 ): ConnectedNode => ({
 	node: { id: name, type, position: { x: 0, y: 0 }, data: { config: { name } } } as unknown as Node,
 	instances: statuses.map((status, i) => ({ port: 4000 + i, status }) as Instance),
-	reservedPorts: []
+	reservedPorts: [],
+	isTarget: true
 });
 
 describe('endpointsOf', () => {

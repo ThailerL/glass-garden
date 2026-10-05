@@ -18,7 +18,12 @@ const node = (id: string, type: string, config: Record<string, unknown>): Node =
 	({ id, type, position: { x: 0, y: 0 }, data: { config } }) as unknown as Node;
 
 const connected = (node: Node): ConnectedNode =>
-	({ node, instances: [{ status: 'running' }], reservedPorts: [4100] }) as unknown as ConnectedNode;
+	({
+		node,
+		instances: [{ status: 'running' }],
+		reservedPorts: [4100],
+		isTarget: true
+	}) as unknown as ConnectedNode;
 
 describe('lambdaFunction.launchConfig', () => {
 	// A function among the neighbours is a caller granted by the topology, not an event source

@@ -126,6 +126,22 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+describe('Orchestrator neighbours', () => {
+	it('says which neighbours a node points at, in whichever list they are read', () => {
+		const { graphState, orchestrator, nodeIds } = setup([1, 1, 1]);
+		const [web, front, orders] = nodeIds;
+		graphState.addEdge(front, web);
+		graphState.addEdge(web, orders);
+		graphState.addEdge(orders, web);
+		const targets = (list: readonly { node: { id: string }; isTarget: boolean }[]) =>
+			Object.fromEntries(list.map(({ node, isTarget }) => [node.id, isTarget]));
+
+		expect(targets(orchestrator.getNeighbours(web))).toEqual({ [front]: false, [orders]: true });
+		expect(targets(orchestrator.getSources(web))).toEqual({ [front]: false, [orders]: true });
+		expect(targets(orchestrator.getTargets(web))).toEqual({ [orders]: true });
+	});
+});
+
 describe('Orchestrator instance statuses', () => {
 	it('lists every configured slot, stopped until an instance fills it', async () => {
 		const { orchestrator, nodeIds } = setup([3]);

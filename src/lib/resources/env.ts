@@ -3,7 +3,7 @@ import type { ConnectedNode } from './types';
 import { getResourceDefinition } from './index';
 import { envSlug } from './shared';
 import { nodeName } from '$lib/graph-state.svelte';
-import { accessKeyFor, ADMIN_ACCESS_KEY } from '$lib/aws-topology';
+import { accessKeyFor, ADMIN_ACCESS_KEY, awsResourceOf } from '$lib/aws-topology';
 import { regionEndpointUrl } from '$lib/aws-region';
 
 // The AWS SDK's own variables. Every node that can call AWS gets them, connected to something
@@ -23,11 +23,13 @@ function awsCredentials(accessKeyId: string): Record<string, string> {
 // a node would be handed by its neighbours
 export const adminEnv = () => awsCredentials(ADMIN_ACCESS_KEY);
 
-// Everything the nodes connected to this one hand it, in either direction. Sorted so the
-// set - and with it the configStamp - never depends on edge order
+// Everything the nodes connected to this one hand it. Sorted so the set - and with it the
+// configStamp - never depends on edge order
 function suppliedBy(neighbours: readonly ConnectedNode[]) {
 	return neighbours
-		.flatMap(({ node, reservedPorts }) => {
+		.flatMap(({ node, reservedPorts, isTarget }) => {
+			// An address goes only to what points at it. A grant in the region runs both ways
+			if (!isTarget && !awsResourceOf(node)) return [];
 			const { supplies } = getResourceDefinition(node.type);
 			// The reservation rather than a live port, so the stamp survives a restart there
 			const [port] = reservedPorts;

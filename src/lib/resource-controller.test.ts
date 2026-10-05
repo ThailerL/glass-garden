@@ -147,7 +147,9 @@ describe('ResourceController', () => {
 			}
 		);
 		services.getTargets = () => [];
-		services.getNeighbours = () => [{ node: makeNode(), instances: [], reservedPorts: [5000] }];
+		services.getNeighbours = () => [
+			{ node: makeNode(), instances: [], reservedPorts: [5000], isTarget: true }
+		];
 
 		controller.start();
 		await settle();

@@ -82,6 +82,8 @@ export type ConnectedNode = {
 	readonly node: Node;
 	readonly instances: readonly Readonly<Instance>[];
 	readonly reservedPorts: readonly number[];
+	// The asking node points at it, whether or not it also points back
+	readonly isTarget: boolean;
 };
 
 // Config fields the user is asked for as the node is dropped, because the real service has
@@ -158,9 +160,10 @@ export type ResourceDefinition = {
 	// Everything an instance is launched with that requires relaunching it when it changes:
 	// the node's own config, plus what its neighbours hand down. Omitted when nothing does
 	launchConfig?: (node: Node, neighbours: readonly ConnectedNode[]) => unknown;
-	// What a node connected to this one, at either end, finds in its environment. The suffix
-	// is appended to the consumer-facing slug of this node's name; soleName is the
-	// conventional variable, used only when this is the one resource of its kind connected
+	// What this one puts in the environment of a node that points at it. A region resource
+	// does the same for a node it points at. The suffix is appended to the consumer-facing
+	// slug of this node's name; soleName is the conventional variable, used only when this is
+	// the one resource of its kind connected
 	supplies?: (node: Node, port: number) => { suffix: string; value: string; soleName: string };
 	// Environment variables the resource sets at spawn from its own identity, outside what
 	// consumerEnv grants from its connections - shown in the config panel alongside them so

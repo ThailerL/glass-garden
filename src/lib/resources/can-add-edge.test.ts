@@ -30,6 +30,12 @@ describe('canAddEdge', () => {
 		expect(canAddEdge(fn, app, [])).toBe(false);
 	});
 
+	it('lets code call a balancer, and never another group directly', () => {
+		expect(canAddEdge(app, balancer, [])).toBe(true);
+		expect(canAddEdge(fn, balancer, [])).toBe(true);
+		expect(canAddEdge(app, node('other-app', 'instanceGroup'), [])).toBe(false);
+	});
+
 	// Outside parties are called by code, never sent traffic
 	it('lets code call an external system, and nothing send it traffic', () => {
 		const api = node('api', 'externalSystem');

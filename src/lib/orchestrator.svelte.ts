@@ -47,7 +47,7 @@ export class Orchestrator {
 			}
 			return undefined;
 		},
-		peerAt: (remotePort) => this.#connections.nodeAt(remotePort),
+		peerAt: (remotePort) => this.#peerAt(remotePort),
 		edgeBetween: (source, target) =>
 			this.#graphState.edges.find((edge) => edge.source === source && edge.target === target)?.id
 	});
@@ -157,6 +157,14 @@ export class Orchestrator {
 		this.#connections.own(pid, nodeId);
 	}
 
+	#peerAt(remotePort: number): string | undefined {
+		const nodeId = this.#connections.nodeAt(remotePort);
+		const node = nodeId === undefined ? undefined : this.#graphState.getNode(nodeId);
+		// It reports its own sends, so a receiver naming it too would draw each one twice
+		if (node && getResourceDefinition(node.type).consumes.includes('http')) return undefined;
+		return nodeId;
+	}
+
 	// Every route to a node's files: a start, the editor, or a shell opened for a node neither
 	// has ever touched. Mounting is deduped, so asking again is free
 	mountFiles(nodeId: string): Promise<void> {
@@ -215,7 +223,8 @@ export class Orchestrator {
 	// Both directions read an edge the same way; only which end is matched differs
 	#linked(nodeId: string, end: 'source' | 'target'): readonly ConnectedNode[] {
 		const far = end === 'source' ? 'target' : 'source';
-		return this.#graphState.edges
+		const { edges } = this.#graphState;
+		return edges
 			.filter((edge) => edge[end] === nodeId)
 			.flatMap((edge) => {
 				const node = this.#graphState.getNode(edge[far]);
@@ -224,7 +233,8 @@ export class Orchestrator {
 							{
 								node,
 								instances: this.getInstances(node.id),
-								reservedPorts: this.getReservedPorts(node.id)
+								reservedPorts: this.getReservedPorts(node.id),
+								isTarget: edges.some((to) => to.source === nodeId && to.target === node.id)
 							}
 						]
 					: [];

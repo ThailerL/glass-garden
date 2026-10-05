@@ -9,6 +9,7 @@ import { providing } from '../index';
 import { processHandle, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
+import { localAddress } from '$lib/utils';
 
 // ALB's Matcher, "200,204,300-399". Rejected here because the balancer fails closed on one it
 // cannot parse, which would take every target out at once
@@ -90,8 +91,13 @@ export const httpLoadBalancer = {
 	files: withHarness(resourceFiles.httpLoadBalancer),
 	hasEditableFiles: false,
 	hasPreview: true,
-	provides: ['http'],
+	provides: ['http', 'endpoint'],
 	consumes: ['http'],
+	supplies: (_node: Node, port: number) => ({
+		suffix: 'URL',
+		value: localAddress(port),
+		soleName: 'LOAD_BALANCER_URL'
+	}),
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,
 	metricDefaults: {

@@ -17,8 +17,11 @@ const fn = (id: string, name: string, functionName: string) =>
 const neighbour = (node: Node, port = 5000) => ({
 	node,
 	instances: [],
-	reservedPorts: [port]
+	reservedPorts: [port],
+	isTarget: true
 });
+// A neighbour that points at the consumer and is not pointed back at
+const source = (node: Node, port = 5000) => ({ ...neighbour(node, port), isTarget: false });
 
 describe('consumerEnv', () => {
 	const web = app('a', 'Web');
@@ -53,6 +56,21 @@ describe('consumerEnv', () => {
 	it('hands a consumer of an external system the address it listens on', () => {
 		const api = [neighbour(node('x1', 'externalSystem', { name: 'Card Company', code: '' }), 5100)];
 		expect(consumerEnv(web, api).CARD_COMPANY_URL).toBe('http://localhost:5100');
+	});
+
+	it("hands a balancer's address to what points at it, and not to what it balances", () => {
+		const front = node('l1', 'httpLoadBalancer', { name: 'Front Door' });
+		const orders = node('l2', 'httpLoadBalancer', { name: 'Orders Balancer' });
+		const env = consumerEnv(web, [source(front, 5200), neighbour(orders, 5300)]);
+		expect(env.ORDERS_BALANCER_URL).toBe('http://localhost:5300');
+		expect(env.LOAD_BALANCER_URL).toBe('http://localhost:5300');
+		expect(env.FRONT_DOOR_URL).toBeUndefined();
+	});
+
+	it("hands a region resource's variable to a node it points at", () => {
+		const worker = fn('f', 'Worker', 'worker');
+		const env = consumerEnv(worker, [source(bucket('b1', 'Uploads', 'uploads'))]);
+		expect(env.S3_BUCKET).toBe('uploads');
 	});
 
 	it('supplies the name a caller passes to Invoke', () => {

@@ -3,6 +3,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
+	import { localAddress } from '$lib/utils';
 	import type { Config, Exchange } from './index';
 
 	const { form, nodeId }: { form: SuperForm<Config>; nodeId: string } = $props();
@@ -25,8 +26,8 @@
 
 <ReadOnlyValue
 	label="Address"
-	value={port === undefined ? undefined : `http://localhost:${port}`}
-	description="Each node connected to it finds this address in its environment."
+	value={port === undefined ? undefined : localAddress(port)}
+	description="Each node that points at it finds this address in its environment."
 	empty="Available once it has started."
 />
 

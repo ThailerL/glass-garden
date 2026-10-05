@@ -119,6 +119,8 @@ function forward(target, req, body) {
 }
 
 const server = http.createServer(async (req, res) => {
+  // Code that calls a balancer reports nothing, so the balancer says who it heard from
+  reportEvent('hop', { from: { peer: req.socket.remotePort } });
   const body = await bodyOf(req);
 
   // Read per request so a rewrite takes effect without restarting the process
