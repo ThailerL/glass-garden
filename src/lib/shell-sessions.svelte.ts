@@ -13,6 +13,7 @@ export type ShellLaunchOptions = {
 	port: number;
 	// Puts the working directory on disk. A shell can be the first thing to ask for it
 	prepare: () => Promise<void>;
+	spawned: (pid: number) => void;
 	release: () => void;
 	banner: string;
 };
@@ -69,6 +70,7 @@ export class Shell {
 			// Closed while it was still spawning, so nothing but this holds the process
 			if (this.#disposed) return process.kill();
 			this.#process = process;
+			launchOptions.spawned(process.pid);
 
 			const input = process.input.getWriter();
 			this.terminal.onData((data) => void input.write(data).catch(() => {}));

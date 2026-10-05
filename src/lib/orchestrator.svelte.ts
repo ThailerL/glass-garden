@@ -19,6 +19,7 @@ import { nodeFiles } from './files/node-files';
 import { ensureRegion, onRegionEvent, setRegionTopology } from './aws-region';
 import { buildTopology } from './aws-topology';
 import { Traffic } from './traffic.svelte';
+import { Connections } from './connections';
 
 // IANA registered port range
 const MIN_PORT = 1024;
@@ -37,6 +38,7 @@ export class Orchestrator {
 	#containerError = $state<string | undefined>();
 	#slowBoot = $state(false);
 	#slowBootTimer: ReturnType<typeof setTimeout> | undefined;
+	#connections = new Connections();
 	readonly traffic = new Traffic({
 		instanceAt: (port) => {
 			for (const node of this.#graphState.nodes) {
@@ -45,6 +47,7 @@ export class Orchestrator {
 			}
 			return undefined;
 		},
+		peerAt: (remotePort) => this.#connections.nodeAt(remotePort),
 		edgeBetween: (source, target) =>
 			this.#graphState.edges.find((edge) => edge.source === source && edge.target === target)?.id
 	});
@@ -57,6 +60,9 @@ export class Orchestrator {
 		onRegionEvent((event) => {
 			if (event.kind === 'hop') return this.traffic.ingest(undefined, event);
 			if (event.kind === 'level') return this.traffic.ingest(event.nodeId, event);
+			if (event.kind === 'environment-spawned') {
+				return this.ownProcess(event.pid, event.nodeId);
+			}
 			const log = event.nodeId ? this.#controllers.get(event.nodeId)?.log : undefined;
 			if (!log) return;
 			if (event.kind === 'metric') log.putMetric('resource', { dimensions: {}, ...event });
@@ -144,6 +150,11 @@ export class Orchestrator {
 
 	releasePort(port: number) {
 		this.#heldPorts.delete(port);
+	}
+
+	// An instance, a shell or an execution environment: what it connects to is the node's doing
+	ownProcess(pid: number, nodeId: string) {
+		this.#connections.own(pid, nodeId);
 	}
 
 	// Every route to a node's files: a start, the editor, or a shell opened for a node neither
@@ -399,6 +410,7 @@ export class Orchestrator {
 			getSources: () => this.getSources(nodeId),
 			getNeighbours: () => this.getNeighbours(nodeId),
 			scheduleNeighbours: () => this.#scheduleNeighbours(nodeId),
+			ownProcess: (pid) => this.ownProcess(pid, nodeId),
 			onTraffic: (event) => this.traffic.ingest(nodeId, event),
 			forgetTraffic: () => this.traffic.forget(nodeId),
 			unregister: () => {
@@ -421,6 +433,7 @@ export class Orchestrator {
 						if (controller.onPortOpen(port, url)) return;
 					}
 				});
+				container.on('connection', (event) => this.#connections.opened(event));
 				this.#containerReady = true;
 				this.#endBootWatch();
 				return container;

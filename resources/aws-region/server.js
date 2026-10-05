@@ -130,6 +130,9 @@ const observer = {
     if (!nodeId) return;
     const { environment } = event;
     if (event.kind === 'environment') {
+      if (event.phase === 'spawned') {
+        emit({ kind: 'environment-spawned', nodeId, environment, pid: event.pid });
+      }
       if (event.phase === 'stopped') emit({ kind: 'environment-exit', nodeId, environment });
     } else if (event.phase === 'started') {
       functionState(event.functionName).busy += 1;

@@ -2,8 +2,8 @@ import { EVENT_PREFIX } from '../../resources/_harness/lib.js';
 
 // Traffic for the canvas, printed as `gg:event {json}` by hidden code and the region. A hop
 // is one request crossing an edge, a level is what a node is holding. A node process leaves
-// out the side that is itself; the region names both
-export type Endpoint = { node: string } | { port: number };
+// out the side that is itself; the region names both. A peer is a client's port on a connection
+export type Endpoint = { node: string } | { port: number } | { peer: number };
 export type Hop = { kind: 'hop'; at: number; from?: Endpoint; to?: Endpoint; count?: number };
 export type Level = { kind: 'level'; at: number; value: number; capacity?: number };
 // Which of a target's instances a node is sending to. Not "healthy": a balancer with nothing
@@ -65,6 +65,7 @@ export type NodeLevel = { value: number; capacity?: number; peak: number };
 
 export type TrafficServices = {
 	instanceAt: (port: number) => { nodeId: string; lane: number } | undefined;
+	peerAt: (remotePort: number) => string | undefined;
 	edgeBetween: (source: string, target: string) => string | undefined;
 };
 
@@ -136,7 +137,9 @@ export class Traffic {
 
 	#resolve(endpoint: Endpoint): { nodeId: string; lane?: number } | undefined {
 		if ('node' in endpoint) return { nodeId: endpoint.node };
-		return this.#services.instanceAt(endpoint.port);
+		if ('port' in endpoint) return this.#services.instanceAt(endpoint.port);
+		const nodeId = this.#services.peerAt(endpoint.peer);
+		return nodeId === undefined ? undefined : { nodeId };
 	}
 
 	#arm() {

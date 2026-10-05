@@ -44,6 +44,7 @@ export type ControllerServices = {
 	getNeighbours: () => readonly ConnectedNode[];
 	// Everything connected to this node, at either end, reads its instances
 	scheduleNeighbours: () => void;
+	ownProcess: (pid: number) => void;
 	// A hop or level one of this node's processes printed
 	onTraffic: (event: TrafficEvent) => void;
 	forgetTraffic: () => void;
@@ -362,6 +363,7 @@ export class ResourceController {
 				launchConfig
 			);
 			instance.handle = handle;
+			if (handle.pid !== undefined) this.#services.ownProcess(handle.pid);
 			if (handle.output) {
 				this.log.openStream(instance.port, this.#definition.instanceLabel ?? `:${instance.port}`);
 				this.log.capture(instance.port, handle.output);

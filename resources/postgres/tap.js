@@ -1,26 +1,12 @@
-// Each consumer connects as its own Postgres user, named for its node, the way separate apps
-// get separate roles on a real server. PGlite trusts any name, so this is identity for the
-// canvas rather than access control
-const CALLER_PREFIX = 'gg';
 const PROTOCOL_3 = 196608;
 // A simple query, and the bind that runs a prepared one: either is one query. Char codes
-// rather than a Buffer because the canvas imports this module for callerUser, so nothing at
+// rather than a Buffer because the canvas imports this module for RESET_MARKER, so nothing at
 // module scope may touch a Node built-in
 const QUERY_TYPES = [...'QB'].map((type) => type.charCodeAt(0));
-
-export const callerUser = (nodeId) => CALLER_PREFIX + nodeId;
 
 // Left in the node's directory by the canvas, read by server.js as it starts. Shared from here
 // because a typo in either copy would turn the reset into a silent no-op
 export const RESET_MARKER = 'reset-on-start';
-
-// Who opened a connection, from the startup packet's key\0value\0 pairs: values sit at the
-// odd indices, each after its key
-export function nodeInStartup(payload) {
-  const parts = payload.toString('utf8').split('\0');
-  const user = parts.find((_, i) => i % 2 === 1 && parts[i - 1] === 'user') ?? '';
-  return user.startsWith(CALLER_PREFIX) ? user.slice(CALLER_PREFIX.length) : undefined;
-}
 
 // Taps only once the owner listens, so our listener never starts the flow early
 export function tapAlongside(socket, tap) {
@@ -36,7 +22,6 @@ export function tapAlongside(socket, tap) {
 // only watches bytes on their way to the server, so a slip loses a dot rather than a query
 export function connectionTap(onQuery) {
   let carry = Buffer.alloc(0);
-  let node;
   let greeted = false;
   return (chunk) => {
     try {
@@ -46,16 +31,13 @@ export function connectionTap(onQuery) {
       while (!greeted && carry.length >= 8) {
         const length = carry.readInt32BE(0);
         if (length < 8 || carry.length < length) return;
-        if (carry.readInt32BE(4) === PROTOCOL_3) {
-          node = nodeInStartup(carry.subarray(8, length));
-          greeted = true;
-        }
+        greeted = carry.readInt32BE(4) === PROTOCOL_3;
         carry = carry.subarray(length);
       }
       while (greeted && carry.length >= 5) {
         const length = 1 + carry.readInt32BE(1);
         if (length < 5 || carry.length < length) return;
-        if (node !== undefined && QUERY_TYPES.includes(carry[0])) onQuery(node);
+        if (QUERY_TYPES.includes(carry[0])) onQuery();
         carry = carry.subarray(length);
       }
     } catch {

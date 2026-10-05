@@ -70,6 +70,7 @@ function makeServices(getNode: () => Node | undefined): ControllerServices {
 		getSources: () => [],
 		getNeighbours: () => [],
 		scheduleNeighbours: vi.fn(),
+		ownProcess: vi.fn(),
 		onTraffic: vi.fn(),
 		forgetTraffic: vi.fn(),
 		unregister: vi.fn()
@@ -120,6 +121,19 @@ describe('ResourceController', () => {
 		expect(services.reconcileReservations).toHaveBeenCalled();
 		// Three running endpoints is a change from none, so neighbours hear about it
 		expect(services.scheduleNeighbours).toHaveBeenCalled();
+	});
+
+	it('says which process an instance is, and nothing for one that is not a process', async () => {
+		const pids = [12, undefined];
+		const { services, controller } = setup(
+			{ instanceCount: 2 },
+			{ start: vi.fn(async () => ({ ...makeHandle().handle, pid: pids.shift() })) }
+		);
+
+		controller.start();
+		await settle();
+
+		expect(vi.mocked(services.ownProcess).mock.calls).toEqual([[12]]);
 	});
 
 	// An edge supplies a variable whichever way it was drawn, so the stamp reads both ends

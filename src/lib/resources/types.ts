@@ -31,6 +31,8 @@ export type InstanceHandle = {
 	exited: Promise<number>;
 	stop: () => Promise<void>;
 	output?: TextOutput;
+	// The process in the VM, when the instance is one, so its connections can be told apart
+	pid?: number;
 };
 
 // Hands a stream of output to the node's log, for work that belongs to the node rather

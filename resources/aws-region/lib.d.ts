@@ -24,7 +24,7 @@ export type Denial = {
 export type Decision = { allow: true } | Denial;
 // What the bridge reports about a node over its stdout channel: sentences for its log,
 // measurements for its metric store, and what a function's execution environments print,
-// filed under that environment's own stream. Traffic for the canvas rides the same channel
+// filed under that environment's own stream, with the process each one is. Traffic for the canvas rides the same channel
 // in the vocabulary every hidden process shares (src/lib/traffic.svelte.ts)
 export type NodeReport =
 	| { kind: 'log'; level: 'info' | 'error'; message: string; nodeId?: string }
@@ -37,6 +37,7 @@ export type NodeReport =
 			dimensions?: Record<string, string>;
 	  }
 	| { kind: 'output'; nodeId: string; environment: string; line: string }
+	| { kind: 'environment-spawned'; nodeId: string; environment: string; pid: number }
 	| { kind: 'environment-exit'; nodeId: string; environment: string };
 
 export function receivedMessages(responseText: string): { Body?: string }[];

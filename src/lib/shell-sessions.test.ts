@@ -61,6 +61,7 @@ function fakeProcess() {
 	const killed = { count: 0 };
 
 	const process = {
+		pid: 12,
 		output: new ReadableStream<string>({
 			start(controller) {
 				push = (chunk) => controller.enqueue(chunk);
@@ -87,6 +88,7 @@ function launch(overrides: Partial<ShellLaunchOptions> = {}): ShellLaunchOptions
 		env: { PORT: '4001' },
 		port: 4001,
 		prepare: vi.fn(async () => {}),
+		spawned: vi.fn(),
 		release: vi.fn(),
 		banner: 'PORT=4001',
 		...overrides
@@ -138,6 +140,16 @@ describe('ShellSessions', () => {
 
 		expect(spawn).not.toHaveBeenCalled();
 		expect(terminals[0].written.join('')).toContain('no files');
+	});
+
+	it('says which process it is once it has one', async () => {
+		spawn.mockImplementation(async () => fakeProcess().process);
+		const spawned = vi.fn();
+
+		sessions.open(NODE, launch({ spawned }));
+		await flush();
+
+		expect(spawned).toHaveBeenCalledWith(12);
 	});
 
 	it('writes the banner first and keeps writing output while nothing displays it', async () => {

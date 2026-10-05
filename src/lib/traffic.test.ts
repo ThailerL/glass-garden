@@ -56,6 +56,7 @@ const edges: Record<string, string> = {
 const services: TrafficServices = {
 	instanceAt: (port) =>
 		port >= 3001 && port <= 3003 ? { nodeId: 'web', lane: port - 3001 } : undefined,
+	peerAt: (remotePort) => (remotePort === 49200 ? 'web' : undefined),
 	edgeBetween: (source, target) => edges[`${source}>${target}`]
 };
 
@@ -90,9 +91,16 @@ describe('Traffic', () => {
 		expect(traffic.flights).toMatchObject([{ edgeId: 'e4', reverse: true, lane: undefined }]);
 	});
 
+	it('names the sender by the connection a hop arrived on', () => {
+		traffic.ingest('queue', { kind: 'hop', at: 1, from: { peer: 49200 } });
+		settle();
+		expect(traffic.flights).toMatchObject([{ edgeId: 'e3', reverse: false, lane: undefined }]);
+	});
+
 	it('drops a hop with no edge to ride, and one it cannot resolve', () => {
 		traffic.ingest('gen', { kind: 'hop', at: 1, to: { node: 'queue' } });
 		traffic.ingest('gen', { kind: 'hop', at: 1, to: { port: 9999 } });
+		traffic.ingest('queue', { kind: 'hop', at: 1, from: { peer: 49999 } });
 		settle();
 		expect(traffic.flights).toEqual([]);
 	});

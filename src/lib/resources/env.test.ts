@@ -45,11 +45,9 @@ describe('consumerEnv', () => {
 		expect(env.DATABASE_URL).toBe(env.ORDERS_DATABASE_URL);
 	});
 
-	it('hands each consumer a database user named for it, so queries name their caller', () => {
+	it('hands a consumer the address a Postgres driver dials', () => {
 		const db = [neighbour(database('p1', 'Orders'), 5433)];
-		expect(consumerEnv(web, db).DATABASE_URL).toBe(
-			`postgres://gg${web.id}@localhost:5433/postgres`
-		);
+		expect(consumerEnv(web, db).DATABASE_URL).toBe('postgres://postgres@localhost:5433/postgres');
 	});
 
 	it('hands each consumer of an external system an address of its own, so calls name their caller', () => {

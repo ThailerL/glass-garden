@@ -16,6 +16,7 @@ export function shellLaunchOptions(
 		env: { ...base, ...(admin ? orchestrator.adminEnv() : orchestrator.envFor(owner.nodeId)) },
 		port,
 		prepare: admin ? ensureAdminDirectory : () => orchestrator.mountFiles(owner.nodeId),
+		spawned: admin ? () => {} : (pid) => orchestrator.ownProcess(pid, owner.nodeId),
 		release: () => orchestrator.releasePort(port),
 		// Only the port, which nothing else announces; the address is printed on server-ready
 		banner: `\x1b[2mPORT=${port} is reserved for this shell\x1b[0m`

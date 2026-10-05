@@ -5,7 +5,7 @@ import DatabaseIcon from '@lucide/svelte/icons/database';
 import * as resourceFiles from 'virtual:resource-files';
 import PostgresConfig from './PostgresConfig.svelte';
 import { connectionUrl } from './connection';
-import { RESET_MARKER } from '../../../../resources/postgres/caller.js';
+import { RESET_MARKER } from '../../../../resources/postgres/tap.js';
 import type { Capture, ResourceDefinition, ConnectedNode } from '../types';
 import { npmInstall, processHandle, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
@@ -39,9 +39,9 @@ export const postgres = {
 	instanceCount: () => 1,
 	runsProcesses: true,
 	alwaysOn: false,
-	supplies: (_node: Node, port: number, consumer: Node) => ({
+	supplies: (_node: Node, port: number) => ({
 		suffix: 'DATABASE_URL',
-		value: connectionUrl(port, consumer.id),
+		value: connectionUrl(port),
 		soleName: 'DATABASE_URL'
 	}),
 	launchConfig,

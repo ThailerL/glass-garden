@@ -3,7 +3,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { putMetric, reportEvent } from './_harness/lib.js';
-import { connectionTap, RESET_MARKER, tapAlongside } from './caller.js';
+import { connectionTap, RESET_MARKER, tapAlongside } from './tap.js';
 
 const port = Number(process.env.PORT);
 if (!port) {
@@ -30,12 +30,13 @@ const server = new PGLiteSocketServer({ db, port, host: '127.0.0.1', maxConnecti
 await server.start();
 
 // The socket server owns the listener, so this watches a copy of what arrives at it rather
-// than standing in the way. Each query is a hop, named for the node that connected
+// than standing in the way. Each query is a hop, from whoever is at the connection's far end
 const listener = server.server;
 if (listener) {
-  listener.on('connection', (socket) =>
-    tapAlongside(socket, connectionTap((node) => reportEvent('hop', { from: { node } }))),
-  );
+  listener.on('connection', (socket) => {
+    const from = { peer: socket.remotePort };
+    tapAlongside(socket, connectionTap(() => reportEvent('hop', { from })));
+  });
 } else {
   console.error('Cannot see which node each query comes from, so the canvas will not draw them');
 }

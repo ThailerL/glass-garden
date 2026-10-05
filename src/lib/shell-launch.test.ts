@@ -12,15 +12,17 @@ vi.mock('$lib/container', () => ({
 function fakeOrchestrator(ports = [4001]) {
 	const released: number[] = [];
 	const mounted: string[] = [];
+	const owned = new Map<number, string>();
 	let next = 0;
 	const orchestrator = {
 		holdPort: () => ports[next++],
 		releasePort: (port: number) => void released.push(port),
+		ownProcess: (pid: number, nodeId: string) => void owned.set(pid, nodeId),
 		mountFiles: async (nodeId: string) => void mounted.push(nodeId),
 		envFor: () => ({ AWS_ACCESS_KEY_ID: 'ggn1', SIGNUPS_QUEUE_URL: 'http://queue' }),
 		adminEnv: () => ({ AWS_ACCESS_KEY_ID: 'ggadmin' })
 	} as unknown as Orchestrator;
-	return { orchestrator, released, mounted };
+	return { orchestrator, released, mounted, owned };
 }
 
 describe('shellLaunchOptions', () => {
@@ -60,6 +62,22 @@ describe('shellLaunchOptions', () => {
 
 		expect([first.port, second.port]).toEqual([4001, 4002]);
 		expect(released).toEqual([4002]);
+	});
+
+	it("hands a node shell's process to its node", () => {
+		const { orchestrator, owned } = fakeOrchestrator();
+
+		shellLaunchOptions({ kind: 'node', nodeId: 'n1' }, orchestrator).spawned(12);
+
+		expect([...owned]).toEqual([[12, 'n1']]);
+	});
+
+	it("leaves an admin shell's process owned by no node", () => {
+		const { orchestrator, owned } = fakeOrchestrator();
+
+		shellLaunchOptions({ kind: 'admin' }, orchestrator).spawned(12);
+
+		expect([...owned]).toEqual([]);
 	});
 
 	it('mounts a node shell its files, since it may be the first thing to want them', async () => {
