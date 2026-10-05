@@ -97,6 +97,15 @@ describe('Traffic', () => {
 		expect(traffic.flights).toMatchObject([{ edgeId: 'e3', reverse: false, lane: undefined }]);
 	});
 
+	it('names a sender whose connection is only reported while the hop is being held', () => {
+		const late: Record<number, string> = {};
+		traffic = new Traffic({ ...services, peerAt: (remotePort) => late[remotePort] });
+		traffic.ingest('queue', { kind: 'hop', at: 1, from: { peer: 49300 } });
+		late[49300] = 'web';
+		settle();
+		expect(traffic.flights).toMatchObject([{ edgeId: 'e3', reverse: false }]);
+	});
+
 	it('drops a hop with no edge to ride, and one it cannot resolve', () => {
 		traffic.ingest('gen', { kind: 'hop', at: 1, to: { node: 'queue' } });
 		traffic.ingest('gen', { kind: 'hop', at: 1, to: { port: 9999 } });

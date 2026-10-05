@@ -39,7 +39,7 @@ export function parseTrafficLine(line: string): ParsedTraffic {
 }
 
 export const TRAVEL_MS = 600;
-// Events wait this long and go in the VM's order: their stdouts reach the page in no fixed order
+// Events wait this long to be ordered and named, as nothing reaches the page in a fixed order
 export const REORDER_MS = 100;
 export const TICK_MS = 100;
 // Between two dots leaving on one edge. A tick, because a flight is drawn by the tick that
@@ -70,7 +70,7 @@ export type TrafficServices = {
 };
 
 type Held = { at: number; receivedAt: number } & (
-	| { kind: 'hop'; count: number; from: string; to: string; lane: number | undefined }
+	| { kind: 'hop'; nodeId: string | undefined; hop: Hop }
 	| { kind: 'level'; nodeId: string; value: number; capacity?: number }
 );
 type PendingLevel = { nodeId: string; value: number; capacity?: number; applyAt: number };
@@ -118,11 +118,7 @@ export class Traffic {
 			const { value, capacity } = event;
 			this.#held.push({ kind: 'level', at, receivedAt, nodeId, value, capacity });
 		} else {
-			const from = event.from ? this.#resolve(event.from)?.nodeId : nodeId;
-			const to = event.to ? this.#resolve(event.to) : nodeId ? { nodeId } : undefined;
-			if (!from || !to || from === to.nodeId) return;
-			const count = event.count ?? 1;
-			this.#held.push({ kind: 'hop', at, receivedAt, count, from, to: to.nodeId, lane: to.lane });
+			this.#held.push({ kind: 'hop', at, receivedAt, nodeId, hop: event });
 		}
 		this.#arm();
 	}
@@ -197,7 +193,13 @@ export class Traffic {
 		return edgeId ? { edgeId, reverse: forward === undefined } : undefined;
 	}
 
-	#launch({ count, from, to, lane }: Held & { kind: 'hop' }, now: number) {
+	#launch({ nodeId, hop }: Held & { kind: 'hop' }, now: number) {
+		// Named now and not on arrival: who is at a peer can reach the page after the hop does
+		const from = hop.from ? this.#resolve(hop.from)?.nodeId : nodeId;
+		const landing = hop.to ? this.#resolve(hop.to) : nodeId ? { nodeId } : undefined;
+		if (!from || !landing || from === landing.nodeId) return;
+		const { nodeId: to, lane } = landing;
+		const count = hop.count ?? 1;
 		const edge = this.#edgeFor(from, to);
 		if (!edge) return;
 		const { edgeId, reverse } = edge;
