@@ -48,6 +48,8 @@ export const SPACING_MS = TICK_MS;
 // Dots waiting their turn on one edge. Past about a dozen nobody is counting them, and a
 // thirteenth would only be drawn later still
 const MAX_QUEUED_PER_EDGE = 12;
+// A chain waits one travel per hop. Only a loop falls further behind, and its dot is dropped
+export const MAX_WAIT_MS = 10 * TRAVEL_MS;
 
 export type Flight = {
 	id: number;
@@ -203,9 +205,10 @@ export class Traffic {
 		const edge = this.#edgeFor(from, to);
 		if (!edge) return;
 		const { edgeId, reverse } = edge;
+		const base = Math.max(now, this.#landsAt.get(from) ?? 0);
+		if (base - now > MAX_WAIT_MS) return;
 		// A fan-out is one request per dot, and dots leaving together ride the edge superimposed
 		// and read as one, so each waits for the space behind the last
-		const base = Math.max(now, this.#landsAt.get(from) ?? 0);
 		const startedAt = Math.max(base, (this.#lastLeft.get(edgeId) ?? 0) + SPACING_MS);
 		// Dots are illustration and the metrics are the record, so a flood is thinned rather than
 		// queued up behind itself and drawn long after what it stands for. Waiting on an arrival

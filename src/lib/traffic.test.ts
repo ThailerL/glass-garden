@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	MAX_WAIT_MS,
 	parseTrafficLine,
 	REORDER_MS,
 	SPACING_MS,
@@ -214,5 +215,21 @@ describe('Traffic', () => {
 		settle();
 		vi.advanceTimersByTime(TRAVEL_MS + TICK_MS);
 		expect(traffic.flights).toMatchObject([{ edgeId: 'e3', startedAt: arrival + TRAVEL_MS }]);
+	});
+
+	it('does not let a loop go on drawing long after its traffic has ended', () => {
+		const loop: Record<string, string> = { 'a>b': 'e1', 'b>a': 'e2' };
+		traffic = new Traffic({ ...services, edgeBetween: (from, to) => loop[`${from}>${to}`] });
+		const drawn = new Set<string>();
+		// Each request goes round once, and the next is sent before it is back
+		for (let sent = 0; sent < 20; sent++) {
+			hop(1, 'a', 'b');
+			hop(2, 'b', 'a');
+			vi.advanceTimersByTime(500);
+			for (const flight of traffic.flights) drawn.add(flight.edgeId);
+		}
+		expect([...drawn].sort()).toEqual(['e1', 'e2']);
+		vi.advanceTimersByTime(MAX_WAIT_MS + TRAVEL_MS + TICK_MS);
+		expect(traffic.flights).toEqual([]);
 	});
 });
