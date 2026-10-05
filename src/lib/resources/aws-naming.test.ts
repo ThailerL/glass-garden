@@ -18,7 +18,9 @@ describe('queue naming', () => {
 	});
 
 	it('supplies the URL the SDK dials, not the bare name', () => {
-		const supplied = sqsQueue.supplies(node('sqsQueue', { name: 'Orders', queueName: 'orders' }));
+		const supplied = sqsQueue.supplies.aws(
+			node('sqsQueue', { name: 'Orders', queueName: 'orders' })
+		);
 		expect(supplied.value).toMatch(/^http:\/\/localhost:\d+\/\d{12}\/orders$/);
 		expect(supplied).toMatchObject({ suffix: 'QUEUE_URL', soleName: 'SQS_QUEUE_URL' });
 	});
@@ -35,7 +37,7 @@ describe('table naming', () => {
 	});
 
 	it('supplies the table name under the conventional variable', () => {
-		const supplied = dynamodbTable.supplies(
+		const supplied = dynamodbTable.supplies.aws(
 			node('dynamodbTable', { name: 'Users', tableName: 'users', partitionKey: 'pk' })
 		);
 		expect(supplied).toEqual({ suffix: 'TABLE', value: 'users', soleName: 'DYNAMODB_TABLE' });
@@ -53,7 +55,7 @@ describe('function naming', () => {
 	});
 
 	it('supplies the name a caller passes to Invoke', () => {
-		const supplied = lambdaFunction.supplies(
+		const supplied = lambdaFunction.supplies.aws(
 			node('lambdaFunction', { name: 'Hash Password', functionName: 'hash-password' })
 		);
 		expect(supplied).toEqual({

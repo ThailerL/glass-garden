@@ -10,7 +10,7 @@ import { sampleStats } from './stats.js';
 import { textOf } from './aws-api.js';
 import { invocationSource } from './function-events.js';
 import { functionUrl } from './function-url.js';
-import { EVENT_PREFIX } from './_harness/lib.js';
+import { EVENT_PREFIX, reportEvent } from './_harness/lib.js';
 import {
   decideRequest,
   emptyTopology,
@@ -219,7 +219,8 @@ async function reconcileFunctionUrls() {
   for (const [nodeId, { functionName, port }] of wanted) {
     if (urlListeners.has(nodeId)) continue;
     try {
-      const server = await serve(functionUrl(region, functionName), { port });
+      const called = (peer) => reportEvent('hop', { from: { peer }, to: { node: nodeId } });
+      const server = await serve(functionUrl(region, functionName, called), { port });
       urlListeners.set(nodeId, { functionName, port, server });
     } catch (error) {
       emitLog('error', `Could not serve the function URL on port ${port}: ${error?.message || error}`, nodeId);

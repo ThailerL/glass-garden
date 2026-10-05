@@ -79,6 +79,13 @@ describe('functionUrl', () => {
     expect([response.status, bodyOf(response)]).toEqual([200, 'hello Ann']);
   });
 
+  it('reports the port each call was dialled from', async () => {
+    const peers = [];
+    const url = functionUrl(fakeRegion({ body: '"ok"' }), 'greet', (peer) => peers.push(peer));
+    await url.dispatch(request({ remote: { address: '127.0.0.1', port: 49200 } }));
+    expect(peers).toEqual([49200]);
+  });
+
   it('answers 502 with the error for a handler that threw', async () => {
     const region = fakeRegion({
       headers: { 'x-amz-function-error': 'Unhandled' },

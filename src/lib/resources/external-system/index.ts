@@ -6,10 +6,9 @@ import ExternalSystemConfig from './ExternalSystemConfig.svelte';
 import * as resourceFiles from 'virtual:resource-files';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
-import { processHandle, runningPort, withHarness } from '../shared';
+import { addressSupply, processHandle, runningPort, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
-import { localAddress } from '$lib/utils';
 
 // One thing either side sends, in the protocol's own words, so no protocol is built in
 const exchangeSchema = z.strictObject({
@@ -85,11 +84,7 @@ export const externalSystem = {
 	runsProcesses: true,
 	// Someone else's service: the reader can call it but never stop it
 	alwaysOn: true,
-	supplies: (_node: Node, port: number) => ({
-		suffix: 'URL',
-		value: localAddress(port),
-		soleName: 'EXTERNAL_SYSTEM_URL'
-	}),
+	supplies: { endpoint: addressSupply('EXTERNAL_SYSTEM_URL') },
 	launchConfig,
 	start: async (
 		node: Node,

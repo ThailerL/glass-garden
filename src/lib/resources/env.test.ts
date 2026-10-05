@@ -79,6 +79,16 @@ describe('consumerEnv', () => {
 		expect(env.LAMBDA_FUNCTION_NAME).toBe('resize-images');
 	});
 
+	it("hands a function's URL to what points at it, and only its name to what it points at", () => {
+		const resize = fn('f1', 'Resize Images', 'resize-images');
+		const caller = consumerEnv(web, [neighbour(resize, 5400)]);
+		expect(caller.RESIZE_IMAGES_URL).toBe('http://localhost:5400');
+		expect(caller.LAMBDA_FUNCTION_URL).toBe('http://localhost:5400');
+		const called = consumerEnv(fn('f2', 'Worker', 'worker'), [source(resize, 5400)]);
+		expect(called.RESIZE_IMAGES_FUNCTION_NAME).toBe('resize-images');
+		expect(called.RESIZE_IMAGES_URL).toBeUndefined();
+	});
+
 	it('mixes providers of different kinds in one environment', () => {
 		const env = consumerEnv(web, [
 			neighbour(bucket('b1', 'Assets', 'assets')),
@@ -118,7 +128,7 @@ describe('consumerEnv', () => {
 			neighbour(bucket('b1', 'Assets', 'assets')),
 			neighbour(bucket('b2', 'Backups', 'backups'))
 		];
-		expect(withheldConventionalNames(two)).toEqual(['S3_BUCKET']);
+		expect(withheldConventionalNames(web, two)).toEqual(['S3_BUCKET']);
 		expect(consumerEnv(web, two).S3_BUCKET).toBeUndefined();
 	});
 
@@ -127,6 +137,6 @@ describe('consumerEnv', () => {
 			neighbour(bucket('b1', 'Assets', 'assets')),
 			neighbour(database('p1', 'Orders'))
 		];
-		expect(withheldConventionalNames(mixed)).toEqual([]);
+		expect(withheldConventionalNames(web, mixed)).toEqual([]);
 	});
 });

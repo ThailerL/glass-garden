@@ -92,11 +92,13 @@ export const sqsQueue = {
 	launchConfig,
 	// The URL rather than the name: it is what the AWS SDK takes for every call after
 	// creation, and it dials the region directly
-	supplies: (node: Node) => ({
-		suffix: 'QUEUE_URL',
-		value: queueUrlFor(queueNameOf(node)),
-		soleName: 'SQS_QUEUE_URL'
-	}),
+	supplies: {
+		aws: (node: Node) => ({
+			suffix: 'QUEUE_URL',
+			value: queueUrlFor(queueNameOf(node)),
+			soleName: 'SQS_QUEUE_URL'
+		})
+	},
 	// A queue is not a process. Provisioning it is the whole of starting it, so there is no
 	// server to wait for and the region reports what the queue holds on the node's behalf
 	readyOnStart: true,

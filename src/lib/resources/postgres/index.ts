@@ -39,11 +39,13 @@ export const postgres = {
 	instanceCount: () => 1,
 	runsProcesses: true,
 	alwaysOn: false,
-	supplies: (_node: Node, port: number) => ({
-		suffix: 'DATABASE_URL',
-		value: connectionUrl(port),
-		soleName: 'DATABASE_URL'
-	}),
+	supplies: {
+		sql: (_node: Node, port: number) => ({
+			suffix: 'DATABASE_URL',
+			value: connectionUrl(port),
+			soleName: 'DATABASE_URL'
+		})
+	},
 	launchConfig,
 	prepare: async (node: Node, container: Vivari, capture: Capture) => {
 		await npmInstall(node, container, capture);

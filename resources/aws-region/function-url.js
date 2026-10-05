@@ -58,9 +58,11 @@ export function urlResponse(result) {
 }
 
 // What a function URL answers for one function: the dispatcher pocket-region's serve takes
-export function functionUrl(region, functionName) {
+export function functionUrl(region, functionName, onCall) {
   return {
     async dispatch(request) {
+      // Only the port it dialled from says who the caller is
+      if (request.remote) onCall(request.remote.port);
       const [status, answer, headers] = await lambdaRequest(
         region,
         'POST',

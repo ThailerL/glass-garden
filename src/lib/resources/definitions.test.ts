@@ -11,10 +11,22 @@ describe('resourceDefinitions', () => {
 		for (const [sourceType, source] of definitions) {
 			for (const [targetType, target] of definitions) {
 				const shared = source.consumes.filter((capability) => target.provides.includes(capability));
+				// The one exception: code calls a function by name or at its URL, which mean the same
+				const routes = shared.toSorted().join();
+				if (targetType === 'lambdaFunction' && routes === 'aws,endpoint') continue;
 				expect(
 					shared.length,
 					`An edge ${sourceType} → ${targetType} could mean ${shared.join(' and ')}. Give handles ids, one per capability, before adding this pair`
 				).toBeLessThanOrEqual(1);
+			}
+		}
+	});
+
+	// consumerEnv reads a supply under what the consumer consumes, and trusts this for the rest
+	it('supplies a variable only under a capability it provides', () => {
+		for (const [type, definition] of definitions) {
+			for (const capability of Object.keys(definition.supplies ?? {})) {
+				expect(definition.provides, `${type} supplies under ${capability}`).toContain(capability);
 			}
 		}
 	});

@@ -6,10 +6,9 @@ import * as resourceFiles from 'virtual:resource-files';
 import HttpLoadBalancerConfig from './HttpLoadBalancerConfig.svelte';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
-import { processHandle, withHarness } from '../shared';
+import { addressSupply, processHandle, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
-import { localAddress } from '$lib/utils';
 
 // ALB's Matcher, "200,204,300-399". Rejected here because the balancer fails closed on one it
 // cannot parse, which would take every target out at once
@@ -93,11 +92,7 @@ export const httpLoadBalancer = {
 	hasPreview: true,
 	provides: ['http', 'endpoint'],
 	consumes: ['http'],
-	supplies: (_node: Node, port: number) => ({
-		suffix: 'URL',
-		value: localAddress(port),
-		soleName: 'LOAD_BALANCER_URL'
-	}),
+	supplies: { endpoint: addressSupply('LOAD_BALANCER_URL') },
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,
 	metricDefaults: {

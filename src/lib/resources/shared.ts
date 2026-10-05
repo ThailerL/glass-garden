@@ -1,9 +1,10 @@
 import type { Node } from '@xyflow/svelte';
 import type { FileSystemTree, Vivari, VivariProcess } from '@vivari/core';
 import * as resourceFiles from 'virtual:resource-files';
-import type { Capture, ConnectedNode, InstanceHandle } from './types';
+import type { Capture, ConnectedNode, InstanceHandle, Supply } from './types';
 import { nodeDirectory } from '../container';
 import { nodeName } from '../graph-state.svelte';
+import { localAddress } from '$lib/utils';
 
 // Apostrophes and accents are folded away rather than becoming separators, so
 // "Bob's Orders DB" reads as one word per word
@@ -28,6 +29,15 @@ export function slugify(
 // kind of variable - <SLUG>_URL, <SLUG>_BUCKET - and every kind of consumer
 export function envSlug(node: Node) {
 	return slugify(nodeName(node), { separator: '_', case: 'upper' }) || 'RESOURCE';
+}
+
+// What an endpoint supplies: the address it listens on
+export function addressSupply(soleName: string) {
+	return (_node: Node, port: number): Supply => ({
+		suffix: 'URL',
+		value: localAddress(port),
+		soleName
+	});
 }
 
 // An install with nothing to install still costs seconds, and npm refuses outright without a

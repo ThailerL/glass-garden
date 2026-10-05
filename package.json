@@ -65,7 +65,7 @@
 		"nanoid": "^6.0.1",
 		"paneforge": "^1.0.2",
 		"patch-package": "^8.0.1",
-		"pocket-region": "^0.10.0",
+		"pocket-region": "^0.10.1",
 		"prettier": "^3.8.3",
 		"prettier-plugin-astro": "^1.0.1",
 		"prettier-plugin-svelte": "^4.1.0",

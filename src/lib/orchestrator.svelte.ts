@@ -11,7 +11,7 @@ import {
 	type ResourceStatus,
 	type ConnectedNode
 } from './resources';
-import { adminEnv, consumerEnv } from './resources/env';
+import { adminEnv, consumerEnv, withheldConventionalNames } from './resources/env';
 import { ResourceController, type ControllerServices } from './resource-controller.svelte';
 import type { MetricStore, OutputLine, ResourceEvent, Stream } from './resource-log.svelte';
 import { getContainer, mountNodeFiles, removeNodeFiles } from './container';
@@ -188,6 +188,11 @@ export class Orchestrator {
 			...getResourceDefinition(node.type).ownEnv?.(node),
 			...consumerEnv(node, this.getNeighbours(nodeId))
 		};
+	}
+
+	withheldEnvFor(nodeId: string): string[] {
+		const node = this.#graphState.getNode(nodeId);
+		return node ? withheldConventionalNames(node, this.getNeighbours(nodeId)) : [];
 	}
 
 	adminEnv(): Record<string, string> {

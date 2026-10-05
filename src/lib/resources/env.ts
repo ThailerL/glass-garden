@@ -3,7 +3,7 @@ import type { ConnectedNode } from './types';
 import { getResourceDefinition } from './index';
 import { envSlug } from './shared';
 import { nodeName } from '$lib/graph-state.svelte';
-import { accessKeyFor, ADMIN_ACCESS_KEY, awsResourceOf } from '$lib/aws-topology';
+import { accessKeyFor, ADMIN_ACCESS_KEY } from '$lib/aws-topology';
 import { regionEndpointUrl } from '$lib/aws-region';
 
 // The AWS SDK's own variables. Every node that can call AWS gets them, connected to something
@@ -25,15 +25,19 @@ export const adminEnv = () => awsCredentials(ADMIN_ACCESS_KEY);
 
 // Everything the nodes connected to this one hand it. Sorted so the set - and with it the
 // configStamp - never depends on edge order
-function suppliedBy(neighbours: readonly ConnectedNode[]) {
+function suppliedBy(consumer: Node, neighbours: readonly ConnectedNode[]) {
+	const { consumes } = getResourceDefinition(consumer.type);
 	return neighbours
 		.flatMap(({ node, reservedPorts, isTarget }) => {
-			// An address goes only to what points at it. A grant in the region runs both ways
-			if (!isTarget && !awsResourceOf(node)) return [];
 			const { supplies } = getResourceDefinition(node.type);
 			// The reservation rather than a live port, so the stamp survives a restart there
 			const [port] = reservedPorts;
-			return supplies && port !== undefined ? [{ node, ...supplies(node, port) }] : [];
+			if (port === undefined) return [];
+			// An address goes only to what points at it. A grant in the region runs both ways
+			return consumes
+				.filter((capability) => isTarget || capability === 'aws')
+				.flatMap((capability) => supplies?.[capability]?.(node, port) ?? [])
+				.map((supply) => ({ node, ...supply }));
 		})
 		.sort(
 			(a, b) =>
@@ -44,9 +48,12 @@ function suppliedBy(neighbours: readonly ConnectedNode[]) {
 // The conventional names that are deliberately not set, because more than one resource of
 // that kind is connected and the name would have to pick one of them arbitrarily. Reported so
 // a panel can say why a variable a user expected is missing, rather than leaving it silent
-export function withheldConventionalNames(neighbours: readonly ConnectedNode[]): string[] {
+export function withheldConventionalNames(
+	consumer: Node,
+	neighbours: readonly ConnectedNode[]
+): string[] {
 	const perSoleName = new Map<string, number>();
-	for (const { soleName } of suppliedBy(neighbours)) {
+	for (const { soleName } of suppliedBy(consumer, neighbours)) {
 		perSoleName.set(soleName, (perSoleName.get(soleName) ?? 0) + 1);
 	}
 	return [...perSoleName]
@@ -63,7 +70,7 @@ export function consumerEnv(
 	consumer: Node,
 	neighbours: readonly ConnectedNode[]
 ): Record<string, string> {
-	const supplied = suppliedBy(neighbours);
+	const supplied = suppliedBy(consumer, neighbours);
 
 	// Credentials come with being able to call AWS at all, not with any particular resource:
 	// code can reach CloudWatch with nothing connected, and gets a signpost error otherwise.

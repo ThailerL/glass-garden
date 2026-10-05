@@ -86,6 +86,9 @@ export type ConnectedNode = {
 	readonly isTarget: boolean;
 };
 
+// soleName is set only when this is the one supplier of its kind connected
+export type Supply = { suffix: string; value: string; soleName: string };
+
 // Config fields the user is asked for as the node is dropped, because the real service has
 // no rename: the name is part of the resource's identity, so the drop is the last moment it
 // is free. Validated against the resource's own configSchema
@@ -160,11 +163,8 @@ export type ResourceDefinition = {
 	// Everything an instance is launched with that requires relaunching it when it changes:
 	// the node's own config, plus what its neighbours hand down. Omitted when nothing does
 	launchConfig?: (node: Node, neighbours: readonly ConnectedNode[]) => unknown;
-	// What this one puts in the environment of a node that points at it. A region resource
-	// does the same for a node it points at. The suffix is appended to the consumer-facing
-	// slug of this node's name; soleName is the conventional variable, used only when this is
-	// the one resource of its kind connected
-	supplies?: (node: Node, port: number) => { suffix: string; value: string; soleName: string };
+	// Environment for a node that points at it, by capability. 'aws' also reaches one it points at
+	supplies?: Partial<Record<Capability, (node: Node, port: number) => Supply>>;
 	// Environment variables the resource sets at spawn from its own identity, outside what
 	// consumerEnv grants from its connections - shown in the config panel alongside them so
 	// the summary stays accurate to what the process actually receives

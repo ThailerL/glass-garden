@@ -5,7 +5,7 @@ import FunctionIcon from '@lucide/svelte/icons/square-function';
 import * as resourceFiles from 'virtual:resource-files';
 import FunctionConfig from './FunctionConfig.svelte';
 import type { ConnectedNode, ResourceDefinition } from '../types';
-import { npmInstall, slugify } from '../shared';
+import { addressSupply, npmInstall, slugify } from '../shared';
 import { consumerEnv } from '../env';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -85,8 +85,8 @@ export const lambdaFunction = {
 	files: resourceFiles.lambdaFunction,
 	hasEditableFiles: true,
 	hasPreview: true,
-	// Invoked through the region like any AWS resource, so a caller uses it under 'aws'
-	provides: ['http', 'invoke', 'aws'],
+	// Code invokes it through the region under 'aws', and calls its URL under 'endpoint'
+	provides: ['http', 'invoke', 'aws', 'endpoint'],
 	consumes: ['sql', 'aws', 'endpoint'],
 	aws: { service: 'lambda', resourceKey: 'functionName' },
 	configComponent: FunctionConfig,
@@ -129,11 +129,14 @@ export const lambdaFunction = {
 	alwaysOn: true,
 	launchConfig,
 	ownEnv,
-	supplies: (node: Node) => ({
-		suffix: 'FUNCTION_NAME',
-		value: functionNameOf(node),
-		soleName: 'LAMBDA_FUNCTION_NAME'
-	}),
+	supplies: {
+		aws: (node: Node) => ({
+			suffix: 'FUNCTION_NAME',
+			value: functionNameOf(node),
+			soleName: 'LAMBDA_FUNCTION_NAME'
+		}),
+		endpoint: addressSupply('LAMBDA_FUNCTION_URL')
+	},
 	// The handler's dependencies go into the package, so they are installed before the deploy
 	prepare: (node: Node, container: Vivari, capture) => npmInstall(node, container, capture),
 	// A deploy is the whole of starting it, so there is no server to wait for; the URL on the

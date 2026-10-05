@@ -113,11 +113,13 @@ export const dynamodbTable = {
 	runsProcesses: false,
 	alwaysOn: true,
 	launchConfig,
-	supplies: (node: Node) => ({
-		suffix: 'TABLE',
-		value: tableNameOf(node),
-		soleName: 'DYNAMODB_TABLE'
-	}),
+	supplies: {
+		aws: (node: Node) => ({
+			suffix: 'TABLE',
+			value: tableNameOf(node),
+			soleName: 'DYNAMODB_TABLE'
+		})
+	},
 	// A table is not a process. Provisioning it is the whole of starting it, so there is no
 	// server to wait for and the region reports what the table holds on the node's behalf
 	readyOnStart: true,
