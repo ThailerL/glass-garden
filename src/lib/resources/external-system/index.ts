@@ -73,7 +73,7 @@ export const externalSystem = {
 	files: withHarness(resourceFiles.externalSystem),
 	hasEditableFiles: false,
 	hasPreview: false,
-	provides: ['api'],
+	provides: ['endpoint'],
 	consumes: ['http'],
 	authorOnly: true,
 	configComponent: ExternalSystemConfig,

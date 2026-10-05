@@ -10,8 +10,8 @@ import type { Service } from '$lib/aws-region';
 // What a resource offers and what it needs from what it points at. An edge is legal when
 // its source consumes something its target provides. 'invoke' runs against the traffic of
 // the others: a resource that consumes it points at the code it triggers
-// 'api': a party outside the reader's system, called by code rather than sent traffic
-export type Capability = 'http' | 'sql' | 'aws' | 'invoke' | 'api';
+// 'endpoint': an address called by code rather than sent traffic
+export type Capability = 'http' | 'sql' | 'aws' | 'invoke' | 'endpoint';
 
 // A challenge's comparison is built from this, so the two cannot drift apart
 export const scalar = z.union([z.string(), z.number(), z.boolean()]);
