@@ -4,7 +4,6 @@ import { Vivari } from '@vivari/core';
 import GlobeIcon from '@lucide/svelte/icons/globe';
 import ExternalSystemConfig from './ExternalSystemConfig.svelte';
 import * as resourceFiles from 'virtual:resource-files';
-import { callerPath } from '../../../../resources/external-system/caller.js';
 import type { ConnectedNode, ResourceDefinition } from '../types';
 import { providing } from '../index';
 import { processHandle, runningPort, withHarness } from '../shared';
@@ -85,9 +84,9 @@ export const externalSystem = {
 	runsProcesses: true,
 	// Someone else's service: the reader can call it but never stop it
 	alwaysOn: true,
-	supplies: (_node: Node, port: number, consumer: Node) => ({
+	supplies: (_node: Node, port: number) => ({
 		suffix: 'URL',
-		value: `http://localhost:${port}${callerPath(consumer.id)}`,
+		value: `http://localhost:${port}`,
 		soleName: 'EXTERNAL_SYSTEM_URL'
 	}),
 	launchConfig,

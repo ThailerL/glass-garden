@@ -26,7 +26,7 @@
 <ReadOnlyValue
 	label="Address"
 	value={port === undefined ? undefined : `http://localhost:${port}`}
-	description="Each node connected to it is handed an address of its own under this one, in its environment."
+	description="Each node connected to it finds this address in its environment."
 	empty="Available once it has started."
 />
 

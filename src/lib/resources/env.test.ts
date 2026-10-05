@@ -50,12 +50,9 @@ describe('consumerEnv', () => {
 		expect(consumerEnv(web, db).DATABASE_URL).toBe('postgres://postgres@localhost:5433/postgres');
 	});
 
-	it('hands each consumer of an external system an address of its own, so calls name their caller', () => {
+	it('hands a consumer of an external system the address it listens on', () => {
 		const api = [neighbour(node('x1', 'externalSystem', { name: 'Card Company', code: '' }), 5100)];
-		expect(consumerEnv(web, api).CARD_COMPANY_URL).toBe('http://localhost:5100/from/a');
-		expect(consumerEnv(fn('f', 'Worker', 'worker'), api).CARD_COMPANY_URL).toBe(
-			'http://localhost:5100/from/f'
-		);
+		expect(consumerEnv(web, api).CARD_COMPANY_URL).toBe('http://localhost:5100');
 	});
 
 	it('supplies the name a caller passes to Invoke', () => {
@@ -103,7 +100,7 @@ describe('consumerEnv', () => {
 			neighbour(bucket('b1', 'Assets', 'assets')),
 			neighbour(bucket('b2', 'Backups', 'backups'))
 		];
-		expect(withheldConventionalNames(web, two)).toEqual(['S3_BUCKET']);
+		expect(withheldConventionalNames(two)).toEqual(['S3_BUCKET']);
 		expect(consumerEnv(web, two).S3_BUCKET).toBeUndefined();
 	});
 
@@ -112,6 +109,6 @@ describe('consumerEnv', () => {
 			neighbour(bucket('b1', 'Assets', 'assets')),
 			neighbour(database('p1', 'Orders'))
 		];
-		expect(withheldConventionalNames(web, mixed)).toEqual([]);
+		expect(withheldConventionalNames(mixed)).toEqual([]);
 	});
 });

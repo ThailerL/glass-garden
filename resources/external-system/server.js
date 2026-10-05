@@ -2,7 +2,6 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { bodyOf, putMetric, reportEvent } from './_harness/lib.js';
-import { callerIn } from './caller.js';
 
 const port = Number(process.env.PORT);
 if (!port) {
@@ -164,14 +163,14 @@ function publish() {
   }
 }
 
-// A standard Request, addressed as if this service were the whole host
-async function requestFrom(req, path) {
+// What the author's handle takes: a standard Request
+async function requestFrom(req) {
   const body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await bodyOf(req);
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
   }
-  return new Request(`http://localhost:${port}${path}`, { method: req.method, headers, body });
+  return new Request(`http://localhost:${port}${req.url}`, { method: req.method, headers, body });
 }
 
 async function answer(res, response) {
@@ -190,17 +189,16 @@ function fail(res, message) {
 function serve(handle) {
   return http.createServer(async (req, res) => {
     const started = performance.now();
-    const { node, path } = callerIn(req.url ?? '/');
-    if (node !== undefined) reportEvent('hop', { from: { node } });
+    reportEvent('hop', { from: { peer: req.socket.remotePort } });
     try {
-      const response = await handle(await requestFrom(req, path), context);
+      const response = await handle(await requestFrom(req), context);
       if (!(response instanceof Response)) {
-        fail(res, `handle must return a Response, but ${req.method} ${path} returned ${response}`);
+        fail(res, `handle must return a Response, but ${req.method} ${req.url} returned ${response}`);
       } else {
         await answer(res, response);
       }
     } catch (error) {
-      fail(res, `${req.method} ${path} failed: ${error?.stack ?? error}`);
+      fail(res, `${req.method} ${req.url} failed: ${error?.stack ?? error}`);
     }
     append(observed.responses, res.statusCode, performance.now() - started);
   });

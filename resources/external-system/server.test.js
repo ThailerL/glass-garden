@@ -9,6 +9,7 @@ import {
   waitUntil
 } from '../harness-testing.js';
 import { bodyOf } from '../_harness/lib.js';
+import { once } from 'node:events';
 import http from 'node:http';
 import { rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -46,6 +47,13 @@ async function externalSystem(code, endpoints = []) {
     connect,
     set,
     call: (url, init) => fetch(`http://localhost:${port}${url}`, init),
+    // A call on a connection of its own, answering with the port it was dialled from
+    dial: async () => {
+      const [response] = await once(http.get({ port, agent: false }), 'response');
+      response.resume();
+      return response.socket.localPort;
+    },
+    sends: () => hops.filter((hop) => hop.to),
     // Flattened across seconds
     readings: (name) => metrics.filter((m) => m.name === name).flatMap((m) => [m.value].flat()),
     waitFor: (find, what) => waitUntil(find, () => `${what}; saw ${JSON.stringify(metrics)}`)
@@ -95,10 +103,10 @@ export async function handle(request) {
 `;
 
 describe('answering', () => {
-  it("answers with the author's Response, addressed without the caller's prefix", async () => {
+  it("answers with the author's Response", async () => {
     const api = await externalSystem(ECHO);
     await api.ready;
-    const response = await api.call('/from/node-7/charges', {
+    const response = await api.call('/charges', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ payment: 3 })
@@ -111,29 +119,20 @@ describe('answering', () => {
     });
   });
 
-  it('draws each call from the node whose address it arrived at', async () => {
+  it('draws each call from the far end of the connection it arrived on', async () => {
     const api = await externalSystem(ECHO);
     await api.ready;
-    await api.call('/from/node-7/charges');
-    await api.call('/from/node-9');
+    const first = await api.dial();
+    const second = await api.dial();
     // Its stdout can reach the test after the answer does
     await waitUntil(() => api.hops.length >= 2, () => 'Never drew both calls');
-    expect(api.hops.map((hop) => hop.from)).toEqual([{ node: 'node-7' }, { node: 'node-9' }]);
-  });
-
-  // A shell's curl, say, has no edge to be drawn on
-  it('answers a call with no caller without drawing it', async () => {
-    const api = await externalSystem(ECHO);
-    await api.ready;
-    const response = await api.call('/charges');
-    expect(await response.json()).toMatchObject({ path: '/charges' });
-    expect(api.hops).toEqual([]);
+    expect(api.hops.map((hop) => hop.from)).toEqual([{ peer: first }, { peer: second }]);
   });
 
   it('answers 500 and logs why when the handler throws', async () => {
     const api = await externalSystem(`export function handle() { throw new Error('card declined'); }`);
     await api.ready;
-    const response = await api.call('/from/a/charges');
+    const response = await api.call('/charges');
     expect(response.status).toBe(500);
     expect(await response.text()).toContain('card declined');
     expect(api.stderr.join('\n')).toContain('card declined');
@@ -142,7 +141,7 @@ describe('answering', () => {
   it('answers 500 when the handler returns something other than a Response', async () => {
     const api = await externalSystem(`export function handle() { return { ok: true }; }`);
     await api.ready;
-    const response = await api.call('/from/a/charges');
+    const response = await api.call('/charges');
     expect(response.status).toBe(500);
     expect(await response.text()).toContain('must return a Response');
   });
@@ -156,8 +155,8 @@ describe('sending', () => {
     const response = await api.call('/charges', { method: 'POST', body: 'payment 3' });
     expect(await response.json()).toEqual({ forwarded: 1, answers: ['Bank Events 200 received 1'] });
     expect(target.received).toEqual([{ method: 'POST', path: '/webhooks', body: 'payment 3' }]);
-    await waitUntil(() => api.hops.length >= 1, () => 'Never drew the send');
-    expect(api.hops.map((hop) => hop.to)).toEqual([{ port: target.port }]);
+    await waitUntil(() => api.sends().length >= 1, () => 'Never drew the send');
+    expect(api.sends().map((hop) => hop.to)).toEqual([{ port: target.port }]);
   });
 
   it('reaches a node connected after it started, without forgetting anything', async () => {
@@ -183,7 +182,7 @@ describe('sending', () => {
     await api.ready;
     const { answers } = await (await api.call('/charges')).json();
     expect(answers).toEqual(['Bank Events fetch failed ECONNREFUSED']);
-    expect(api.hops).toEqual([]);
+    expect(api.sends()).toEqual([]);
   });
 
   it('counts what it sent by status, and each 5xx or unanswered send as an error', async () => {
@@ -280,9 +279,9 @@ describe('counting', () => {
       }
     `);
     await api.ready;
-    await api.call('/from/a/ok');
-    await api.call('/from/a/ok');
-    await api.call('/from/a/fail');
+    await api.call('/ok');
+    await api.call('/ok');
+    await api.call('/fail');
     // Less the boot zero
     const outcomes = () =>
       api.metrics.filter((m) => m.name === 'errors' && Array.isArray(m.value)).flatMap((m) => m.value);
@@ -315,7 +314,7 @@ describe('counting', () => {
       }
     `);
     await api.ready;
-    await api.call('/from/a/charges');
+    await api.call('/charges');
     await api.waitFor(() => api.readings('repeats').includes(1), 'Never reported the repeat');
     expect(api.readings('charge size')).toEqual([2500]);
     expect(api.metrics.find((m) => m.name === 'charge size').unit).toBe('None');
@@ -339,14 +338,14 @@ describe('running', () => {
     await waitUntil(() => target.received.length >= 3, () => 'Never sent three orders');
     const bodies = target.received.map((request) => request.body);
     expect(bodies).toEqual(['order 1', 'order 2', 'order 3']);
-    await waitUntil(() => api.hops.length >= 3, () => 'Never drew the sends');
-    expect(api.hops.every((hop) => hop.to.port === target.port)).toBe(true);
+    await waitUntil(() => api.sends().length >= 3, () => 'Never drew the sends');
+    expect(api.sends().every((hop) => hop.to.port === target.port)).toBe(true);
   });
 
   it('answers a call with 404 when it only sends', async () => {
     const api = await externalSystem('export async function run() {}');
     await api.ready;
-    const response = await api.call('/from/a/charges');
+    const response = await api.call('/charges');
     expect(response.status).toBe(404);
   });
 

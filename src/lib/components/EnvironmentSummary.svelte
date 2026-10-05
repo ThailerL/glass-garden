@@ -3,22 +3,17 @@
 	// every line here is decided by the canvas, not by the form
 	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
-	import { getGraphState } from '$lib/graph-state.svelte';
 	import { withheldConventionalNames } from '$lib/resources/env';
 
 	const { nodeId }: { nodeId: string } = $props();
 
-	const graphState = getGraphState();
 	const orchestrator = getOrchestrator();
 
-	const node = $derived(graphState.getNode(nodeId));
 	// Left in the order it was built: credentials, then a line per connected resource, then
 	// the conventional names
 	const lines = $derived(Object.entries(orchestrator.envFor(nodeId)));
 	// Named so a variable the user expected never just vanishes from this list
-	const withheld = $derived(
-		node ? withheldConventionalNames(node, orchestrator.getNeighbours(nodeId)) : []
-	);
+	const withheld = $derived(withheldConventionalNames(orchestrator.getNeighbours(nodeId)));
 </script>
 
 <ReadOnlyValue
