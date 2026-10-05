@@ -76,26 +76,31 @@ for (const file of RUNTIME_FILES) copy(path.join(PYODIDE, file), `pyodide/${file
 
 // The VM has no node_modules, so pocket-region is bundled to sit beside the runtime it
 // loads. Its bare `pyodide` import becomes the relative path that runtime is copied to
-const BUNDLE = 'pocket-region.js';
-await build({
-	input: path.join(POCKET_REGION, 'dist', 'index.js'),
-	platform: 'node',
-	plugins: [
-		{
-			name: 'pyodide-from-the-cache',
-			resolveId(id) {
-				if (id === 'pyodide') return { id: './pyodide/pyodide.mjs', external: true };
+async function bundle(entry, file, pyodide) {
+	await build({
+		input: path.join(POCKET_REGION, 'dist', entry),
+		platform: 'node',
+		plugins: [
+			{
+				name: 'pyodide-from-the-cache',
+				resolveId(id) {
+					if (id === 'pyodide') return { id: pyodide, external: true };
+				}
 			}
-		}
-	],
-	output: {
-		file: path.join(OUTPUT_DIRECTORY, BUNDLE),
-		format: 'esm',
-		codeSplitting: false
-	},
-	write: true
-});
-files.push({ path: BUNDLE, bytes: fs.statSync(path.join(OUTPUT_DIRECTORY, BUNDLE)).size });
+		],
+		output: {
+			file: path.join(OUTPUT_DIRECTORY, file),
+			format: 'esm',
+			codeSplitting: false
+		},
+		write: true
+	});
+	files.push({ path: file, bytes: fs.statSync(path.join(OUTPUT_DIRECTORY, file)).size });
+}
+
+await bundle('index.js', 'pocket-region.js', './pyodide/pyodide.mjs');
+// createRegion starts its worker from region/ beside its own file
+await bundle('region/node-worker.js', 'region/node-worker.js', '../pyodide/pyodide.mjs');
 
 const totalBytes = files.reduce((total, file) => total + file.bytes, 0);
 const megabytes = Number((totalBytes / 1e6).toFixed(1));
