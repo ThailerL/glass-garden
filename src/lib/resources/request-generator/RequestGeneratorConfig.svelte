@@ -5,8 +5,8 @@
 	import ReadOnlyValue from '$lib/components/ReadOnlyValue.svelte';
 	import { getOrchestrator } from '$lib/orchestrator.svelte';
 	import { nodeName } from '$lib/graph-state.svelte';
-	import { providing } from '$lib/resources';
-	import { targetPort, type Config } from './index';
+	import { sendTargets } from '$lib/resources';
+	import { sendingTo, type Config } from './index';
 
 	const { form, nodeId }: { form: SuperForm<Config>; nodeId: string } = $props();
 	const { form: formData } = $derived(form);
@@ -14,8 +14,8 @@
 	const orchestrator = getOrchestrator();
 	const targets = $derived(orchestrator.getTargets(nodeId));
 	// What the edge points at, whether or not it is up; the port only exists while it is
-	const targetNode = $derived(providing(targets, 'http')[0]?.node);
-	const port = $derived(targetPort(targets));
+	const targetNode = $derived(sendTargets(targets)[0]?.target.node);
+	const port = $derived(sendingTo(targets).port);
 
 	const methods: Record<Config['method'], string> = {
 		GET: 'GET',

@@ -72,7 +72,7 @@ function healthCheckOf(config: Config) {
 // The targets and the algorithm travel in one file, so the running process can never read
 // a rotation that disagrees with the set it is rotating over
 async function updateConfig(node: Node, container: Vivari, connected: readonly ConnectedNode[]) {
-	const targets = providing(connected, 'http').flatMap(({ instances }) =>
+	const targets = providing(connected, 'targetGroup').flatMap(({ instances }) =>
 		instances.filter((instance) => instance.status === 'running').map((instance) => instance.port)
 	);
 	const config = nodeConfig<Config>(node);
@@ -90,8 +90,8 @@ export const httpLoadBalancer = {
 	files: withHarness(resourceFiles.httpLoadBalancer),
 	hasEditableFiles: false,
 	hasPreview: true,
-	provides: ['http', 'endpoint'],
-	consumes: ['http'],
+	provides: ['endpoint'],
+	consumes: ['targetGroup'],
 	supplies: { endpoint: addressSupply('LOAD_BALANCER_URL') },
 	configComponent: HttpLoadBalancerConfig,
 	configSchema,

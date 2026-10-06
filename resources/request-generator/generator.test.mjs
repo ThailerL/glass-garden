@@ -163,10 +163,10 @@ describe('sending', () => {
     expect(app.requests.map(({ body }) => body)).toEqual(['1']);
   });
 
-  it('reports each request as a hop to its target', async () => {
+  it('reports each request to a group as a hop to its target', async () => {
     // Held open at a cap of one, so exactly one request is ever sent
     const { port, requests } = target(() => undefined);
-    const gen = await generator({ target: port, maxInFlight: 1 });
+    const gen = await generator({ target: port, reportSends: true, maxInFlight: 1 });
     // The hop is printed as the request leaves, before it lands
     await waitUntil(
       () => gen.hops.length > 0 && requests.length > 0,
@@ -174,6 +174,13 @@ describe('sending', () => {
     );
     expect(requests).toHaveLength(1);
     expect(gen.hops).toEqual([{ kind: 'hop', at: expect.any(Number), to: { port } }]);
+  });
+
+  it('leaves a request to an endpoint for the endpoint to report', async () => {
+    const app = target();
+    const gen = await generator({ target: app.port, reportSends: false });
+    await waitUntil(() => app.requests.length >= 3, () => 'Never sent three requests');
+    expect(gen.hops).toEqual([]);
   });
 
   it('sends a body that is not JSON as plain text', async () => {

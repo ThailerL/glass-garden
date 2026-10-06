@@ -27,9 +27,9 @@ const metrics = new Metrics();
 //   removed, also as event.Records, with record.s3 naming the bucket and the key. Each
 //   notification is its own invocation, and several can run at once. It is delivered once:
 //   throw, and the event is lost, where Lambda would retry it twice.
-// - A request through a load balancer or the Preview tab arrives as the event a Lambda
-//   function URL sends: event.rawPath, event.headers, event.body and so on. What the handler
-//   returns becomes the response.
+// - A request to this function's URL, or through the Preview tab, arrives as the event a
+//   Lambda function URL sends: event.rawPath, event.headers, event.body and so on. What the
+//   handler returns becomes the response.
 // - An invoke through the AWS SDK, from an app server or another function that points at
 //   this one, arrives as whatever the caller sent. The caller finds this function's name in
 //   its environment (see its Config tab) and passes it as FunctionName; what the handler

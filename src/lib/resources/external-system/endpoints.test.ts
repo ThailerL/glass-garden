@@ -22,18 +22,18 @@ describe('endpointsOf', () => {
 				connected('httpLoadBalancer', 'Front Door', 'running')
 			])
 		).toEqual([
-			{ name: 'Bank Events', port: 4001 },
-			{ name: 'Front Door', port: 4000 }
+			{ name: 'Bank Events', port: 4001, reportSends: true },
+			{ name: 'Front Door', port: 4000, reportSends: false }
 		]);
 	});
 
 	it('keeps a node with nothing running, so a send to it fails rather than vanishing', () => {
 		expect(endpointsOf([connected('lambdaFunction', 'Receipts', 'crashed')])).toEqual([
-			{ name: 'Receipts', port: null }
+			{ name: 'Receipts', port: null, reportSends: false }
 		]);
 	});
 
-	it('leaves out a neighbour that does not serve HTTP', () => {
+	it('leaves out a neighbour it cannot send to', () => {
 		expect(endpointsOf([connected('postgres', 'Ledger', 'running')])).toEqual([]);
 	});
 });

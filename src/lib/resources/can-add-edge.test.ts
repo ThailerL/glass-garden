@@ -36,22 +36,27 @@ describe('canAddEdge', () => {
 		expect(canAddEdge(app, node('other-app', 'instanceGroup'), [])).toBe(false);
 	});
 
-	// Outside parties are called by code, never sent traffic
-	it('lets code call an external system, and nothing send it traffic', () => {
+	it('lets a balancer forward to a group, and to nothing else', () => {
+		expect(canAddEdge(balancer, app, [])).toBe(true);
+		expect(canAddEdge(balancer, fn, [])).toBe(false);
+		expect(canAddEdge(balancer, node('other-balancer', 'httpLoadBalancer'), [])).toBe(false);
+	});
+
+	it('lets anything that calls an address call an external system', () => {
 		const api = node('api', 'externalSystem');
 		expect(canAddEdge(app, api, [])).toBe(true);
 		expect(canAddEdge(fn, api, [])).toBe(true);
-		expect(canAddEdge(generator, api, [])).toBe(false);
+		expect(canAddEdge(generator, api, [])).toBe(true);
 		expect(canAddEdge(balancer, api, [])).toBe(false);
 	});
 
-	it('lets an external system send to anything serving HTTP, as a webhook does', () => {
+	it('lets an external system send to a group or to any address, as a webhook does', () => {
 		const api = node('api', 'externalSystem');
 		expect(canAddEdge(api, app, [])).toBe(true);
 		expect(canAddEdge(api, fn, [])).toBe(true);
 		expect(canAddEdge(api, balancer, [])).toBe(true);
+		expect(canAddEdge(api, node('other-api', 'externalSystem'), [])).toBe(true);
 		expect(canAddEdge(api, database, [])).toBe(false);
-		expect(canAddEdge(api, node('other-api', 'externalSystem'), [])).toBe(false);
 	});
 
 	it('leaves an external system out of the palette, since only an author puts one down', () => {

@@ -103,8 +103,8 @@ function send() {
     return;
   }
   inFlight++;
-  // A request leaving; the generator is the side left unnamed
-  reportEvent('hop', { to: { port: target } });
+  // An endpoint draws its own callers
+  if (config.reportSends) reportEvent('hop', { to: { port: target } });
   const { method, path } = config;
   const body = config.body.replaceAll('{{n}}', String(++sent));
   const started = Date.now();

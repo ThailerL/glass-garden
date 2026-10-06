@@ -86,7 +86,7 @@ export const lambdaFunction = {
 	hasEditableFiles: true,
 	hasPreview: true,
 	// Code invokes it through the region under 'aws', and calls its URL under 'endpoint'
-	provides: ['http', 'invoke', 'aws', 'endpoint'],
+	provides: ['invoke', 'aws', 'endpoint'],
 	consumes: ['sql', 'aws', 'endpoint'],
 	aws: { service: 'lambda', resourceKey: 'functionName' },
 	configComponent: FunctionConfig,

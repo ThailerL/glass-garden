@@ -104,7 +104,7 @@ function unreachable(name) {
   return new TypeError('fetch failed', { cause });
 }
 
-function endpoint({ name, port: to }) {
+function endpoint({ name, port: to, reportSends }) {
   async function send(path, init) {
     if (typeof path !== 'string' || !path.startsWith('/')) {
       throw new TypeError(`send needs a path starting with /, not ${path}`);
@@ -113,7 +113,8 @@ function endpoint({ name, port: to }) {
     let response, body;
     try {
       if (to === null) throw unreachable(name);
-      reportEvent('hop', { to: { port: to } });
+      // An endpoint draws its own callers
+      if (reportSends) reportEvent('hop', { to: { port: to } });
       response = await fetch(`http://localhost:${to}${path}`, init);
       // Read whole, so the time is the round trip as the request generator counts it
       body = NULL_BODY.has(response.status) ? null : await response.arrayBuffer();

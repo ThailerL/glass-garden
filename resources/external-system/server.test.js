@@ -148,15 +148,25 @@ describe('answering', () => {
 });
 
 describe('sending', () => {
-  it('sends to the nodes it is connected to, drawing each call', async () => {
+  it('sends to the nodes it is connected to, drawing each call to a group', async () => {
     const target = await receiver();
-    const api = await externalSystem(FORWARD, [{ name: 'Bank Events', port: target.port }]);
+    const group = { name: 'Bank Events', port: target.port, reportSends: true };
+    const api = await externalSystem(FORWARD, [group]);
     await api.ready;
     const response = await api.call('/charges', { method: 'POST', body: 'payment 3' });
     expect(await response.json()).toEqual({ forwarded: 1, answers: ['Bank Events 200 received 1'] });
     expect(target.received).toEqual([{ method: 'POST', path: '/webhooks', body: 'payment 3' }]);
     await waitUntil(() => api.sends().length >= 1, () => 'Never drew the send');
     expect(api.sends().map((hop) => hop.to)).toEqual([{ port: target.port }]);
+  });
+
+  it('leaves a send to an endpoint for the endpoint to draw', async () => {
+    const target = await receiver();
+    const api = await externalSystem(FORWARD, [{ name: 'Front Door', port: target.port }]);
+    await api.ready;
+    await api.call('/charges', { method: 'POST', body: 'payment 3' });
+    expect(target.received).toHaveLength(1);
+    expect(api.sends()).toEqual([]);
   });
 
   it('reaches a node connected after it started, without forgetting anything', async () => {
@@ -333,7 +343,8 @@ describe('running', () => {
         }
       }
     `;
-    const api = await externalSystem(code, [{ name: 'Orders', port: target.port }]);
+    const orders = { name: 'Orders', port: target.port, reportSends: true };
+    const api = await externalSystem(code, [orders]);
     await api.ready;
     await waitUntil(() => target.received.length >= 3, () => 'Never sent three orders');
     const bodies = target.received.map((request) => request.body);

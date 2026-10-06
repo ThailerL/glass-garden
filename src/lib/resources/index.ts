@@ -106,3 +106,12 @@ export function providing(
 		getResourceDefinition(node.type).provides.includes(capability)
 	);
 }
+
+// What a hidden sender can send to, and whether it reports the hop itself
+export function sendTargets(connected: readonly ConnectedNode[]) {
+	return connected.flatMap((target) => {
+		const { provides } = getResourceDefinition(target.node.type);
+		const reportSends = provides.includes('targetGroup');
+		return reportSends || provides.includes('endpoint') ? [{ target, reportSends }] : [];
+	});
+}

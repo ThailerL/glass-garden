@@ -1,6 +1,6 @@
-// A function URL, served by the region on the function node's own port so the load
-// balancer and the Preview tab reach it like any instance. A request becomes the event a
-// Lambda function URL sends, in its version 2.0 shape; the handler's result becomes the
+// A function URL, served by the region on the function node's own port so its callers and
+// the Preview tab reach it like any instance. A request becomes the event a Lambda
+// function URL sends, in its version 2.0 shape; the handler's result becomes the
 // response by the URL's own rules. The invoke is internal: the region is the Lambda
 // service here, not a caller the ladder judges or a hop the canvas draws
 import { lambdaRequest } from './aws-api.js';

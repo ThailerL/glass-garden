@@ -5,7 +5,7 @@ import GaugeIcon from '@lucide/svelte/icons/gauge';
 import * as resourceFiles from 'virtual:resource-files';
 import RequestGeneratorConfig from './RequestGeneratorConfig.svelte';
 import type { ConnectedNode, ResourceDefinition } from '../types';
-import { providing } from '../index';
+import { sendTargets } from '../index';
 import { processHandle, runningPort, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig } from '$lib/graph-state.svelte';
@@ -27,12 +27,12 @@ export type Config = z.infer<typeof configSchema>;
 
 // The first running instance of whatever the generator points at, or null while there is none.
 // One rather than all: splitting traffic is a load balancer's job
-export function targetPort(connected: readonly ConnectedNode[]): number | null {
-	for (const target of providing(connected, 'http')) {
+export function sendingTo(connected: readonly ConnectedNode[]) {
+	for (const { target, reportSends } of sendTargets(connected)) {
 		const port = runningPort(target);
-		if (port !== null) return port;
+		if (port !== null) return { port, reportSends };
 	}
-	return null;
+	return { port: null, reportSends: false };
 }
 
 // The knobs travel with the target rather than in launchConfig, so a rate change or a
@@ -40,6 +40,7 @@ export function targetPort(connected: readonly ConnectedNode[]): number | null {
 async function writeConfig(node: Node, container: Vivari, targets: readonly ConnectedNode[]) {
 	const { method, path, body, requestsPerSecond, maxInFlight, stopAfter } =
 		nodeConfig<Config>(node);
+	const { port, reportSends } = sendingTo(targets);
 	// An update can reach a generator whose start has not mounted it yet
 	await container.fs.mkdir(nodeDirectory(node.id), { recursive: true });
 	await container.fs.writeFile(
@@ -51,7 +52,8 @@ async function writeConfig(node: Node, container: Vivari, targets: readonly Conn
 			requestsPerSecond,
 			maxInFlight,
 			stopAfter,
-			target: targetPort(targets)
+			target: port,
+			reportSends
 		})
 	);
 }
@@ -63,7 +65,7 @@ export const requestGenerator = {
 	hasEditableFiles: false,
 	hasPreview: false,
 	provides: [],
-	consumes: ['http'],
+	consumes: ['endpoint', 'targetGroup'],
 	singleTarget: true,
 	configComponent: RequestGeneratorConfig,
 	configSchema,

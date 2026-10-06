@@ -47,7 +47,7 @@ export class Orchestrator {
 			}
 			return undefined;
 		},
-		peerAt: (remotePort) => this.#peerAt(remotePort),
+		peerAt: (remotePort) => this.#connections.nodeAt(remotePort),
 		edgeBetween: (source, target) =>
 			this.#graphState.edges.find((edge) => edge.source === source && edge.target === target)?.id
 	});
@@ -155,14 +155,6 @@ export class Orchestrator {
 	// An instance, a shell or an execution environment: what it connects to is the node's doing
 	ownProcess(pid: number, nodeId: string) {
 		this.#connections.own(pid, nodeId);
-	}
-
-	#peerAt(remotePort: number): string | undefined {
-		const nodeId = this.#connections.nodeAt(remotePort);
-		const node = nodeId === undefined ? undefined : this.#graphState.getNode(nodeId);
-		// It reports its own sends, so a receiver naming it too would draw each one twice
-		if (node && getResourceDefinition(node.type).consumes.includes('http')) return undefined;
-		return nodeId;
 	}
 
 	// Every route to a node's files: a start, the editor, or a shell opened for a node neither

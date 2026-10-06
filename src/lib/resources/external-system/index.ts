@@ -5,7 +5,7 @@ import GlobeIcon from '@lucide/svelte/icons/globe';
 import ExternalSystemConfig from './ExternalSystemConfig.svelte';
 import * as resourceFiles from 'virtual:resource-files';
 import type { ConnectedNode, ResourceDefinition } from '../types';
-import { providing } from '../index';
+import { sendTargets } from '../index';
 import { addressSupply, processHandle, runningPort, withHarness } from '../shared';
 import { nodeDirectory } from '$lib/container';
 import { nodeConfig, nodeName } from '$lib/graph-state.svelte';
@@ -47,9 +47,10 @@ function launchConfig(node: Node) {
 type LaunchConfig = ReturnType<typeof launchConfig>;
 
 export function endpointsOf(targets: readonly ConnectedNode[]) {
-	return providing(targets, 'http').map((target) => ({
+	return sendTargets(targets).map(({ target, reportSends }) => ({
 		name: nodeName(target.node),
-		port: runningPort(target)
+		port: runningPort(target),
+		reportSends
 	}));
 }
 
@@ -74,7 +75,7 @@ export const externalSystem = {
 	hasEditableFiles: false,
 	hasPreview: false,
 	provides: ['endpoint'],
-	consumes: ['http'],
+	consumes: ['endpoint', 'targetGroup'],
 	authorOnly: true,
 	configComponent: ExternalSystemConfig,
 	readOnlyConfig: true,
