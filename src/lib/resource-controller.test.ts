@@ -478,6 +478,59 @@ describe('ResourceController', () => {
 		expect(controller.status).toBe('running');
 	});
 
+	it('retries a start that throws, after the delay, as it does a crash', async () => {
+		const { definition, controller } = setup();
+		vi.mocked(definition.start).mockRejectedValueOnce(new Error('region unreachable'));
+
+		controller.start();
+		await settle();
+		expect(controller.instances[0].status).toBe('crashed');
+		expect(controller.restartPending).toBe(true);
+
+		await vi.advanceTimersByTimeAsync(2100);
+		await settle();
+		expect(controller.instances[0].status).toBe('running');
+		expect(controller.restarts).toBe(1);
+		expect(definition.start).toHaveBeenCalledTimes(2);
+	});
+
+	it('retries a setup that throws, after the delay', async () => {
+		const prepare = vi.fn(async () => {});
+		prepare.mockRejectedValueOnce(new Error('npm install exited 1'));
+		const { definition, controller } = setup({ instanceCount: 2 }, { prepare });
+
+		controller.start();
+		await settle();
+		expect(controller.status).toBe('crashed');
+		expect(definition.start).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(2100);
+		await settle();
+		expect(controller.status).toBe('running');
+		expect(controller.restarts).toBe(1);
+		expect(prepare).toHaveBeenCalledTimes(2);
+	});
+
+	it('pauses restarts after three deployments whose start threw', async () => {
+		const { definition, controller } = setup(
+			{ instanceCount: 2 },
+			{ start: vi.fn().mockRejectedValue(new Error('region unreachable')) }
+		);
+
+		controller.start();
+		await settle();
+		// Both instances of a deployment failing spends one strike, as it does for a crash
+		for (let round = 0; round < 3; round++) {
+			expect(definition.start).toHaveBeenCalledTimes((round + 1) * 2);
+			await vi.advanceTimersByTimeAsync(2100);
+			await settle();
+		}
+		expect(definition.start).toHaveBeenCalledTimes(6);
+		expect(controller.status).toBe('crashed');
+		expect(controller.restartsPaused).toBe(true);
+		expect(controller.restartPending).toBe(false);
+	});
+
 	it('keeps an instance that would not die, then lets a retried stop release it', async () => {
 		const { handles, controller } = setup();
 

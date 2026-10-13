@@ -352,6 +352,7 @@ export class ResourceController {
 			for (const instance of pending) instance.status = 'crashed';
 			this.#toastOnce(launch.stamp, `${this.#nodeName()} could not be set up`);
 			this.log.event('resource', 'error', `Failed to set up: ${messageOf(e)}`);
+			this.#retryFailedStart(deployment);
 		}
 	}
 
@@ -403,6 +404,7 @@ export class ResourceController {
 			instance.status = 'crashed';
 			this.#toastOnce(instance.configStamp, `${this.#nodeName()} could not be started`);
 			this.log.event(instance.port, 'error', `Instance failed to start: ${messageOf(e)}`);
+			this.#retryFailedStart(instance.deployment);
 		}
 	}
 
@@ -431,25 +433,8 @@ export class ResourceController {
 		this.#lastCrashAt = Date.now();
 		this.log.event(instance.port, 'warning', `Instance crashed (exit ${code})`);
 
-		// The rest of a deployment crashing tells us nothing new, so only its first
-		// casualty spends from the budget
-		const firstOfDeployment = neverRan && instance.deployment !== this.#lastFailedDeployment;
-		if (firstOfDeployment) {
-			this.#lastFailedDeployment = instance.deployment;
-			this.#failedDeployments++;
-		}
-
-		const capped = this.#failedDeployments >= MAX_FAILED_DEPLOYMENTS;
-		if (firstOfDeployment && capped) {
-			this.log.event(
-				'resource',
-				'error',
-				'Restarts paused - instances kept crashing before coming up'
-			);
-			if (this.wantsRunning) {
-				toast.error(`${this.#nodeName()} keeps crashing - restarts paused`);
-			}
-		} else if (this.wantsRunning && !capped) {
+		if (neverRan) this.#chargeDeployment(instance.deployment);
+		if (this.wantsRunning && this.#failedDeployments < MAX_FAILED_DEPLOYMENTS) {
 			// A config that has already said it cannot come up stays in the log. One that was
 			// running until now cleared the latch when it came up, so it still interrupts
 			this.#toastOnce(
@@ -458,6 +443,27 @@ export class ResourceController {
 				'warning'
 			);
 		}
+		this.schedule();
+	}
+
+	// Only a deployment's first failure spends from the budget
+	#chargeDeployment(deployment: number) {
+		if (deployment === this.#lastFailedDeployment) return;
+		this.#lastFailedDeployment = deployment;
+		this.#failedDeployments++;
+		if (this.#failedDeployments < MAX_FAILED_DEPLOYMENTS) return;
+		this.log.event(
+			'resource',
+			'error',
+			'Restarts paused - instances kept crashing before coming up'
+		);
+		if (this.wantsRunning) toast.error(`${this.#nodeName()} keeps crashing - restarts paused`);
+	}
+
+	// A start that threw is a deployment that never came up, counted and retried as a crash is
+	#retryFailedStart(deployment: number) {
+		this.#lastCrashAt = Date.now();
+		this.#chargeDeployment(deployment);
 		this.schedule();
 	}
 
