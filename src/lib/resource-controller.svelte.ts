@@ -1,7 +1,13 @@
 import type { Node } from '@xyflow/svelte';
 import type { Vivari } from '@vivari/core';
 import { toast } from 'svelte-sonner';
-import type { ConnectedNode, Instance, ResourceDefinition, ResourceStatus } from './resources';
+import type {
+	ConnectedNode,
+	Instance,
+	InstanceHandle,
+	ResourceDefinition,
+	ResourceStatus
+} from './resources';
 import { nodeName } from './graph-state.svelte';
 import { messageOf } from './errors';
 import { ResourceLog } from './resource-log.svelte';
@@ -10,6 +16,8 @@ import type { TrafficEvent } from './traffic.svelte';
 const MAX_FAILED_DEPLOYMENTS = 3;
 // Before a crashed instance is respawned
 const RESTART_DELAY_MS = 2000;
+// How long a spawned instance has to start listening on its port
+const START_DEADLINE_MS = 30_000;
 
 // Instances carry the stamp rather than the config itself, so staleness is one comparison
 const stampOf = (launchConfig: unknown) => JSON.stringify(launchConfig ?? null);
@@ -369,7 +377,11 @@ export class ResourceController {
 				this.log.capture(instance.port, handle.output);
 			}
 			// Server-hosting resources stay 'starting' until their port opens
-			if (this.#definition.readyOnStart) instance.status = 'running';
+			if (this.#definition.readyOnStart) {
+				instance.status = 'running';
+			} else {
+				setTimeout(() => this.#stopOverdueStart(instance, handle), START_DEADLINE_MS);
+			}
 			this.log.event(
 				instance.port,
 				'info',
@@ -392,6 +404,20 @@ export class ResourceController {
 			this.#toastOnce(instance.configStamp, `${this.#nodeName()} could not be started`);
 			this.log.event(instance.port, 'error', `Instance failed to start: ${messageOf(e)}`);
 		}
+	}
+
+	// The exit that follows is a crash before coming up, so #onExit counts and retries it
+	#stopOverdueStart(instance: Instance, handle: InstanceHandle) {
+		if (instance.status !== 'starting') return;
+		this.log.event(
+			instance.port,
+			'error',
+			`Instance was not listening on its port after ${START_DEADLINE_MS / 1000} s, stopping it`
+		);
+		handle.stop().catch((e) => {
+			instance.status = 'unresponsive';
+			this.log.event(instance.port, 'error', `Instance failed to stop: ${messageOf(e)}`);
+		});
 	}
 
 	#onExit(instance: Instance, code: number) {

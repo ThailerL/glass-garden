@@ -203,6 +203,56 @@ describe('ResourceController', () => {
 		expect(controller.onPortOpen(59999, 'http://x/59999/')).toBe(false);
 	});
 
+	it('stops an instance that is not listening by the deadline, and retries it as a crash', async () => {
+		const { definition, handles, controller } = setup({}, { readyOnStart: false });
+		controller.start();
+		await settle();
+		// As a real process does: killing it is what makes it exit
+		vi.mocked(handles[0].handle.stop).mockImplementation(async () => handles[0].exit(143));
+
+		await vi.advanceTimersByTimeAsync(29_999);
+		expect(controller.instances[0].status).toBe('starting');
+		expect(handles[0].handle.stop).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(1);
+		await settle();
+		expect(controller.instances[0].status).toBe('crashed');
+		expect(controller.log.events.map((event) => event.text)).toContain(
+			'Instance was not listening on its port after 30 s, stopping it'
+		);
+
+		await vi.advanceTimersByTimeAsync(2100);
+		await settle();
+		expect(controller.instances[0].status).toBe('starting');
+		expect(controller.restarts).toBe(1);
+		expect(definition.start).toHaveBeenCalledTimes(2);
+	});
+
+	it('leaves an instance alone once its port has opened', async () => {
+		const { handles, controller } = setup({}, { readyOnStart: false });
+		controller.start();
+		await settle();
+		controller.onPortOpen(controller.instances[0].port, 'http://x/');
+
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(controller.instances[0].status).toBe('running');
+		expect(handles[0].handle.stop).not.toHaveBeenCalled();
+	});
+
+	it('holds an overdue instance that would not die, so nothing is spawned over it', async () => {
+		const { definition, handles, controller } = setup({}, { readyOnStart: false });
+		controller.start();
+		await settle();
+		vi.mocked(handles[0].handle.stop).mockRejectedValueOnce(new Error('kill failed'));
+
+		await vi.advanceTimersByTimeAsync(30_000);
+		await settle();
+		expect(controller.instances[0].status).toBe('unresponsive');
+
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(definition.start).toHaveBeenCalledTimes(1);
+	});
+
 	it('is unsettled from the moment an instance comes up until its neighbours have been told', async () => {
 		const { services, controller } = setup({}, { readyOnStart: false });
 		controller.start();
