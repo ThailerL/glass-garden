@@ -74,8 +74,8 @@ if (
 
 const checkout = fs.mkdtempSync(path.join(os.tmpdir(), 'vivari-vendor-'));
 try {
-	log(`cloning ${tag} (scripts only)`);
-	const clone = ['clone', `--branch=${tag}`, '--depth=1', '--filter=blob:none', '--sparse'];
+	log(`cloning ${tag}`);
+	const clone = ['clone', `--branch=${tag}`, '--depth=1', '--filter=blob:none'];
 	try {
 		execFileSync('git', [...clone, REPOSITORY, checkout], { stdio: 'ignore' });
 	} catch (error) {
@@ -83,7 +83,6 @@ try {
 		if (error.code === 'ENOENT') fail('git is required to generate the vendor assets');
 		fail(`could not clone ${REPOSITORY} at ${tag} - is there a ${tag} tag?`);
 	}
-	execFileSync('git', ['-C', checkout, 'sparse-checkout', 'set', 'scripts'], { stdio: 'ignore' });
 
 	fs.mkdirSync(OUTPUT_DIRECTORY, { recursive: true });
 
